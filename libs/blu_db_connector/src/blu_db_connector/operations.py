@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from blu_models import CredencialServicoExterno
 
 # Importa a fábrica de sessões do setup de DB
-from .database import SessionLocal
+from blu_db_connector.database import SessionLocal
 
 
 class BluDBConnector:

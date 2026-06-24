@@ -5,9 +5,12 @@ Redis-based HITL Queue Manager.
 Gerencia a fila de interações pendentes de revisão humana.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 from datetime import datetime, timedelta
+from typing import Any
 from uuid import UUID
 
 import redis
@@ -40,7 +43,7 @@ class HitlQueue:
     REVIEW_KEY_PREFIX = "hitl:review:"
     STATS_KEY = "hitl:stats"
 
-    def __init__(self, redis_client: redis.Redis):
+    def __init__(self, redis_client: redis.Redis) -> None:
         self.redis = redis_client
 
     @classmethod

@@ -14,6 +14,9 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.util import get_remote_address
 
 from agent_api.api.agents_router import router as agents_router
 from agent_api.api.chat_router import router as chat_router
@@ -146,6 +149,11 @@ def create_app() -> FastAPI:
             allow_methods=["*"],
             allow_headers=["*"],
         )
+
+    # Rate limiting (RATE-01)
+    limiter = Limiter(key_func=get_remote_address)
+    app.state.limiter = limiter
+    app.add_middleware(SlowAPIMiddleware)
 
     # Routers
     app.include_router(chat_router, prefix="/v1")

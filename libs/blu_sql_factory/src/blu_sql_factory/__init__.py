@@ -1,4 +1,4 @@
-from .allowlist import (
+from blu_sql_factory.allowlist import (
     AllowlistConfig,
     AllowlistLoader,
     JoinPath,
@@ -7,34 +7,34 @@ from .allowlist import (
     get_allowlist_config,
     get_default_loader,
 )
-from .analytics_v2_contract import (
+from blu_sql_factory.analytics_v2_contract import (
     ALLOWED_AGGREGATES,
     ALLOWED_COLUMNS,
     ALLOWED_VIEWS,
     ANALYTICS_V2_CONTRACT,
     AnalyticsV2Contract,
 )
-from .checks import SqlValidator as ChecksValidator
-from .checks import ValidationResult as ChecksValidationResult
-from .executor import (
+from blu_sql_factory.checks import SqlValidator as ChecksValidator
+from blu_sql_factory.checks import ValidationResult as ChecksValidationResult
+from blu_sql_factory.executor import (
     ExecutionConfig,
     ExecutionResult,
     TextToSqlExecutor,
 )
-from .factory import (
+from blu_sql_factory.factory import (
     close_shared_engine,
     get_shared_engine,
 )
-from .observability import (
+from blu_sql_factory.observability import (
     SqlValidationObserver,
     ValidationLogEntry,
     ValidationTimer,
     log_sql_decision,
 )
-from .parser import SqlParser
-from .rewrites import SqlRewriter
-from .sanitizer import ResultSanitizer
-from .schema_snapshot import (
+from blu_sql_factory.parser import SqlParser
+from blu_sql_factory.rewrites import SqlRewriter
+from blu_sql_factory.sanitizer import ResultSanitizer
+from blu_sql_factory.schema_snapshot import (
     CacheEntry,
     ColumnMetadata,
     SchemaSnapshot,
@@ -42,7 +42,7 @@ from .schema_snapshot import (
     SchemaSnapshotGenerator,
     ViewMetadata,
 )
-from .validator import (
+from blu_sql_factory.validator import (
     SqlValidator,
     ValidationError,
     ValidationErrorType,

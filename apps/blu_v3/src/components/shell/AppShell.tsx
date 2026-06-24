@@ -9,6 +9,8 @@ import EditorOverlay from '../shared/EditorOverlay'
 import ChatPanel from '../chat/ChatPanel'
 import FirstRunOverlay from '../onboarding/FirstRunOverlay'
 import ConnectionsModal from '../onboarding/ConnectionsModal'
+import ErrorBoundary from '../shared/ErrorBoundary'
+import ErrorFallback from '../shared/ErrorFallback'
 import HomePage from '../../pages/app/HomePage'
 import ComprasRoom from '../../pages/app/ComprasRoom'
 import FinanceiroRoom from '../../pages/app/FinanceiroRoom'
@@ -128,37 +130,81 @@ export default function AppShell() {
       <Sidebar />
       <main className="main">
         <div className={`screen${on('home')}`} id="s-home">
-          {show('home') && <HomePage />}
+          {show('home') && (
+            <ErrorBoundary fallback={<ErrorFallback />}>
+              <HomePage />
+            </ErrorBoundary>
+          )}
         </div>
         <div className={`screen${on('compras')}`} id="s-compras">
-          {show('compras') && <ComprasRoom />}
+          {show('compras') && (
+            <ErrorBoundary fallback={<ErrorFallback />}>
+              <ComprasRoom />
+            </ErrorBoundary>
+          )}
         </div>
         <div className={`screen${on('financeiro')}`} id="s-financeiro">
-          {show('financeiro') && <FinanceiroRoom />}
+          {show('financeiro') && (
+            <ErrorBoundary fallback={<ErrorFallback />}>
+              <FinanceiroRoom />
+            </ErrorBoundary>
+          )}
         </div>
         <div className={`screen${on('agenda')}`} id="s-agenda">
-          {show('agenda') && <AgendaRoom />}
+          {show('agenda') && (
+            <ErrorBoundary fallback={<ErrorFallback />}>
+              <AgendaRoom />
+            </ErrorBoundary>
+          )}
         </div>
         <div className={`screen${on('documentos')}`} id="s-documentos">
-          {show('documentos') && <DocumentosRoom openEditor={openEditor} />}
+          {show('documentos') && (
+            <ErrorBoundary fallback={<ErrorFallback />}>
+              <DocumentosRoom openEditor={openEditor} />
+            </ErrorBoundary>
+          )}
         </div>
         <div className={`screen${on('estrategia')}`} id="s-estrategia">
-          {show('estrategia') && <EstrategiaRoom />}
+          {show('estrategia') && (
+            <ErrorBoundary fallback={<ErrorFallback />}>
+              <EstrategiaRoom />
+            </ErrorBoundary>
+          )}
         </div>
         <div className={`screen${on('clientes')}`} id="s-clientes">
-          {show('clientes') && <ClientesRoom />}
+          {show('clientes') && (
+            <ErrorBoundary fallback={<ErrorFallback />}>
+              <ClientesRoom />
+            </ErrorBoundary>
+          )}
         </div>
         <div className={`screen${on('atividade')}`} id="s-atividade">
-          {show('atividade') && <AtividadeScreen />}
+          {show('atividade') && (
+            <ErrorBoundary fallback={<ErrorFallback />}>
+              <AtividadeScreen />
+            </ErrorBoundary>
+          )}
         </div>
         <div className={`screen${on('admin')}`} id="s-admin">
-          {show('admin') && myRole === 'owner' && <AdminScreen />}
+          {show('admin') && myRole === 'owner' && (
+            <ErrorBoundary fallback={<ErrorFallback />}>
+              <AdminScreen />
+            </ErrorBoundary>
+          )}
         </div>
         <div className={`screen${on('blu_ops')}`} id="s-blu_ops">
-          {show('blu_ops') && tier === 'ADMIN' && <AgentOpsRoom />}
+          {show('blu_ops') && tier === 'ADMIN' && (
+            <ErrorBoundary fallback={<ErrorFallback />}>
+              <AgentOpsRoom />
+            </ErrorBoundary>
+          )}
         </div>
         <div className={`screen${on('biblioteca')}`} id="s-biblioteca">
-          {show('biblioteca') && <BusinessMemoryPage />}
+          {show('biblioteca') && (
+            <ErrorBoundary fallback={<ErrorFallback />}>
+              <BusinessMemoryPage />
+            </ErrorBoundary>
+          )}
         </div>
       </main>
 

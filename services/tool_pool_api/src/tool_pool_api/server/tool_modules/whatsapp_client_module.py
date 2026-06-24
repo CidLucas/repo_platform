@@ -20,7 +20,7 @@ from blu_twilio_client.client import TwilioClient
 from blu_twilio_client.config import TwilioSettings
 from tool_pool_api.server.dependencies import get_context_service
 
-from . import register_module
+from tool_pool_api.server.tool_modules import register_module
 
 logger = logging.getLogger(__name__)
 

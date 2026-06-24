@@ -1,8 +1,8 @@
 """Google Sheets Client implementation"""
 from typing import Any
 
-from ..base import BaseGoogleClient
-from .models import SheetReadResult, SheetWriteResult
+from blu_google_suite_client.base import BaseGoogleClient
+from blu_google_suite_client.sheets.models import SheetReadResult, SheetWriteResult
 
 
 class GoogleSheetsClient(BaseGoogleClient):

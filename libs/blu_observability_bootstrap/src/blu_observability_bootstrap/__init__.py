@@ -36,7 +36,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
 # Export Grafana/observability integration
-from .grafana import (
+from blu_observability_bootstrap.grafana import (
     GrafanaLokiFormatter,
     create_grafana_logger,
     is_grafana_enabled,
@@ -44,7 +44,7 @@ from .grafana import (
 )
 
 # Export health check utilities
-from .health import (
+from blu_observability_bootstrap.health import (
     check_database_url,
     check_http_endpoint,
     check_redis_url,
@@ -52,7 +52,7 @@ from .health import (
 )
 
 # Export Langfuse integration
-from .langfuse import (
+from blu_observability_bootstrap.langfuse import (
     LangfusePromptClient,
     flush_langfuse,
     flush_langfuse_async,
@@ -61,7 +61,7 @@ from .langfuse import (
     shutdown_langfuse,
     shutdown_langfuse_async,
 )
-from .logger import setup_structured_logging
+from blu_observability_bootstrap.logger import setup_structured_logging
 
 if TYPE_CHECKING:
     from opentelemetry.sdk.metrics import MeterProvider
@@ -349,7 +349,7 @@ def setup_observability(
     # Langfuse validation
     if langfuse:
         if is_langfuse_enabled():
-            from .langfuse import get_langfuse_settings
+            from blu_observability_bootstrap.langfuse import get_langfuse_settings
 
             settings = get_langfuse_settings()
             logger.debug(f"Langfuse enabled: {settings['host']}")

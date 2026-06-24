@@ -1,7 +1,9 @@
 
+from __future__ import annotations
+
 from sqlmodel import SQLModel
 
-from .cliente_blu import TierCliente, TipoCliente
+from blu_models.cliente_blu import TierCliente, TipoCliente
 
 
 class ClienteBluUpdate(SQLModel):

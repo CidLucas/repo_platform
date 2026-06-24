@@ -17,6 +17,7 @@ fastmcp = "^2.11.0"
 anyio = "^4.1.1"
 redis = "^5.0.0"
 httpx = "^0.28.1"
+slowapi = "^0.1.9"
 langfuse = ">=4.0.0"
 langchain = "^0.3.0"  # Required for langfuse.langchain integration
 duckdb = "^1.1.0"  # In-process analytical SQL engine for CSV queries

@@ -11,7 +11,7 @@ from uuid import UUID
 
 from supabase import Client
 
-from .client import get_supabase_client
+from blu_supabase_client.client import get_supabase_client
 
 logger = logging.getLogger(__name__)
 

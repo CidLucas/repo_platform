@@ -4,6 +4,7 @@ Structured Data Models
 Pydantic models for structured tabular data responses from SQL queries.
 Used for rendering interactive data grids in the frontend.
 """
+from __future__ import annotations
 
 from enum import Enum
 from typing import Any

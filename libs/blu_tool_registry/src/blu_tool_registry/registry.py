@@ -11,7 +11,7 @@ tool access based on client configuration.
 
 import logging
 
-from .tool_metadata import TierLevel, ToolCategory, ToolMetadata
+from blu_tool_registry.tool_metadata import TierLevel, ToolCategory, ToolMetadata
 
 logger = logging.getLogger(__name__)
 

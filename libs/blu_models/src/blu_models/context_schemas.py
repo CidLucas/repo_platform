@@ -8,6 +8,7 @@ Used for validation, documentation, and type hints.
 Each schema corresponds to a ContextSection enum value and defines
 the expected structure when storing/retrieving that section.
 """
+from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum

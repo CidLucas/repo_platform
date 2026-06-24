@@ -13,8 +13,8 @@ This module provides the DockerMCPBridge class which handles:
 import logging
 from typing import Any
 
-from .exceptions import DockerMCPConnectionError
-from .tool_metadata import TierLevel, ToolCategory, ToolMetadata
+from blu_tool_registry.exceptions import DockerMCPConnectionError
+from blu_tool_registry.tool_metadata import TierLevel, ToolCategory, ToolMetadata
 
 logger = logging.getLogger(__name__)
 

@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import uuid
-from typing import Any
+from typing import Any, Callable
 
 from blu_models.credencial_servico_externo import CredencialServicoExternoBase
 
-from .cliente_blu import ClienteBluBase
+from blu_models.cliente_blu import ClienteBluBase
 
 
 class BluClientContext(ClienteBluBase):
@@ -83,7 +85,7 @@ class BluClientContext(ClienteBluBase):
         Returns:
             SafeClientContext with all loaded sections
         """
-        from .context_schemas import (
+        from blu_models.context_schemas import (
             AvailableTools,
             BrandVoice,
             CompanyProfile,
@@ -91,8 +93,8 @@ class BluClientContext(ClienteBluBase):
             Policies,
             TeamStructure,
         )
-        from .enums import ContextSection
-        from .safe_client_context import SafeClientContext
+        from blu_models.enums import ContextSection
+        from blu_models.safe_client_context import SafeClientContext
 
         # Build loaded_sections list
         loaded_sections = []
@@ -110,7 +112,7 @@ class BluClientContext(ClienteBluBase):
                 loaded_sections.append(section_enum)
 
         # Validate sections against schemas (best effort)
-        def _safe_validate(data, schema_cls):
+        def _safe_validate(data: dict[str, Any] | None, schema_cls: Callable[..., Any]) -> Any:
             if not data:
                 return None
             try:

@@ -1,0 +1,34 @@
+CONTRATO DE PRESTAÇÃO DE SERVIÇOS DE TI
+=========================================
+CONTRATANTE: ______________________________________ (CNPJ: _____________________)
+CONTRATADA: NovaTech Soluções em Informática Ltda. — CNPJ: 32.718.694/0001-07
+
+CLÁUSULA 1 — OBJETO
+Prestação de serviços de suporte técnico em TI, incluindo:
+- Manutenção preventiva e corretiva de equipamentos
+- Suporte remoto e presencial
+- Gestão de rede e servidores
+- Backup e segurança da informação
+
+CLÁUSULA 2 — VALOR E FORMA DE PAGAMENTO
+Valor mensal: R$ __________________
+Pagamento: boleto bancário, todo dia 10 do mês corrente
+Reajuste: anualmente pelo IPCA
+
+CLÁUSULA 3 — PRAZO
+Prazo mínimo: 12 meses
+Rescisão antecipada: multa de 30% sobre saldo do contrato
+
+CLÁUSULA 4 — ATENDIMENTO
+Disponibilidade: dias úteis, 8h-18h
+Emergência: WhatsApp (11) 9 8888-7777 (taxa adicional fora do horário)
+Tempo de resposta: até 4h úteis
+
+CLÁUSULA 5 — OBSERVAÇÕES
+- Peças e hardware necessários para reparo serão cobrados à parte
+- Visitas técnicas adicionais (fora do escopo mensal) serão cobradas à hora técnica
+
+São Paulo, ____ de ________________ de ________
+
+___________________________          ___________________________
+CONTRATANTE                          NOVATECH TI (João Nogueira)

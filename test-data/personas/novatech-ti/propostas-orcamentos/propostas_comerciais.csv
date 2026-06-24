@@ -1,0 +1,9 @@
+﻿proposta_id;data;cliente;contato;tipo;descricao;valor_estimado;status
+PROP-001;2026-04-07;AutoPeças Lima Ltda.;Seu Lima;NUVEM;Proposta de serviços de TI — aquisição equipamentos;27487.32;APROVADO
+PROP-002;2025-11-28;Padaria Vitória;;HARDWARE;Proposta de serviços de TI — migração nuvem;7869.42;EM_NEGOCIAÇÃO
+PROP-003;2026-06-05;Empório da Vila;;HARDWARE;Proposta de serviços de TI — migração nuvem;4754.99;APROVADO
+PROP-004;2026-01-12;Restaurante do Beto;Beto;MANUTENÇÃO;Proposta de serviços de TI — migração nuvem;13722.85;APROVADO
+PROP-005;2025-10-30;Escritório Advocacia Rocha & Silva;Dr. Rocha;PROJETO;Proposta de serviços de TI — migração nuvem;15419.35;APROVADO
+PROP-006;2026-03-04;Farmácia Bem-Estar Ltda.;Sr. Paulo;PROJETO;Proposta de serviços de TI — migração nuvem;18310.12;EM_NEGOCIAÇÃO
+PROP-007;2025-10-10;Farmácia Bem-Estar Ltda.;Sr. Paulo;NUVEM;Proposta de serviços de TI — aquisição equipamentos;26509.74;EM_NEGOCIAÇÃO
+PROP-008;2026-01-26;Escritório Advocacia Rocha & Silva;Dr. Rocha;MANUTENÇÃO;Proposta de serviços de TI — contrato anual;26764.08;APROVADO

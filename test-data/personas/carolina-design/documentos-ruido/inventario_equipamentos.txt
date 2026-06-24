@@ -1,0 +1,11 @@
+INVENTÁRIO DE EQUIPAMENTOS — CAROLINA MENDES
+==============================================
+Item                        | Quando comprou | Valor   | Status
+MacBook Pro 14" M1 Pro      | 2022          | R$ 18K  | Bom estado, bateria desgastada
+iPad Air M2                 | 2025          | R$ 7.5K | Uso para esboços
+Monitor LG 27" 4K           | 2021          | R$ 2.5K | Perfeito
+Mesa digitalizadora Wacom   | 2023          | R$ 1.2K | Substituto (perdi a anterior)
+Impressora HP LaserJet      | 2020          | R$ 800  | Só imprime em preto
+Cadeira ergonômica          | 2021          | R$ 1.5K | Mole, preciso trocar
+Nobreak APC                 | 2022          | R$ 600  | Ok
+Fones Sony WH-1000XM4       | 2022          | R$ 1.8K | Uso diário

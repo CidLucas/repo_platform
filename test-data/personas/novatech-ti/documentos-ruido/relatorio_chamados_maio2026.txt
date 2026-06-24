@@ -1,0 +1,26 @@
+RELATÓRIO DE CHAMADOS — MAIO 2026
+=====================================
+
+Total: 47 chamados
+Abertos: 3
+Em andamento: 5
+Fechados: 39
+
+TOP 5 CLIENTES:
+1. Farmácia Bem-Estar — 12 chamados (sistema PDV lento)
+2. Rocha & Silva — 8 chamados (e-mail fora do ar)
+3. Construtora Novo Norte — 6 chamados
+4. AutoPeças Lima — 5 chamados
+5. Restaurante do Beto — 5 chamados (impressora vive enrolando)
+
+CHAMADOS ABERTOS (críticos):
+#1023 — Farmácia Bem-Estar — Servidor de banco fora do ar (Rafael alocado)
+#1024 — Rocha & Silva — Vírus em 3 máquinas (quarentena, aguardando)
+
+TEMPO MÉDIO DE RESPOSTA: 2,3 horas
+TEMPO MÉDIO DE RESOLUÇÃO: 6,8 horas
+
+OBSERVAÇÕES DA MARIA:
+- O Rafael resolveu 90% dos chamados sozinho esse mês
+- Lucas já está atendendo chamados simples (instalação, senha)
+- João fechou proposta de R$ 18K na Construtora

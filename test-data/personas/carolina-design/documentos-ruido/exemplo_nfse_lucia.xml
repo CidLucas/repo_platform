@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<NFSe xmlns="http://www.abrasf.org.br/ABRASF/NFSe.xsd">
+  <InfNFSe>
+    <Identificacao>
+      <Numero>2025-0001</Numero>
+      <CodigoVerificacao>ABCD-1234-EFGH-5678</CodigoVerificacao>
+    </Identificacao>
+    <Prestador>
+      <CNPJ>384.029.170-50</CNPJ>
+      <InscricaoMunicipal>8.765.432-1</InscricaoMunicipal>
+      <RazaoSocial>Carolina Mendes de Oliveira</RazaoSocial>
+      <NomeFantasia>Carol Mendes Design</NomeFantasia>
+      <Endereco>
+        <TipoLogradouro>RUA</TipoLogradouro>
+        <Logradouro>Artur de Azevedo</Logradouro>
+        <Numero>1040</Numero>
+        <Complemento>Apto 72</Complemento>
+        <Bairro>Pinheiros</Bairro>
+        <Cidade>3550308</Cidade>
+        <UF>SP</UF>
+        <CEP>05404003</CEP>
+      </Endereco>
+    </Prestador>
+    <Tomador>
+      <CNPJ>48.792.305/0001-81</CNPJ>
+      <RazaoSocial>Lúcia Alves Freitas ME</RazaoSocial>
+      <Endereco>
+        <Logradouro>Rua Silva Teles</Logradouro>
+        <Numero>332</Numero>
+        <Bairro>Barra Funda</Bairro>
+        <Cidade>3550308</Cidade>
+        <UF>SP</UF>
+        <CEP>01140020</CEP>
+      </Endereco>
+    </Tomador>
+    <Servico>
+      <Descricao>Criação de logotipo e cardápio digital</Descricao>
+      <Valores>
+        <ValorServico>2500.00</ValorServico>
+        <ISSRetido>false</ISSRetido>
+        <Aliquota>0.05</Aliquota>
+        <ValorISS>125.00</ValorISS>
+        <ValorLiquido>2375.00</ValorLiquido>
+      </Valores>
+    </Servico>
+  </InfNFSe>
+</NFSe>

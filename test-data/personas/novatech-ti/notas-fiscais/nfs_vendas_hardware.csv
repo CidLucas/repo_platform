@@ -1,0 +1,10 @@
+﻿nf_id;data_emissao;natureza_operacao;cliente;cpf_cnpj;descricao;valor_total;iss_retido;iss_aliquota;iss_valor;observacao
+NFE-2026-0132;2026-03-15;VENDA_HW;AutoPeças Lima Ltda.;11.222.333/0001-44;"10 Monitores Dell 24"" + 5 SSDs Kingston 480GB";9800.00;N/A;N/A;0.00;
+NFE-2026-0133;2026-02-10;VENDA_HW;Escritório Advocacia Rocha & Silva;44.555.666/0001-77;3 Notebooks Dell Latitude 3540;12400.00;N/A;N/A;0.00;
+NFE-2025-0134;2025-12-05;VENDA_HW;Farmácia Bem-Estar Ltda.;77.888.999/0001-00;Servidor Dell PowerEdge T160 + Nobreak APC 1500VA;18500.00;N/A;N/A;0.00;
+NFE-2026-0135;2026-01-20;VENDA_HW;Colégio São Miguel;11.234.567/0001-90;20 Chromebooks educacionais Samsung;24000.00;N/A;N/A;0.00;
+NFE-2025-0136;2025-08-12;VENDA_HW;Padaria Vitória;12.345.678/0001-00;2 computadores completos + impressora térmica;5200.00;N/A;N/A;0.00;
+NFE-2025-0137;2025-11-20;VENDA_HW;Construtora Novo Norte Ltda.;22.456.789/0001-10;Switch 24 portas + cabeamento estruturado (4 andares);8500.00;N/A;N/A;0.00;
+NFE-2026-0138;2026-04-02;VENDA_HW;Empório da Vila;56.789.012/0001-34;Leitor de código de barras + TEF + impressora não-fiscal;3200.00;N/A;N/A;0.00;
+NFE-2025-0139;2025-09-08;VENDA_HW;Restaurante do Beto;66.777.888/0001-99;"2 tablets 10"" + suporte PDV";2400.00;N/A;N/A;0.00;
+NFE-2026-0140;2026-03-01;VENDA_HW;Construtora Novo Norte Ltda.;22.456.789/0001-10;Projeto migração nuvem — 30 estações (projeto completo);45000.00;N/A;N/A;0.00;

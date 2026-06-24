@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<NFe xmlns="http://www.portalfiscal.inf.br/nfe">
+  <infNFe Id="NFe35200648792305000181550010000000011000000011" versao="4.00">
+    <ide>
+      <cUF>35</cUF>
+      <cNF>00000001</cNF>
+      <natOp>VENDA</natOp>
+      <mod>55</mod>
+      <serie>1</serie>
+      <nNF>1</nNF>
+      <dhEmi>2025-12-07T10:00:00-03:00</dhEmi>
+      <tpNF>1</tpNF>
+      <idDest>1</idDest>
+      <tpImp>1</tpImp>
+      <tpEmis>1</tpEmis>
+      <cDV>1</cDV>
+      <tpAmb>1</tpAmb>
+      <finNFe>1</finNFe>
+      <indFinal>1</indFinal>
+      <indPres>1</indPres>
+      <procEmi>0</procEmi>
+      <verProc>teste_gerador</verProc>
+    </ide>
+    <emit>
+      <CNPJ>48792305000181</CNPJ>
+      <xNome>Lucia Alves Freitas ME</xNome>
+      <xFant>Lucia's Food Buffet &amp; Catering</xFant>
+      <enderEmit>
+        <xLgr>Rua Silva Teles</xLgr>
+        <nro>332</nro>
+        <xBairro>Barra Funda</xBairro>
+        <xMun>Sao Paulo</xMun>
+        <UF>SP</UF>
+        <CEP>01140020</CEP>
+      </enderEmit>
+    </emit>
+    <dest>
+      <CPF>40127365890</CPF>
+      <xNome>Roberto Silva e Camila Costa</xNome>
+    </dest>
+    <det nItem="1">
+      <prod>
+        <cProd>001</cProd>
+        <xProd>Buffet Completo Casamento - 200 convidados</xProd>
+        <CFOP>5102</CFOP>
+        <uCom>SERV</uCom>
+        <qCom>1</qCom>
+        <vUnCom>18500.00</vUnCom>
+        <vProd>18500.00</vProd>
+      </prod>
+      <imposto>
+        <vTotTrib>4320.00</vTotTrib>
+        <ICMS15>
+          <orig>0</orig>
+          <CST>00</CST>
+          <modBC>3</modBC>
+          <vBC>12950.00</vBC>
+          <pICMS>12.00</pICMS>
+          <vICMS>1554.00</vICMS>
+        </ICMS15>
+      </imposto>
+    </det>
+    <total>
+      <ICMSTot>
+        <vBC>12950.00</vBC>
+        <vICMS>1554.00</vICMS>
+        <vPIS>305.25</vPIS>
+        <vCOFINS>1406.00</vCOFINS>
+        <vNF>18500.00</vNF>
+      </ICMSTot>
+    </total>
+  </infNFe>
+</NFe>

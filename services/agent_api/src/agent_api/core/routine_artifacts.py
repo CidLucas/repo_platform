@@ -613,36 +613,46 @@ async def _save_insights(inputs: dict, client_id: str) -> dict:
     db = get_supabase_client(use_service_role=True)
     run_date = date.today().isoformat()
     now = datetime.now(timezone.utc).isoformat()
-    written = 0
 
-    for item in insights:
-        if not isinstance(item, dict):
-            continue
-        try:
-            await asyncio.to_thread(
-                lambda i=item: db.table("client_insights").insert({
+    # B3.3 / Issue #121 — Batch insert all insights in a single DB call
+    valid = [it for it in insights if isinstance(it, dict)]
+    if not valid:
+        return {"insights_written": 0}
+    try:
+        await asyncio.to_thread(
+            lambda: db.table("client_insights").insert([
+                {
                     "client_id": client_id,
-                    "room": i.get("room") or _map_dimension_to_room(i.get("dimension", "financeiro")),
-                    "kpi": i.get("kpi"),
-                    "title": str(i.get("title", "Insight"))[:200],
-                    "body": i.get("body") or i.get("observation"),
-                    "observation": i.get("observation"),
-                    "recommendation": i.get("recommendation"),
-                    "severity": i.get("severity", "info"),
-                    "metric_value": i.get("metric_value"),
-                    "baseline_value": i.get("baseline_value"),
-                    "variance_pct": i.get("variance_pct"),
+                    "room": it.get("room") or _map_dimension_to_room(it.get("dimension", "financeiro")),
+                    "kpi": it.get("kpi"),
+                    "title": str(it.get("title", "Insight"))[:200],
+                    "body": it.get("body") or it.get("observation"),
+                    "observation": it.get("observation"),
+                    "recommendation": it.get("recommendation"),
+                    "severity": it.get("severity", "info"),
+                    "metric_value": it.get("metric_value"),
+                    "baseline_value": it.get("baseline_value"),
+                    "variance_pct": it.get("variance_pct"),
                     "run_date": run_date,
                     "generated_at": now,
                     "dismissed": False,
-                }).execute()
-            )
-            written += 1
-        except Exception as exc:
-            logger.warning("[routine_artifact] save_insights: failed to insert insight for %s: %s", client_id, exc)
-
-    logger.info("[routine_artifact] save_insights: wrote %d insights for %s", written, client_id)
-    return {"insights_written": written}
+                }
+                for it in valid
+            ]).execute()
+        )
+    except Exception as exc:
+        logger.warning(
+            "[routine_artifact] save_insights: failed to batch insert insights for %s: %s",
+            client_id,
+            exc,
+        )
+        return {"insights_written": 0}
+    logger.info(
+        "[routine_artifact] save_insights: wrote %d insights for %s",
+        len(valid),
+        client_id,
+    )
+    return {"insights_written": len(valid)}
 
 
 # ---------------------------------------------------------------------------

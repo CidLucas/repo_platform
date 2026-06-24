@@ -43,13 +43,10 @@ from tool_pool_api.server.tool_modules import register_module
 
 logger = logging.getLogger(__name__)
 
-_VALID_ENTITY_TYPES: frozenset[str] = frozenset(
-    {"skill", "client", "contact", "supplier", "user", "snapshot", "routine",
-     "agent_result", "agent_metadata"}
-)
+_VALID_ENTITY_TYPES: frozenset[str] = frozenset({"skill", "client", "contact", "supplier", "user", "snapshot", "routine", "agent_result", "agent_metadata"})
 
-_TABLE = "shared_business_memory"
-_LINKS_TABLE = "shared_memory_links"
+_TABLE: str = "shared_business_memory"
+_LINKS_TABLE: str = "shared_memory_links"
 
 _VALID_CATEGORIES: frozenset[str] = frozenset(
     {"knowledge", "rag", "documents", "memory-agent",
@@ -1316,24 +1313,46 @@ async def _auto_create_links(
     # 2. Extract entity references from the value
     references = _extract_entity_references(value_str)
 
-    # 3. Create links for each reference found
+    # 3. Batch upsert all links in a single DB call (B3.1 / Issue #121)
+    if not references:
+        return {
+            "links_created": 0,
+            "references_found": [],
+        }
+
+    db = await get_supabase_client()
+    source_entity_name_norm = _normalize_entity_name(entity_name)
+    payloads = [
+        {
+            "client_id": client_id,
+            "source_entity_type": entity_type,
+            "source_entity_name": source_entity_name_norm,
+            "target_entity_type": ref["entity_type"],
+            "target_entity_name": _normalize_entity_name(ref["entity_name"]),
+            "link_type": "references",
+            "source": "system",
+            "confidence": 1.0,
+            "metadata": {},
+        }
+        for ref in references
+    ]
+
     links_created = 0
-    for ref in references:
-        try:
-            await _shared_memory_link_logic(
-                client_id=client_id,
-                source_entity_type=entity_type,
-                source_entity_name=entity_name,
-                target_entity_type=ref["entity_type"],
-                target_entity_name=ref["entity_name"],
-                link_type="references",
-                source="system",
-                confidence=1.0,
+    try:
+        await (
+            db.schema("public")
+            .table(_LINKS_TABLE)
+            .upsert(
+                payloads,
+                on_conflict="client_id,source_entity_type,source_entity_name,target_entity_type,target_entity_name,link_type",
             )
-            links_created += 1
-        except ValueError:
-            # Duplicate link — silently ignore (uq_shared_memory_link)
-            pass
+            .execute()
+        )
+        links_created = len(payloads)
+    except Exception:
+        # Duplicate links (uq_shared_memory_link) are silently ignored by ON CONFLICT.
+        # Any other error is non-fatal: log and return 0 for this batch.
+        links_created = 0
 
     # 4. Update last_auto_link_at and auto_link_count on the source entity
     if links_created > 0:

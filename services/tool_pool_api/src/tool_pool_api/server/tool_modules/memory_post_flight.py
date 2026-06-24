@@ -34,9 +34,7 @@ logger = logging.getLogger(__name__)
 _TABLE = "shared_business_memory"
 _LINKS_TABLE = "shared_memory_links"
 
-_VALID_PREFIXES: frozenset[str] = frozenset(
-    {"decision:", "finding:", "summary:", "tool_usage:"}
-)
+_VALID_PREFIXES: frozenset[str] = frozenset({"decision:", "finding:", "summary:", "tool_usage:"})
 
 # Maximum length for agent_result summary text stored in value
 _MAX_SUMMARY_CHARS = 2000
@@ -158,39 +156,36 @@ async def _shared_memory_post_flight_logic(
                     exc,
                 )
 
-        # Tool usage entries (DD-03: tool_usage:<tool_name>)
-        for tool_name in tool_calls:
-            tool_name_str = str(tool_name).strip()
-            if not tool_name_str:
-                continue
-            key = f"tool_usage:{tool_name_str}"
-            _validate_key_prefix(key)
-            payload = {
-                "client_id": client_id,
-                "entity_type": "agent_result",
-                "entity_name": _normalize_entity_name(result_entity_name),
-                "key": key,
-                "value": json.dumps({"tool": tool_name_str}),
-                "category": "context",
-                "source": "specialist",
-                "confidence": 1.0,
-                "metadata": json.dumps({}),
-            }
+        # Tool usage entries (DD-03: tool_usage:<tool_name>) — B3.2 batch upsert
+        if tool_calls:
             try:
                 await (
                     db.schema("public")
                     .table(_TABLE)
                     .upsert(
-                        payload,
+                        [
+                            {
+                                "client_id": client_id,
+                                "entity_type": "agent_result",
+                                "entity_name": _normalize_entity_name(result_entity_name),
+                                "key": f"tool_usage:{tool_name_str}",
+                                "value": json.dumps({"tool": tool_name_str}),
+                                "category": "context",
+                                "source": "specialist",
+                                "confidence": 1.0,
+                                "metadata": json.dumps({}),
+                            }
+                            for tn in tool_calls
+                            if (tool_name_str := str(tn).strip())
+                        ],
                         on_conflict="client_id,entity_type,entity_name,key",
                     )
                     .execute()
                 )
-                result_entries += 1
+                result_entries += sum(1 for tn in tool_calls if str(tn).strip())
             except Exception as exc:
                 logger.warning(
-                    "[PostFlight] Failed to upsert tool_usage %s: %s",
-                    tool_name_str,
+                    "[PostFlight] Failed to batch upsert tool_usage: %s",
                     exc,
                 )
 
@@ -206,62 +201,63 @@ async def _shared_memory_post_flight_logic(
             "agent_slug": agent_slug,
         }
 
-        for key, value in meta_fields.items():
-            payload = {
-                "client_id": client_id,
-                "entity_type": "agent_metadata",
-                "entity_name": metadata_entity_name,
-                "key": key,
-                "value": json.dumps(value),
-                "category": "context",
-                "source": "system",
-                "confidence": 1.0,
-                "metadata": json.dumps({}),
-            }
-            try:
-                await (
-                    db.schema("public")
-                    .table(_TABLE)
-                    .upsert(
-                        payload,
-                        on_conflict="client_id,entity_type,entity_name,key",
-                    )
-                    .execute()
+        try:
+            await (
+                db.schema("public")
+                .table(_TABLE)
+                .upsert(
+                    [
+                        {
+                            "client_id": client_id,
+                            "entity_type": "agent_metadata",
+                            "entity_name": metadata_entity_name,
+                            "key": k,
+                            "value": json.dumps(meta_fields[k]),
+                            "category": "context",
+                            "source": "system",
+                            "confidence": 1.0,
+                            "metadata": json.dumps({}),
+                        }
+                        for k in meta_fields
+                    ],
+                    on_conflict="client_id,entity_type,entity_name,key",
                 )
-                metadata_entries += 1
-            except Exception as exc:
-                logger.warning(
-                    "[PostFlight] Failed to upsert metadata %s for agent=%s: %s",
-                    key,
-                    agent_slug,
-                    exc,
-                )
+                .execute()
+            )
+            metadata_entries = len(meta_fields)
+        except Exception as exc:
+            logger.warning(
+                "[PostFlight] Failed to batch upsert metadata for agent=%s: %s",
+                agent_slug,
+                exc,
+            )
 
     # ------------------------------------------------------------------
-    # 3. agent_link_pending — suggested semantic links (DD-04: DQ4)
+    # 3. agent_link_pending — suggested semantic links (DD-04: DQ4) — B3.2 batch insert
     # ------------------------------------------------------------------
     if suggested_links and isinstance(suggested_links, list):
-        for link in suggested_links:
-            if not isinstance(link, dict):
+        link_payloads: list[dict] = []
+        for sl in suggested_links:
+            if not isinstance(sl, dict):
                 continue
             try:
-                source_et = str(link.get("source_entity_type", "")).strip()
+                source_et = str(sl.get("source_entity_type", "")).strip()
                 source_en = _normalize_entity_name(
-                    str(link.get("source_entity_name", ""))
+                    str(sl.get("source_entity_name", ""))
                 )
-                target_et = str(link.get("target_entity_type", "")).strip()
+                target_et = str(sl.get("target_entity_type", "")).strip()
                 target_en = _normalize_entity_name(
-                    str(link.get("target_entity_name", ""))
+                    str(sl.get("target_entity_name", ""))
                 )
-                link_type = str(link.get("link_type", "")).strip().lower()
+                link_type = str(sl.get("link_type", "")).strip().lower()
 
                 if not all([source_et, source_en, target_et, target_en, link_type]):
                     logger.warning(
-                        "[PostFlight] Skipping incomplete link: %s", link
+                        "[PostFlight] Skipping incomplete link: %s", sl
                     )
                     continue
 
-                payload = {
+                link_payloads.append({
                     "client_id": client_id,
                     "source_entity_type": source_et,
                     "source_entity_name": source_en,
@@ -276,24 +272,33 @@ async def _shared_memory_post_flight_logic(
                             "session_id": session_id,
                         }
                     ),
-                }
+                })
+            except Exception as exc:
+                logger.warning(
+                    "[PostFlight] Failed to build link payload %s: %s",
+                    sl,
+                    exc,
+                )
+
+        if link_payloads:
+            try:
                 await (
                     db.schema("public")
                     .table(_LINKS_TABLE)
-                    .insert(payload)
+                    .insert(link_payloads)
                     .execute()
                 )
-                links_created += 1
+                links_created = len(link_payloads)
             except Exception as exc:
                 err_str = str(exc).lower()
                 if "duplicate key" in err_str or "uq_shared_memory_link" in err_str:
                     logger.debug(
-                        "[PostFlight] Duplicate link skipped: %s", link
+                        "[PostFlight] Duplicate links skipped in batch of %d",
+                        len(link_payloads),
                     )
                 else:
                     logger.warning(
-                        "[PostFlight] Failed to insert link %s: %s",
-                        link,
+                        "[PostFlight] Failed to batch insert links: %s",
                         exc,
                     )
 

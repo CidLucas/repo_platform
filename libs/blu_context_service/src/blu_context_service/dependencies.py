@@ -4,8 +4,8 @@ import redis
 from fastapi import Depends
 from pydantic_settings import BaseSettings
 
-from .context_service import ContextService
-from .redis_service import RedisService
+from blu_context_service.context_service import ContextService
+from blu_context_service.redis_service import RedisService
 
 
 class ContextSettings(BaseSettings):

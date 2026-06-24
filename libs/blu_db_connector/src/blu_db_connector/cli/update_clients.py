@@ -14,7 +14,7 @@ from sqlmodel import Session, create_engine, select
 
 from blu_models import ClienteBlu
 
-from .seed import SEED_CLIENTS
+from blu_db_connector.cli.seed import SEED_CLIENTS
 
 # Configuracao de log
 logging.basicConfig(level=logging.INFO, format="%(message)s")

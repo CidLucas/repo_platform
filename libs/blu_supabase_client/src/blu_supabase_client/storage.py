@@ -8,7 +8,7 @@ import uuid
 from dataclasses import dataclass
 from typing import BinaryIO
 
-from .client import get_supabase_client
+from blu_supabase_client.client import get_supabase_client
 
 logger = logging.getLogger(__name__)
 

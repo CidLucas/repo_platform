@@ -36,7 +36,7 @@ from tool_pool_api.server.dependencies import (
     load_context_from_token,
 )
 
-from . import register_module
+from tool_pool_api.server.tool_modules import register_module
 
 logger = logging.getLogger(__name__)
 
@@ -448,7 +448,7 @@ def _inject_client_id_filter(sql: str, client_id: str) -> str:
         # We need to handle cases with and without alias
         pattern = rf"analytics_v2\.{table}(\s+(?:AS\s+)?(\w+))?"
 
-        def replace_with_subquery(match):
+        def replace_with_subquery(match: re.Match[str]) -> str:
             full_match = match.group(0)
             alias_part = match.group(1)  # includes space and optional AS
             alias = match.group(2)  # just the alias name
@@ -688,7 +688,7 @@ async def _executar_sql_agent_logic(
         exec_start = time.perf_counter()
 
         try:
-            from .structured_data_formatter import format_sql_result
+            from tool_pool_api.server.tool_modules.structured_data_formatter import format_sql_result
 
             with engine.connect() as conn:
                 # Set RLS context for this session (defense in depth with hard-injected filter)
@@ -954,7 +954,7 @@ async def _execute_sql_logic(
 
         from blu_sql_factory.factory import get_shared_engine
 
-        from .structured_data_formatter import format_sql_result
+        from tool_pool_api.server.tool_modules.structured_data_formatter import format_sql_result
 
         engine = get_shared_engine()
         exec_start = time.perf_counter()

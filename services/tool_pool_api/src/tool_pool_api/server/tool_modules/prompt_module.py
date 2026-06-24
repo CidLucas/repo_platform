@@ -25,7 +25,7 @@ from blu_prompt_management import build_prompt as _build_prompt
 from blu_prompt_management import get_prompt_loader
 from tool_pool_api.server.dependencies import get_context_service
 
-from . import register_module
+from tool_pool_api.server.tool_modules import register_module
 
 logger = logging.getLogger(__name__)
 

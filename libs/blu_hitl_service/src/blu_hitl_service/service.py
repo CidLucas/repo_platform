@@ -18,7 +18,7 @@ from blu_models import (
     HitlReviewCreate,
 )
 
-from .queue import HitlQueue
+from blu_hitl_service.queue import HitlQueue
 
 logger = logging.getLogger(__name__)
 

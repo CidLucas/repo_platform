@@ -5,7 +5,7 @@ from typing import Iterable
 
 import httpx
 
-from .models import LandingIntel
+from blu_landing_intel.models import LandingIntel
 
 DEFAULT_SUGGESTED_KPIS: dict[str, list[str]] = {
     "commercial": [

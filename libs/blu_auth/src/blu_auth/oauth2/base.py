@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
-from ..oauth2.models import OAuthConfig, TokenResponse  # type: ignore
+from blu_auth.oauth2.models import OAuthConfig, TokenResponse  # type: ignore
 
 
 class OAuth2Provider(ABC):

@@ -23,7 +23,7 @@ Uso rápido:
     # OLLAMA_CLOUD_API_KEY=sua-key-aqui
 """
 
-from .client import (
+from blu_llm_service.client import (
     MODEL_MAPPINGS,
     FALLBACK_MODEL_MAPPINGS,
     TASK_MODEL_MAPPINGS,
@@ -44,8 +44,8 @@ from .client import (
     get_model,
     shutdown_langfuse,
 )
-from .config import LLMSettings, clear_settings_cache, get_llm_settings
-from .token_budget import (
+from blu_llm_service.config import LLMSettings, clear_settings_cache, get_llm_settings
+from blu_llm_service.token_budget import (
     DEFAULT_CHARS_PER_TOKEN,
     DEFAULT_MAX_PROMPT_TOKENS,
     TokenBudget,
@@ -81,12 +81,12 @@ def __getattr__(name):
         return LangfusePromptClient
 
     if name in _text_to_sql_symbols:
-        from .text_to_sql import TextToSqlPrompt, get_text_to_sql_prompt
+        from blu_llm_service.text_to_sql import TextToSqlPrompt, get_text_to_sql_prompt
 
         return locals()[name]
 
     if name in _text_to_sql_config_symbols:
-        from .text_to_sql_config import (
+        from blu_llm_service.text_to_sql_config import (
             LLMModel,
             TextToSqlLLMCall,
             TextToSqlLLMConfig,

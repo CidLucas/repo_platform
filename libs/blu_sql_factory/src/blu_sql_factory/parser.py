@@ -8,9 +8,9 @@ Usage:
     parser = SqlParser()
     ast = parser.parse("SELECT * FROM orders WHERE client_id = '123'")
     if ast:
-        print(f"Parsed: {ast.sql()}")
+        logger.info(f"Parsed: {ast.sql()}")
     else:
-        print("Failed to parse")
+        logger.error("Failed to parse")
 """
 
 import logging
@@ -314,3 +314,4 @@ class SqlParser:
         except Exception as e:
             logger.error(f"Error extracting aggregates: {e}")
             return []
+

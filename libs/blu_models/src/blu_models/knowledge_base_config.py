@@ -6,6 +6,7 @@ Permite que cada cliente tenha múltiplas bases de conhecimento com metadados.
 
 Integração com MCP: @mcp.resource("knowledge://...") busca desta tabela.
 """
+from __future__ import annotations
 
 import uuid
 from datetime import datetime

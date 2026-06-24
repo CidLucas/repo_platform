@@ -89,14 +89,14 @@ def _validate_summary(summary: dict[str, Any]) -> None:
     total_docs = summary.get("total_documents")
     if not isinstance(total_docs, int) or total_docs < 0:
         raise ValueError(
-            f"total_documents must be a non-negative int, "
+            "total_documents must be a non-negative int, "
             f"got {type(total_docs).__name__}"
         )
 
     total_ent = summary.get("total_entities")
     if not isinstance(total_ent, int) or total_ent < 0:
         raise ValueError(
-            f"total_entities must be a non-negative int, "
+            "total_entities must be a non-negative int, "
             f"got {type(total_ent).__name__}"
         )
 
@@ -125,7 +125,7 @@ def _validate_summary(summary: dict[str, Any]) -> None:
     last_sync = summary.get("last_sync")
     if last_sync is not None and not isinstance(last_sync, str):
         raise ValueError(
-            f"last_sync must be a str or None, "
+            "last_sync must be a str or None, "
             f"got {type(last_sync).__name__}"
         )
 

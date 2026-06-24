@@ -15,7 +15,7 @@ Implements core validation checks for SQL queries:
 import logging
 from dataclasses import dataclass, field
 
-from .parser import SqlParser
+from blu_sql_factory.parser import SqlParser
 
 logger = logging.getLogger(__name__)
 

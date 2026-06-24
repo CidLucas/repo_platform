@@ -98,17 +98,17 @@ async def run_routine(routine_id: str, client_id: str) -> None:
     # ── 1. Fetch catalog routine ───────────────────────────────────────────────
     row = db.table("cross_agent_routines").select("*").eq("id", routine_id).maybe_single().execute()
     if not row.data:
-        print(f"ERROR: Routine '{routine_id}' not found in cross_agent_routines")
+        logger.error(f"ERROR: Routine '{routine_id}' not found in cross_agent_routines")
         sys.exit(1)
     routine = row.data
     steps: list[dict] = routine.get("steps") or []
-    print(f"\n{_DIVIDER}")
-    print(f"  ROUTINE  : {routine['name']}  (id={routine_id})")
-    print(f"  ROOM     : {routine['room']}")
-    print(f"  TRIGGER  : {routine['trigger_type']}")
-    print(f"  STEPS    : {len(steps)}")
-    print(f"  CLIENT   : {client_id}")
-    print(_DIVIDER)
+    logger.info(f"\n{_DIVIDER}")
+    logger.info(f"  ROUTINE  : {routine['name']}  (id={routine_id})")
+    logger.info(f"  ROOM     : {routine['room']}")
+    logger.info(f"  TRIGGER  : {routine['trigger_type']}")
+    logger.info(f"  STEPS    : {len(steps)}")
+    logger.info(f"  CLIENT   : {client_id}")
+    logger.info(_DIVIDER)
 
     # ── 2. Fetch per-client config overrides ─────────────────────────────────
     cfg_row = (
@@ -129,7 +129,7 @@ async def run_routine(routine_id: str, client_id: str) -> None:
                     client_config[k] = float(v)
                 except (ValueError, TypeError):
                     client_config[k] = v
-    print(f"\nClient config overrides: {_pp(client_config)}")
+    logger.info(f"\nClient config overrides: {_pp(client_config)}")
 
     # ── 3. Create a test execution row ────────────────────────────────────────
     exec_id = str(uuid.uuid4())
@@ -141,14 +141,14 @@ async def run_routine(routine_id: str, client_id: str) -> None:
         "triggered_by": "manual_test",
         "trigger_data": {},
     }).execute()
-    print(f"\nExecution ID: {exec_id}")
+    logger.info(f"\nExecution ID: {exec_id}")
 
     # ── 4. Get company name ────────────────────────────────────────────────────
     from agent_api.core.factory import get_context_service
     ctx_svc = get_context_service()
     client_ctx = await ctx_svc.get_client_context_by_id(client_id)
     nome_empresa = client_ctx.nome_empresa if client_ctx else "Empresa Teste"
-    print(f"Company    : {nome_empresa}\n")
+    logger.info(f"Company    : {nome_empresa}\n")
 
     # ── 5. Build initial state ────────────────────────────────────────────────
     state: dict[str, Any] = {
@@ -171,9 +171,9 @@ async def run_routine(routine_id: str, client_id: str) -> None:
         step_type: str | None = step.get("type")
         on_failure: str = step.get("on_failure", "halt")
 
-        print(f"\n{'━'*72}")
-        print(f"  STEP {step_n}: {step_id}  [type={step_type or 'legacy'}]  on_failure={on_failure}")
-        print(f"{'━'*72}")
+        logger.info(f"\n{'━'*72}")
+        logger.error(f"  STEP {step_n}: {step_id}  [type={step_type or 'legacy'}]  on_failure={on_failure}")
+        logger.info(f"{'━'*72}")
 
         # Resolve inputs against current state
         raw_inputs = step.get("inputs", {})
@@ -183,11 +183,11 @@ async def run_routine(routine_id: str, client_id: str) -> None:
         if step_type == "function":
             config_override = {k: client_config[k] for k in resolved_inputs if k in client_config}
             if config_override:
-                print(f"  Config overrides applied: {_pp(config_override)}")
+                logger.info(f"  Config overrides applied: {_pp(config_override)}")
                 resolved_inputs = {**resolved_inputs, **config_override}
 
         if resolved_inputs:
-            print(f"\n  INPUTS:\n{_pp(resolved_inputs)}")
+            logger.info(f"\n  INPUTS:\n{_pp(resolved_inputs)}")
 
         if step_type in {"function", "artifact"}:
             try:
@@ -199,20 +199,20 @@ async def run_routine(routine_id: str, client_id: str) -> None:
         if step_type == "skill":
             task_template = step.get("task_template", "")
             task = _resolve_templates(task_template, state)
-            print(f"\n  TASK PROMPT (first 400 chars):\n  {task[:400]}")
+            logger.info(f"\n  TASK PROMPT (first 400 chars):\n  {task[:400]}")
             if step.get("outputs"):
-                print(f"\n  EXPECTED OUTPUTS SCHEMA:\n{_pp(step['outputs'])}")
+                logger.info(f"\n  EXPECTED OUTPUTS SCHEMA:\n{_pp(step['outputs'])}")
 
         t_start = datetime.now(timezone.utc)
         try:
             if step_type == "function":
                 fn_name: str = step.get("function", "")
-                print(f"\n  → calling function: {fn_name}")
+                logger.info(f"\n  → calling function: {fn_name}")
                 step_outputs = await call_function(fn_name, resolved_inputs, client_id)
 
             elif step_type == "skill":
-                print(f"\n  → invoking skill worker: {step.get('skill_slug')}")
-                print("  (this may take 10-30s — LLM is running)")
+                logger.info(f"\n  → invoking skill worker: {step.get('skill_slug')}")
+                logger.info("  (this may take 10-30s — LLM is running)")
                 from agent_api.core.factory import get_context_service, get_mcp_manager
                 from agent_api.core.routines import _execute_skill_step
                 get_mcp_manager().set_client_id(client_id)
@@ -230,27 +230,27 @@ async def run_routine(routine_id: str, client_id: str) -> None:
                         "whatsapp": "channels.send_whatsapp",
                     }
                     fn_name = _ARTIFACT_MAP.get(step.get("artifact_type", ""), "")
-                print(f"\n  → calling artifact: {fn_name}")
+                logger.info(f"\n  → calling artifact: {fn_name}")
                 step_outputs = await call_artifact(fn_name, resolved_inputs, client_id)
 
             else:
-                print(f"  SKIP: unknown step type '{step_type}'")
+                logger.info(f"  SKIP: unknown step type '{step_type}'")
                 continue
 
             elapsed = (datetime.now(timezone.utc) - t_start).total_seconds()
-            print(f"\n  OUTPUTS (elapsed {elapsed:.1f}s):")
+            logger.info(f"\n  OUTPUTS (elapsed {elapsed:.1f}s):")
             for k, v in step_outputs.items():
-                print(f"    {k}: {_pp(v)}")
+                logger.info(f"    {k}: {_pp(v)}")
 
             state.update(step_outputs)
             step_results.append({"step": step_id, "status": "ok", "outputs": step_outputs})
 
         except Exception as exc:
             elapsed = (datetime.now(timezone.utc) - t_start).total_seconds()
-            print(f"\n  ERROR (elapsed {elapsed:.1f}s): {exc}")
+            logger.error(f"\n  ERROR (elapsed {elapsed:.1f}s): {exc}")
             step_results.append({"step": step_id, "status": "error", "error": str(exc)})
             if on_failure == "halt":
-                print("  on_failure=halt → stopping execution")
+                logger.error("  on_failure=halt → stopping execution")
                 db.table("client_routine_executions").update({
                     "status": "failed",
                     "result_text": f"Step '{step_id}' failed: {exc}",
@@ -258,7 +258,7 @@ async def run_routine(routine_id: str, client_id: str) -> None:
                 }).eq("id", exec_id).execute()
                 break
             else:
-                print("  on_failure=continue → proceeding to next step")
+                logger.error("  on_failure=continue → proceeding to next step")
 
     # ── 7. Mark execution complete ────────────────────────────────────────────
     all_ok = all(r["status"] == "ok" for r in step_results)
@@ -269,12 +269,13 @@ async def run_routine(routine_id: str, client_id: str) -> None:
         "result_metadata": {str(i): r for i, r in enumerate(step_results)},
     }).eq("id", exec_id).execute()
 
-    print(f"\n{_DIVIDER}")
-    print(f"  DONE — {len(step_results)} steps, status={'OK' if all_ok else 'PARTIAL FAILURE'}")
-    print(f"  Execution saved: {exec_id}")
-    print(_DIVIDER + "\n")
+    logger.info(f"\n{_DIVIDER}")
+    logger.error(f"  DONE — {len(step_results)} steps, status={'OK' if all_ok else 'PARTIAL FAILURE'}")
+    logger.info(f"  Execution saved: {exec_id}")
+    logger.info(_DIVIDER + "\n")
 
 if __name__ == "__main__":
     routine_id = sys.argv[1] if len(sys.argv) > 1 else "weekly_reengagement"
     client_id = sys.argv[2] if len(sys.argv) > 2 else _CLIENT_ID
     asyncio.run(run_routine(routine_id, client_id))
+

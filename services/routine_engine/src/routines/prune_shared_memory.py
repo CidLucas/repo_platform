@@ -603,21 +603,22 @@ def main() -> None:
 
     # Print summary
     if args.dry_run:
-        print(f"\n=== DRY RUN ===")
-    print(f"Exec ID:      {result.exec_id}")
-    print(f"Backup OK:    {result.backup_ok}")
-    print(f"Aborted:      {result.aborted}" + (f" ({result.abort_reason})" if result.abort_reason else ""))
-    print(f"Soft-deleted: {result.soft_deleted}")
-    print(f"Hard-deleted: {result.hard_deleted}")
-    print(f"Total:        {result.total_affected}")
-    print(f"Alerted:      {result.alerted}")
+        logger.info(f"\n=== DRY RUN ===")
+    logger.info(f"Exec ID:      {result.exec_id}")
+    logger.info(f"Backup OK:    {result.backup_ok}")
+    logger.info(f"Aborted:      {result.aborted}" + (f" ({result.abort_reason})" if result.abort_reason else ""))
+    logger.info(f"Soft-deleted: {result.soft_deleted}")
+    logger.info(f"Hard-deleted: {result.hard_deleted}")
+    logger.info(f"Total:        {result.total_affected}")
+    logger.info(f"Alerted:      {result.alerted}")
     if result.error:
-        print(f"ERROR:        {result.error}")
-    print(f"Duration:     {result.duration_ms}ms")
-    print(f"Success:      {result.success}")
+        logger.error(f"ERROR:        {result.error}")
+    logger.info(f"Duration:     {result.duration_ms}ms")
+    logger.info(f"Success:      {result.success}")
 
     sys.exit(0 if result.success else 1)
 
 
 if __name__ == "__main__":
     main()
+

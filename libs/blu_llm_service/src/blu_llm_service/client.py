@@ -11,6 +11,8 @@ Supports:
 Langfuse integration is handled by blu_observability_bootstrap.
 """
 
+from __future__ import annotations
+
 import logging
 import os
 from enum import Enum
@@ -20,7 +22,7 @@ from langchain_core.callbacks.base import BaseCallbackHandler
 from langchain_core.embeddings import Embeddings
 from langchain_core.language_models.chat_models import BaseChatModel
 
-from .config import LLMSettings, get_llm_settings
+from blu_llm_service.config import LLMSettings, get_llm_settings
 
 logger = logging.getLogger(__name__)
 
@@ -263,7 +265,7 @@ def _get_ollama_cloud_model(
     model_name: str,
     settings: LLMSettings,
     callbacks: list[BaseCallbackHandler],
-    **kwargs,
+    **kwargs: Any,
 ) -> BaseChatModel:
     """
     Cria cliente Ollama Cloud (ollama.com).
@@ -303,7 +305,7 @@ def _get_openai_model(
     model_name: str,
     settings: LLMSettings,
     callbacks: list[BaseCallbackHandler],
-    **kwargs,
+    **kwargs: Any,
 ) -> BaseChatModel:
     """Cria cliente OpenAI (API)."""
     try:
@@ -324,7 +326,7 @@ def _get_anthropic_model(
     model_name: str,
     settings: LLMSettings,
     callbacks: list[BaseCallbackHandler],
-    **kwargs,
+    **kwargs: Any,
 ) -> BaseChatModel:
     """Cria cliente Anthropic (API)."""
     try:
@@ -347,7 +349,7 @@ def _get_google_model(
     model_name: str,
     settings: LLMSettings,
     callbacks: list[BaseCallbackHandler],
-    **kwargs,
+    **kwargs: Any,
 ) -> BaseChatModel:
     """Cria cliente Google Gemini (API)."""
     try:
@@ -372,7 +374,7 @@ def _get_huggingface_model(
     model_name: str,
     settings: LLMSettings,
     callbacks: list[BaseCallbackHandler],
-    **kwargs,
+    **kwargs: Any,
 ) -> BaseChatModel:
     """
     Cria cliente HuggingFace via Inference API (OpenAI-compatible endpoint).
@@ -549,7 +551,7 @@ def get_model(
     user_id: str | None = None,
     session_id: str | None = None,
     tags: list[str] | None = None,
-    **kwargs,
+    **kwargs: Any,
 ) -> BaseChatModel:
     """
     Retorna um cliente de LLM configurado.
@@ -693,7 +695,7 @@ def get_cohere_embedding_model() -> CohereEmbeddingClient:
 # ============================================================================
 
 
-def get_hf_inference_client(task: ModelTask = ModelTask.ASR, tier: ModelTier = ModelTier.DEFAULT):
+def get_hf_inference_client(task: ModelTask = ModelTask.ASR, tier: ModelTier = ModelTier.DEFAULT) -> Any:
     """
     Retorna um InferenceClient do HuggingFace para tasks especializadas
     que não são BaseChatModel: ASR, TTS, IMAGE_TO_TEXT.
@@ -756,7 +758,7 @@ def get_hf_inference_client(task: ModelTask = ModelTask.ASR, tier: ModelTier = M
 # ============================================================================
 
 
-def flush_langfuse():
+def flush_langfuse() -> None:
     """Force flush Langfuse events."""
     try:
         from blu_observability_bootstrap.langfuse import flush_langfuse as _flush
@@ -766,7 +768,7 @@ def flush_langfuse():
         logger.debug("blu_observability_bootstrap not available")
 
 
-def shutdown_langfuse():
+def shutdown_langfuse() -> None:
     """Shutdown Langfuse client."""
     try:
         from blu_observability_bootstrap.langfuse import shutdown_langfuse as _shutdown

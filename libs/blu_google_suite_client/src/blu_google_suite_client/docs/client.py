@@ -1,7 +1,7 @@
 """Google Docs Client implementation"""
 
-from ..base import BaseGoogleClient
-from .models import DocReadResult, DocWriteResult
+from blu_google_suite_client.base import BaseGoogleClient
+from blu_google_suite_client.docs.models import DocReadResult, DocWriteResult
 
 
 class GoogleDocsClient(BaseGoogleClient):

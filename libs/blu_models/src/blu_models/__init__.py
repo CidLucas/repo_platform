@@ -1,9 +1,10 @@
 # blu_models/__init__.py (Versão Corrigida para Exportação)
+from __future__ import annotations
 
 from sqlmodel import SQLModel
 
 # Agent Types (shared across all agents/LangGraph flows)
-from .agent_types import (
+from blu_models.agent_types import (
     # Chat/Message
     AgentChatRequest,
     AgentChatResponse,
@@ -20,13 +21,13 @@ from .agent_types import (
     # Tool Management
     ToolInfo,
 )
-from .cliente_final import (
+from blu_models.cliente_final import (
     ClienteFinal,
     ClienteFinalCreate,
     ClienteFinalRead,
     ClienteFinalUpdate,
 )
-from .cliente_blu import (
+from blu_models.cliente_blu import (
     ClienteBlu,
     ClienteBluCreate,
     ClienteBluRead,
@@ -34,7 +35,7 @@ from .cliente_blu import (
     ClienteBluUpdate,
 )
 
-from .conversa import (
+from blu_models.conversa import (
     Conversa,
     ConversaBase,
     ConversaCreate,
@@ -45,16 +46,16 @@ from .conversa import (
     MensagemInDB,
     Remetente,
 )
-from .credencial_servico_externo import (
+from blu_models.credencial_servico_externo import (
     CredencialServicoExterno,
     CredencialServicoExternoBase,
     CredencialServicoExternoCreate,
     CredencialServicoExternoInDB,
 )
-from .enums import ContextSection, TierCliente, TipoCliente, TipoFonte, ToolCategory
+from blu_models.enums import ContextSection, TierCliente, TipoCliente, TipoFonte, ToolCategory
 
 # Context 2.0 - Modular Client Context
-from .context_schemas import (
+from blu_models.context_schemas import (
     AvailableTools,
     BrandVoice,
     CompanyProfile,
@@ -73,7 +74,7 @@ from .context_schemas import (
     validate_meta_entity_type,
     validate_section_content,
 )
-from .client_context_section import (
+from blu_models.client_context_section import (
     BulkSectionResponse,
     BulkSectionUpsert,
     ClientContextSection,
@@ -85,7 +86,7 @@ from .client_context_section import (
 )
 
 # Experiment Suite (Dataset Generation)
-from .experiment import (
+from blu_models.experiment import (
     CaseOutcome,
     ClassificationResult,
     ClientVariant,
@@ -99,10 +100,10 @@ from .experiment import (
     LangfuseConfig,
     TestCaseDefinition,
 )
-from .fonte_de_dados import FonteDeDados
+from blu_models.fonte_de_dados import FonteDeDados
 
 # HITL (Human-in-the-Loop) support
-from .hitl import (
+from blu_models.hitl import (
     HitlConfig,
     HitlCriteriaType,
     HitlCriterion,
@@ -117,13 +118,13 @@ from .hitl import (
 )
 
 # Integration models
-from .integration import (
+from blu_models.integration import (
     IntegrationConfig,
     IntegrationProvider,
     IntegrationTokens,
     OAuthTokenResponse,
 )
-from .knowledge_base_config import (
+from blu_models.knowledge_base_config import (
     KnowledgeBaseConfig,
     KnowledgeBaseConfigCreate,
     KnowledgeBaseConfigRead,
@@ -132,17 +133,17 @@ from .knowledge_base_config import (
 )
 
 # MCP Resources & Prompts support
-from .prompt_template import (
+from blu_models.prompt_template import (
     PromptTemplate,
     PromptTemplateCreate,
     PromptTemplateRead,
     PromptTemplateUpdate,
 )
-from .safe_client_context import InternalClientContext, SafeClientContext
-from .seed_clients import SEED_CLIENTS, get_all_rag_collections, get_client_by_name
+from blu_models.safe_client_context import InternalClientContext, SafeClientContext
+from blu_models.seed_clients import SEED_CLIENTS, get_all_rag_collections, get_client_by_name
 
 # Standalone Agent models
-from .standalone_agent import (
+from blu_models.standalone_agent import (
     AgentCatalog,
     AgentCatalogBase,
     AgentCatalogRead,
@@ -151,7 +152,7 @@ from .standalone_agent import (
     StandaloneAgentSessionCreate,
     StandaloneAgentSessionRead,
 )
-from .sql_schema_config import (
+from blu_models.sql_schema_config import (
     SqlTableConfig,
     SqlTableConfigCreate,
     SqlTableConfigRead,
@@ -159,12 +160,12 @@ from .sql_schema_config import (
 )
 
 # Structured Data (for SQL query results display)
-from .structured_data import (
+from blu_models.structured_data import (
     ColumnType,
     StructuredDataColumn,
     StructuredDataResponse,
 )
-from .blu_client_context import BluClientContext
+from blu_models.blu_client_context import BluClientContext
 
 
 class Base(SQLModel):

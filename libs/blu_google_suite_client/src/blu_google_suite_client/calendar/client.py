@@ -1,8 +1,8 @@
 """Google Calendar Client implementation"""
 from datetime import datetime
 
-from ..base import BaseGoogleClient
-from .models import CalendarEvent
+from blu_google_suite_client.base import BaseGoogleClient
+from blu_google_suite_client.calendar.models import CalendarEvent
 
 
 class GoogleCalendarClient(BaseGoogleClient):

@@ -276,20 +276,20 @@ if __name__ == "__main__":
     import sys
 
     if len(sys.argv) < 2:
-        print("Usage:")
-        print("  python schema_snapshot.py generate <output_dir>")
-        print("  python schema_snapshot.py compare <old.json> <new.json>")
+        logger.info("Usage:")
+        logger.info("  python schema_snapshot.py generate <output_dir>")
+        logger.info("  python schema_snapshot.py compare <old.json> <new.json>")
         sys.exit(1)
 
     command = sys.argv[1]
 
     if command == "generate":
         output_dir = Path(sys.argv[2] if len(sys.argv) > 2 else ".")
-        print(f"Schema snapshot generation not fully implemented (would generate to {output_dir})")
+        logger.info(f"Schema snapshot generation not fully implemented (would generate to {output_dir})")
 
     elif command == "compare":
         if len(sys.argv) < 4:
-            print("Usage: python schema_snapshot.py compare <old.json> <new.json>")
+            logger.info("Usage: python schema_snapshot.py compare <old.json> <new.json>")
             sys.exit(1)
 
         old_path = Path(sys.argv[2])
@@ -297,12 +297,13 @@ if __name__ == "__main__":
 
         try:
             diff = SchemaSnapshotGenerator.compare_snapshots(old_path, new_path)
-            print(diff.get_summary())
-            print("\nDetailed diff:")
-            print(diff.to_json())
+            logger.info(diff.get_summary())
+            logger.info("\nDetailed diff:")
+            logger.info(diff.to_json())
 
             if diff.has_breaking_changes():
                 sys.exit(1)
         except Exception as e:
-            print(f"Error: {e}", file=sys.stderr)
+            logger.error(f"Error: {e}")
             sys.exit(1)
+

@@ -7,6 +7,7 @@ para melhorar a precisão de Text-to-SQL.
 
 Integração com MCP: @mcp.resource("sql://...") busca desta tabela.
 """
+from __future__ import annotations
 
 import uuid
 from datetime import datetime

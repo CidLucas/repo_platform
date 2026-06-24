@@ -1,6 +1,6 @@
 
-from .google_provider import GoogleOAuth2Provider
-from .models import OAuthConfig, TokenResponse
+from blu_auth.oauth2.google_provider import GoogleOAuth2Provider
+from blu_auth.oauth2.models import OAuthConfig, TokenResponse
 
 
 class OAuthManager:

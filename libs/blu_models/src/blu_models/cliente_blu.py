@@ -134,8 +134,6 @@ class ClienteBlu(ClienteBluBase, table=True):
     # ===== HELPER METHODS =====
     def get_enabled_tools_list(self) -> list[str]:
         """Get list of enabled tools from available_tools section."""
-        if self.available_tools and self.available_tools.get("enabled_tool_names"):
-            return self.available_tools["enabled_tool_names"]
         return []
 
     def get_default_prompt(self) -> str | None:

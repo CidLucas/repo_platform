@@ -183,9 +183,15 @@ async def _post_flight_for_state(
     Fire-and-forget — never blocks the user. Errors are logged as warnings.
     """
     try:
-        from tool_pool_api.server.tool_modules.memory_post_flight import (
-            _shared_memory_post_flight_logic,
-        )
+        try:
+            from tool_pool_api.server.tool_modules.memory_post_flight import (
+                _shared_memory_post_flight_logic,
+            )
+        except ImportError:
+            logger.debug(
+                "memory_post_flight module unavailable; skipping post-flight memory sync"
+            )
+            return
 
         msgs = final_state.get("messages") or []
         last_ai = None

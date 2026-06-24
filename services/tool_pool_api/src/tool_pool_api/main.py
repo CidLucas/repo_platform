@@ -5,6 +5,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi import Limiter
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.util import get_remote_address
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from .api.admin_router import router as admin_router
@@ -157,6 +160,11 @@ app.add_middleware(
     max_age=3600,
 )
 logger.info(f"CORS configured for: {origins}")
+
+# Rate limiting (RATE-01)
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
 
 
 # Health check endpoint that doesn't require MCP

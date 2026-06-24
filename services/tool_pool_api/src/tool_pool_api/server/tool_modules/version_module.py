@@ -28,6 +28,12 @@ from typing import Any
 from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 
+from tool_pool_api.server.utils.entity import (
+    VALID_ENTITY_TYPES,
+    normalize_entity_name,
+    validate_entity_type,
+)
+
 from blu_auth.mcp.auth_middleware import mcp_inject_client_id
 from blu_supabase_client import get_supabase_client
 
@@ -48,12 +54,6 @@ _MAX_VERSIONS_PER_KEY = 50
 # Same valid sources as memory_module
 _VALID_SOURCES: frozenset[str] = frozenset(
     {"manual", "memory_agent", "specialist", "migration", "system"}
-)
-
-# Same valid entity types as memory_module
-_VALID_ENTITY_TYPES: frozenset[str] = frozenset(
-    {"skill", "client", "contact", "supplier", "user", "snapshot", "routine",
-     "agent_result", "agent_metadata"}
 )
 
 # ---------------------------------------------------------------------------
@@ -129,20 +129,6 @@ def _text_diff(old_value: Any, new_value: Any) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def _validate_entity_type(entity_type: str, field_name: str = "entity_type") -> None:
-    """Validate entity_type against the allowed set. Raises ValueError."""
-    if entity_type not in _VALID_ENTITY_TYPES:
-        raise ValueError(
-            f"Invalid {field_name} '{entity_type}'. "
-            f"Must be one of: {sorted(_VALID_ENTITY_TYPES)}"
-        )
-
-
-def _normalize_entity_name(name: str) -> str:
-    """Normalize entity name: lowercase, trimmed."""
-    return name.strip().lower()
-
-
 # ---------------------------------------------------------------------------
 # Business logic — archiving
 # ---------------------------------------------------------------------------
@@ -171,8 +157,8 @@ async def _archive_memory_version(
         ``archived_version`` (the version number that was archived), or
         ``None`` if there was nothing to archive (first write — no previous row).
     """
-    _validate_entity_type(entity_type)
-    entity_name = _normalize_entity_name(entity_name)
+    validate_entity_type(entity_type)
+    entity_name = normalize_entity_name(entity_name)
     key = key.strip().lower()
 
     if not entity_name or not key:
@@ -316,8 +302,8 @@ async def _get_memory_versions(
     Returns:
         List of version snapshots ordered by version descending (newest first).
     """
-    _validate_entity_type(entity_type)
-    entity_name = _normalize_entity_name(entity_name)
+    validate_entity_type(entity_type)
+    entity_name = normalize_entity_name(entity_name)
     key = key.strip().lower()
 
     if not entity_name or not key:
@@ -371,8 +357,8 @@ async def _get_memory_version(
     Raises:
         ValueError: If the version does not exist.
     """
-    _validate_entity_type(entity_type)
-    entity_name = _normalize_entity_name(entity_name)
+    validate_entity_type(entity_type)
+    entity_name = normalize_entity_name(entity_name)
     key = key.strip().lower()
 
     if not entity_name or not key:
@@ -433,8 +419,8 @@ async def _prune_old_versions(
     Returns:
         Number of versions deleted.
     """
-    _validate_entity_type(entity_type)
-    entity_name = _normalize_entity_name(entity_name)
+    validate_entity_type(entity_type)
+    entity_name = normalize_entity_name(entity_name)
     key = key.strip().lower()
 
     if max_versions < 1:
@@ -529,8 +515,8 @@ async def _store_memory_version(
         ``total_versions``.  ``status`` is ``\"archived\"`` when a new
         version was saved, or ``\"no_change\"`` when dedup skipped it.
     """
-    _validate_entity_type(entity_type)
-    entity_name = _normalize_entity_name(entity_name)
+    validate_entity_type(entity_type)
+    entity_name = normalize_entity_name(entity_name)
     key = key.strip().lower()
 
     if not entity_name or not key:
@@ -683,8 +669,8 @@ async def _get_memory_diff(
         A dict with ``v1``, ``v2``, ``diff``, ``diff_stats``, ``mode``,
         and context fields.
     """
-    _validate_entity_type(entity_type)
-    entity_name = _normalize_entity_name(entity_name)
+    validate_entity_type(entity_type)
+    entity_name = normalize_entity_name(entity_name)
     key = key.strip().lower()
 
     if not entity_name or not key:
@@ -839,8 +825,8 @@ async def _get_current_version(
     Returns:
         A dict with ``version``, ``content_hash``, and ``updated_at``.
     """
-    _validate_entity_type(entity_type)
-    entity_name = _normalize_entity_name(entity_name)
+    validate_entity_type(entity_type)
+    entity_name = normalize_entity_name(entity_name)
     key = key.strip().lower()
 
     if not entity_name or not key:

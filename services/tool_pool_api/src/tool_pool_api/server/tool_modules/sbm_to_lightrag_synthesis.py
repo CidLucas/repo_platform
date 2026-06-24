@@ -19,8 +19,6 @@ Design decisions:
 from __future__ import annotations
 
 import logging
-import re
-import unicodedata
 from datetime import date, timezone
 from typing import Any
 from uuid import UUID
@@ -29,62 +27,11 @@ from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 
 from tool_pool_api.server.tool_modules import register_module
+from tool_pool_api.server.utils.entity import normalize_entity_name_strict as normalize_entity_name
 
 logger = logging.getLogger(__name__)
 
 _TABLE = "shared_business_memory"
-
-# ---------------------------------------------------------------------------
-# normalize_entity_name
-# ---------------------------------------------------------------------------
-
-# Punctuation to remove (keep underscores added by space replacement)
-_RE_PUNCTUATION = re.compile(r"[^\w\s]")
-
-
-def normalize_entity_name(name: str, entity_type: str | None = None) -> str:
-    """Normalize an entity name into a canonical LightRAG-safe ID.
-
-    Steps (DD-T41-07):
-      1. Unicode NFKD decomposition (strip accents).
-      2. Lowercase.
-      3. Replace whitespace sequences with a single underscore.
-      4. Remove remaining punctuation.
-      5. For entity_type='contact', prefix with 'contact:' (R2 mitigation).
-
-    Args:
-        name: Raw entity name (e.g. "João da Silva").
-        entity_type: Optional entity_type hint. When "contact", the result is
-                     prefixed with "contact:".
-
-    Returns:
-        Canonical ID string, e.g. "joao_da_silva" or "contact:joao_da_silva".
-    """
-    if not name:
-        return ""
-
-    # 1. NFKD decomposition → strip combining marks (accents)
-    decomposed = unicodedata.normalize("NFKD", name)
-    ascii_name = decomposed.encode("ascii", "ignore").decode("ascii")
-
-    # 2. Lowercase
-    normalized = ascii_name.lower()
-
-    # 3. Whitespace → underscore (collapse runs)
-    normalized = re.sub(r"\s+", "_", normalized.strip())
-
-    # 4. Remove punctuation (anything not alphanumeric or underscore)
-    normalized = _RE_PUNCTUATION.sub("", normalized)
-
-    # Collapse multiple underscores that may result from punctuation removal
-    normalized = re.sub(r"_+", "_", normalized).strip("_")
-
-    # 5. Contact prefix (R2: disambiguation for contacts)
-    if entity_type == "contact":
-        normalized = f"contact:{normalized}"
-
-    return normalized
-
 
 # ---------------------------------------------------------------------------
 # SYNTHESIS_TEMPLATES

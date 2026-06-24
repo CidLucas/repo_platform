@@ -28,6 +28,7 @@ import logging
 from blu_supabase_client import get_supabase_client
 
 from tool_pool_api.server.tool_modules import register_module
+from tool_pool_api.server.utils.entity import normalize_entity_name
 
 logger = logging.getLogger(__name__)
 
@@ -43,11 +44,6 @@ _MAX_SUMMARY_CHARS = 2000
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _normalize_entity_name(name: str) -> str:
-    """Normalize entity name: lowercase, trimmed."""
-    return name.strip().lower()
 
 
 def _validate_key_prefix(key: str) -> None:
@@ -128,7 +124,7 @@ async def _shared_memory_post_flight_logic(
             payload = {
                 "client_id": client_id,
                 "entity_type": "agent_result",
-                "entity_name": _normalize_entity_name(result_entity_name),
+                "entity_name": normalize_entity_name(result_entity_name),
                 "key": "summary:execution",
                 "value": json.dumps(
                     {"text": summary_text[:_MAX_SUMMARY_CHARS]}
@@ -167,7 +163,7 @@ async def _shared_memory_post_flight_logic(
                             {
                                 "client_id": client_id,
                                 "entity_type": "agent_result",
-                                "entity_name": _normalize_entity_name(result_entity_name),
+                                "entity_name": normalize_entity_name(result_entity_name),
                                 "key": f"tool_usage:{tool_name_str}",
                                 "value": json.dumps({"tool": tool_name_str}),
                                 "category": "context",
@@ -192,7 +188,7 @@ async def _shared_memory_post_flight_logic(
     # ------------------------------------------------------------------
     # 2. agent_metadata — session_id, elapsed, agent_slug
     # ------------------------------------------------------------------
-    metadata_entity_name = _normalize_entity_name(agent_slug)
+    metadata_entity_name = normalize_entity_name(agent_slug)
 
     if agent_metadata and isinstance(agent_metadata, dict):
         meta_fields = {
@@ -242,11 +238,11 @@ async def _shared_memory_post_flight_logic(
                 continue
             try:
                 source_et = str(sl.get("source_entity_type", "")).strip()
-                source_en = _normalize_entity_name(
+                source_en = normalize_entity_name(
                     str(sl.get("source_entity_name", ""))
                 )
                 target_et = str(sl.get("target_entity_type", "")).strip()
-                target_en = _normalize_entity_name(
+                target_en = normalize_entity_name(
                     str(sl.get("target_entity_name", ""))
                 )
                 link_type = str(sl.get("link_type", "")).strip().lower()

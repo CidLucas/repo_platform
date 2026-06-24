@@ -40,10 +40,13 @@ from tool_pool_api.server.dependencies import get_context_service
 from blu_context_service.context_schemas import _SNAPSHOT_DIMENSION_FIELDS
 
 from tool_pool_api.server.tool_modules import register_module
+from tool_pool_api.server.utils.entity import (
+    VALID_ENTITY_TYPES,
+    normalize_entity_name,
+    validate_entity_type,
+)
 
 logger = logging.getLogger(__name__)
-
-_VALID_ENTITY_TYPES: frozenset[str] = frozenset({"skill", "client", "contact", "supplier", "user", "snapshot", "routine", "agent_result", "agent_metadata"})
 
 _TABLE: str = "shared_business_memory"
 _LINKS_TABLE: str = "shared_memory_links"
@@ -110,21 +113,14 @@ _ENTITY_REFERENCE_PATTERN = re.compile(
     r"\[(?P<label>[^\]]*)\]\((?P<entity_type>[a-z_]+):(?P<entity_name>[^)]+)\)"
 )
 
-# Inlined into ``_extract_entity_references`` so the helper is self-contained
-# when loaded in isolation (e.g. by unit tests that ``exec()`` the function
-# body without the surrounding module namespace).
-_VALID_ENTITY_TYPES_LOCAL: frozenset[str] = frozenset(
-    {"skill", "client", "contact", "supplier", "user",
-     "snapshot", "routine", "agent_result", "agent_metadata"}
-)
-
 
 def _extract_entity_references(markdown_text: str) -> list[dict]:
     """Scan ``markdown_text`` for entity references of the form ``[label](entity_type:entity_name)``.
 
     Returns a list of dicts with keys ``entity_type``, ``entity_name``,
     ``label`` and ``span`` (a ``(start, end)`` tuple indexing back into
-    the original string).  Only entity types from :data:`_VALID_ENTITY_TYPES`
+    the original string).  Only entity types from
+    :data:`VALID_ENTITY_TYPES <tool_pool_api.server.utils.entity.VALID_ENTITY_TYPES>`
     are accepted; unknown entity types are silently ignored.  Duplicate
     references are preserved in the order they appear.
     """
@@ -133,14 +129,10 @@ def _extract_entity_references(markdown_text: str) -> list[dict]:
     pattern = re.compile(
         r"\[(?P<label>[^\]]*)\]\((?P<entity_type>[a-z_]+):(?P<entity_name>[^)]+)\)"
     )
-    valid_types = frozenset(
-        {"skill", "client", "contact", "supplier", "user",
-         "snapshot", "routine", "agent_result", "agent_metadata"}
-    )
     results: list[dict] = []
     for match in pattern.finditer(markdown_text):
         entity_type = match.group("entity_type")
-        if entity_type not in valid_types:
+        if entity_type not in VALID_ENTITY_TYPES:
             continue
         results.append({
             "entity_type": entity_type,
@@ -257,20 +249,6 @@ _VALID_PERIODS: frozenset[str] = frozenset(
 # ---------------------------------------------------------------------------
 
 
-def _validate_entity_type(entity_type: str, field_name: str = "entity_type") -> None:
-    """Validate entity_type against the allowed set. Raises ValueError."""
-    if entity_type not in _VALID_ENTITY_TYPES:
-        raise ValueError(
-            f"Invalid {field_name} '{entity_type}'. "
-            f"Must be one of: {sorted(_VALID_ENTITY_TYPES)}"
-        )
-
-
-def _normalize_entity_name(name: str) -> str:
-    """Normalize entity name: lowercase, trimmed."""
-    return name.strip().lower()
-
-
 def _is_flushed(metadata: dict | None) -> bool:
     """Check whether a shared-memory entry has been flushed.
 
@@ -308,214 +286,6 @@ def _check_not_flushed(metadata: dict | None, entity_ref: str) -> None:
         )
 
 
-# ---------------------------------------------------------------------------
-# Snapshot validation (T2.2b + T2.2f)
-# ---------------------------------------------------------------------------
-
-
-def _validate_snapshot_frontmatter(
-    entity_name: str,
-    frontmatter: dict,
-) -> None:
-    """Validate that a snapshot has the required frontmatter fields.
-
-    Args:
-        entity_name: e.g. "financeiro:semanal" -- used for cross-validation.
-        frontmatter: The frontmatter dict to validate.
-
-    Raises:
-        ValueError: If required fields are missing or invalid.
-    """
-    if not isinstance(frontmatter, dict):
-        raise ValueError(
-            "frontmatter is required for entity_type='snapshot' and must be a dict"
-        )
-
-    # Validate required fields
-    missing = _SNAPSHOT_FRONTMATTER_REQUIRED - set(frontmatter.keys())
-    if missing:
-        raise ValueError(
-            f"Snapshot frontmatter missing required fields: {sorted(missing)}"
-        )
-
-    # Validate 'tipo' field
-    if frontmatter.get("tipo") != "snapshot":
-        raise ValueError(
-            "frontmatter.tipo must be 'snapshot'"
-        )
-
-    # Validate dimension
-    dimensao = frontmatter.get("dimensao")
-    if dimensao not in _VALID_DIMENSIONS:
-        raise ValueError(
-            f"frontmatter.dimensao '{dimensao}' is invalid. "
-            f"Must be one of: {sorted(_VALID_DIMENSIONS)}"
-        )
-
-    # Cross-validate with entity_name: dimension must match
-    parts = entity_name.split(":")
-    entity_dim = parts[0] if parts else ""
-    if entity_dim and entity_dim != dimensao:
-        raise ValueError(
-            f"entity_name dimension '{entity_dim}' does not match "
-            f"frontmatter.dimensao '{dimensao}'"
-        )
-
-    # Validate period
-    periodo = frontmatter.get("periodo")
-    if periodo not in _VALID_PERIODS:
-        raise ValueError(
-            f"frontmatter.periodo '{periodo}' is invalid. "
-            f"Must be one of: {sorted(_VALID_PERIODS)}"
-        )
-
-    # Cross-validate period with entity_name
-    if len(parts) > 1 and parts[1] and parts[1] != periodo:
-        raise ValueError(
-            f"entity_name period '{parts[1]}' does not match "
-            f"frontmatter.periodo '{periodo}'"
-        )
-
-    # Validate version is positive int
-    versao = frontmatter.get("versao")
-    if not isinstance(versao, int) or versao < 1:
-        raise ValueError(
-            "frontmatter.versao must be a positive integer"
-        )
-
-    # Validate template_version is positive int
-    template_version = frontmatter.get("template_version")
-    if not isinstance(template_version, int) or template_version < 1:
-        raise ValueError(
-            "frontmatter.template_version must be a positive integer"
-        )
-
-    # Validate fontes is a list of strings
-    fontes = frontmatter.get("fontes")
-    if not isinstance(fontes, list) or not all(isinstance(f, str) for f in fontes):
-        raise ValueError("frontmatter.fontes must be a list of strings")
-
-
-def _validate_snapshot_body(
-    entity_name: str,
-    body: dict,
-) -> None:
-    """Validate a snapshot body against its dimension schema.
-
-    Args:
-        entity_name: e.g. "financeiro:semanal" -- dimension extracted from here.
-        body: The body dict (value column content).
-
-    Raises:
-        ValueError: If validation fails.
-    """
-    # Extract dimension from entity_name
-    parts = entity_name.split(":")
-    dimensao = parts[0] if parts else ""
-
-    if not dimensao:
-        raise ValueError(
-            "Cannot determine snapshot dimension from entity_name"
-        )
-
-    if dimensao not in _VALID_DIMENSIONS:
-        raise ValueError(
-            f"Invalid snapshot dimension '{dimensao}'. "
-            f"Must be one of: {sorted(_VALID_DIMENSIONS)}"
-        )
-
-    # Validate base fields are present
-    missing_base = _SNAPSHOT_BASE_FIELDS - set(body.keys())
-    if missing_base:
-        raise ValueError(
-            f"Snapshot body missing required base fields: {sorted(missing_base)}"
-        )
-
-    # Validate 'dimensao' inside body matches entity_name
-    body_dimensao = body.get("dimensao")
-    if body_dimensao != dimensao:
-        raise ValueError(
-            f"body.dimensao '{body_dimensao}' does not match "
-            f"entity_name dimension '{dimensao}'"
-        )
-
-    # Validate 'indicadores' is a list
-    indicadores = body.get("indicadores")
-    if not isinstance(indicadores, list):
-        raise ValueError("body.indicadores must be a list")
-
-    # Validate indicators against dimension spec
-    dim_spec = _SNAPSHOT_DIMENSION_FIELDS.get(dimensao)
-    if dim_spec is None:
-        raise ValueError(
-            f"Unknown snapshot dimension '{dimensao}'"
-        )
-
-    # Build a lookup of indicator names present in body
-    body_indicator_names: set[str] = set()
-    for ind in indicadores:
-        if not isinstance(ind, dict):
-            raise ValueError(
-                f"Each indicator in body.indicadores must be a dict"
-            )
-        nome = ind.get("nome")
-        if not nome or not isinstance(nome, str):
-            raise ValueError(
-                f"Each indicator must have a 'nome' (string)"
-            )
-        body_indicator_names.add(nome)
-
-        # Validate required fields within each indicator
-        if "valor" not in ind:
-            raise ValueError(
-                f"Indicator '{nome}' missing required field 'valor'"
-            )
-        if "unidade" not in ind:
-            raise ValueError(
-                f"Indicator '{nome}' missing required field 'unidade'"
-            )
-        tendencia = ind.get("tendencia")
-        if tendencia is not None and tendencia not in ("alta", "baixa", "estavel"):
-            raise ValueError(
-                f"Indicator '{nome}' has invalid tendencia '{tendencia}'. "
-                f"Must be 'alta', 'baixa', or 'estavel'"
-            )
-
-    # Validate required indicators from dimension spec are present
-    required_indicators = {
-        ind_spec["nome"]
-        for ind_spec in dim_spec["indicadores"]
-        if ind_spec.get("required", False)
-    }
-    missing_indicators = required_indicators - body_indicator_names
-    if missing_indicators:
-        raise ValueError(
-            f"Missing required indicators for dimension '{dimensao}': "
-            f"{sorted(missing_indicators)}"
-        )
-
-    # Validate unknown indicators
-    known_indicator_names = {
-        ind_spec["nome"] for ind_spec in dim_spec["indicadores"]
-    }
-    unknown_indicators = body_indicator_names - known_indicator_names
-    if unknown_indicators:
-        logger.warning(
-            "[memory_module] Snapshot body contains unknown indicators "
-            "for dimension '%s': %s",
-            dimensao,
-            sorted(unknown_indicators),
-        )
-
-    # Validate 'alertas' is a list of strings
-    alertas = body.get("alertas")
-    if not isinstance(alertas, list):
-        raise ValueError("body.alertas must be a list")
-
-    # Validate 'resumo_executivo' is a string
-    resumo = body.get("resumo_executivo")
-    if resumo is not None and not isinstance(resumo, str):
-        raise ValueError("body.resumo_executivo must be a string")
 
 
 # ---------------------------------------------------------------------------
@@ -809,7 +579,7 @@ async def _shared_memory_list_logic(
     sorted by (entity_type, entity_name).
     """
     if entity_type is not None:
-        _validate_entity_type(entity_type)
+        validate_entity_type(entity_type)
 
     db = await get_supabase_client()
 
@@ -872,8 +642,8 @@ async def _shared_memory_read_logic(
 
     Returns the full record or raises ValueError if not found.
     """
-    _validate_entity_type(entity_type)
-    entity_name = _normalize_entity_name(entity_name)
+    validate_entity_type(entity_type)
+    entity_name = normalize_entity_name(entity_name)
     key = key.strip().lower()
 
     if not entity_name or not key:
@@ -959,8 +729,8 @@ async def _shared_memory_upsert_logic(
       - memory_agent_lo → soft-delete after 7d
     If ttl_tier is not provided, inferred from source.
     """
-    _validate_entity_type(entity_type)
-    entity_name = _normalize_entity_name(entity_name)
+    validate_entity_type(entity_type)
+    entity_name = normalize_entity_name(entity_name)
     key = key.strip().lower()
 
     if not entity_name or not key:
@@ -1093,8 +863,8 @@ async def _shared_memory_write_logic(
     Fase 4 (T4.4c): ttl_tier controls retention policy.
     If ttl_tier is not provided, inferred from source.
     """
-    _validate_entity_type(entity_type)
-    entity_name = _normalize_entity_name(entity_name)
+    validate_entity_type(entity_type)
+    entity_name = normalize_entity_name(entity_name)
     key = key.strip().lower()
 
     if not entity_name or not key:
@@ -1209,11 +979,11 @@ async def _shared_memory_link_logic(
 
     Returns the created link record.
     """
-    _validate_entity_type(source_entity_type, "source_entity_type")
-    _validate_entity_type(target_entity_type, "target_entity_type")
+    validate_entity_type(source_entity_type, "source_entity_type")
+    validate_entity_type(target_entity_type, "target_entity_type")
 
-    source_entity_name = _normalize_entity_name(source_entity_name)
-    target_entity_name = _normalize_entity_name(target_entity_name)
+    source_entity_name = normalize_entity_name(source_entity_name)
+    target_entity_name = normalize_entity_name(target_entity_name)
     link_type = link_type.strip().lower()
 
     if not source_entity_name or not target_entity_name:
@@ -1321,14 +1091,14 @@ async def _auto_create_links(
         }
 
     db = await get_supabase_client()
-    source_entity_name_norm = _normalize_entity_name(entity_name)
+    source_entity_name_norm = normalize_entity_name(entity_name)
     payloads = [
         {
             "client_id": client_id,
             "source_entity_type": entity_type,
             "source_entity_name": source_entity_name_norm,
             "target_entity_type": ref["entity_type"],
-            "target_entity_name": _normalize_entity_name(ref["entity_name"]),
+            "target_entity_name": normalize_entity_name(ref["entity_name"]),
             "link_type": "references",
             "source": "system",
             "confidence": 1.0,
@@ -1437,7 +1207,7 @@ async def _shared_memory_get_links_logic(
     db = await get_supabase_client()
 
     if entity_type is not None:
-        _validate_entity_type(entity_type)
+        validate_entity_type(entity_type)
     if link_type is not None:
         link_type = link_type.strip().lower()
 
@@ -1454,7 +1224,7 @@ async def _shared_memory_get_links_logic(
         if entity_type:
             q = q.eq("source_entity_type", entity_type)
         if entity_name:
-            q = q.eq("source_entity_name", _normalize_entity_name(entity_name))
+            q = q.eq("source_entity_name", normalize_entity_name(entity_name))
         if link_type:
             q = q.eq("link_type", link_type)
         result = await q.order("created_at", desc=True).execute()
@@ -1470,7 +1240,7 @@ async def _shared_memory_get_links_logic(
         if entity_type:
             q = q.eq("target_entity_type", entity_type)
         if entity_name:
-            q = q.eq("target_entity_name", _normalize_entity_name(entity_name))
+            q = q.eq("target_entity_name", normalize_entity_name(entity_name))
         if link_type:
             q = q.eq("link_type", link_type)
         result = await q.order("created_at", desc=True).execute()
@@ -1558,8 +1328,8 @@ async def _shared_memory_graph_logic(
     Returns:
         dict with mode, direction, total_nodes, total_edges, nodes, edges.
     """
-    _validate_entity_type(entity_type, "entity_type")
-    entity_name = _normalize_entity_name(entity_name)
+    validate_entity_type(entity_type, "entity_type")
+    entity_name = normalize_entity_name(entity_name)
 
     if mode not in _VALID_GRAPH_MODES:
         raise ValueError(
@@ -1586,8 +1356,8 @@ async def _shared_memory_graph_logic(
                 "mode='path' requires both target_entity_type and "
                 "target_entity_name"
             )
-        _validate_entity_type(target_entity_type, "target_entity_type")
-        target_entity_name = _normalize_entity_name(target_entity_name)
+        validate_entity_type(target_entity_type, "target_entity_type")
+        target_entity_name = normalize_entity_name(target_entity_name)
 
     start_id = _node_id(entity_type, entity_name)
 
@@ -2103,7 +1873,7 @@ async def _shared_memory_meta_upsert_logic(
     Returns the complete record.
     """
     _validate_meta_entity_type(entity_type)
-    entity_name = _normalize_entity_name(entity_name)
+    entity_name = normalize_entity_name(entity_name)
     key = key.strip().lower()
 
     if not entity_name or not key:
@@ -2163,7 +1933,7 @@ async def _shared_memory_meta_read_logic(
 ) -> dict:
     """Read a specific entry from shared_business_memory_meta by composite key."""
     _validate_meta_entity_type(entity_type)
-    entity_name = _normalize_entity_name(entity_name)
+    entity_name = normalize_entity_name(entity_name)
     key = key.strip().lower()
 
     if not entity_name or not key:
@@ -2296,7 +2066,7 @@ async def _shared_memory_search_logic(
         raise ValueError("query is required and cannot be empty")
 
     if entity_type is not None:
-        _validate_entity_type(entity_type)
+        validate_entity_type(entity_type)
 
     # 1. Gerar embedding da query via Cohere
     try:
@@ -2400,9 +2170,9 @@ async def _shared_memory_flush_logic(
     from datetime import datetime, timezone
 
     if entity_type is not None:
-        _validate_entity_type(entity_type)
+        validate_entity_type(entity_type)
     if entity_name is not None:
-        entity_name = _normalize_entity_name(entity_name)
+        entity_name = normalize_entity_name(entity_name)
     if key is not None:
         key = key.strip().lower()
 
@@ -2508,9 +2278,9 @@ async def _shared_memory_export_logic(
     Empty segments return total_records=0 and records=[] (no error raised).
     """
     if entity_type is not None:
-        _validate_entity_type(entity_type)
+        validate_entity_type(entity_type)
     if entity_name is not None:
-        entity_name = _normalize_entity_name(entity_name)
+        entity_name = normalize_entity_name(entity_name)
 
     logger.info(
         "[memory_module] shared_memory_export "

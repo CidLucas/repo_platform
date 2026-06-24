@@ -4,7 +4,7 @@ from enum import Enum
 
 from sqlmodel import Field, SQLModel
 
-from .blu_schema import BluCanonicalColumn
+from blu_models.ingestion.blu_schema import BluCanonicalColumn
 
 
 class ColumnFormat(Enum):

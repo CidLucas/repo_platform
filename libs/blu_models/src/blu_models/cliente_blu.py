@@ -8,9 +8,9 @@ from sqlalchemy.dialects.postgresql import UUID as pgUUID
 from sqlmodel import Column, Field, Relationship, SQLModel
 
 # Importações de modelos locais com forward references resolvidas
-from .cliente_final import ClienteFinal
-from .credencial_servico_externo import CredencialServicoExterno
-from .fonte_de_dados import FonteDeDados
+from blu_models.cliente_final import ClienteFinal
+from blu_models.credencial_servico_externo import CredencialServicoExterno
+from blu_models.fonte_de_dados import FonteDeDados
 
 
 class ClienteBluBase(SQLModel):

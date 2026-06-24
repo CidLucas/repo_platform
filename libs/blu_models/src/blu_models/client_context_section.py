@@ -18,7 +18,7 @@ from sqlalchemy.dialects.postgresql import UUID as pgUUID
 from sqlmodel import Column, SQLModel
 from sqlmodel import Field as SQLField
 
-from .enums import ContextSection
+from blu_models.enums import ContextSection
 
 
 class ClientContextSectionBase(SQLModel):

@@ -3,8 +3,8 @@ import base64
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-from ..base import BaseGoogleClient
-from .models import EmailMessage, SendResult
+from blu_google_suite_client.base import BaseGoogleClient
+from blu_google_suite_client.gmail.models import EmailMessage, SendResult
 
 
 class GoogleGmailClient(BaseGoogleClient):

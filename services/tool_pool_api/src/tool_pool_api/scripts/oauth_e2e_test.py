@@ -13,7 +13,7 @@ from blu_context_service.redis_service import RedisService
 from blu_supabase_client import get_supabase_client
 
 
-async def main():
+async def main() -> None:
     key = os.environ.get("CREDENTIALS_ENCRYPTION_KEY")
     if not key:
         key = Fernet.generate_key().decode()

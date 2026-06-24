@@ -20,7 +20,7 @@ from langchain_core.callbacks.base import BaseCallbackHandler
 from langchain_core.embeddings import Embeddings
 from langchain_core.language_models.chat_models import BaseChatModel
 
-from .config import LLMSettings, get_llm_settings
+from blu_llm_service.config import LLMSettings, get_llm_settings
 
 logger = logging.getLogger(__name__)
 

@@ -13,7 +13,7 @@ from blu_models import (
     HitlRoutingConfig,
 )
 
-from .config import settings
+from blu_experiment_service.config import settings
 
 logger = logging.getLogger(__name__)
 

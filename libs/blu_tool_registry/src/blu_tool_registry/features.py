@@ -44,7 +44,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .tool_metadata import TierLevel
+from blu_tool_registry.tool_metadata import TierLevel
 
 
 @dataclass(frozen=True)

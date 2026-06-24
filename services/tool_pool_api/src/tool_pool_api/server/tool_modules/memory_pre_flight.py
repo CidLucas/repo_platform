@@ -16,7 +16,7 @@ import os
 
 from fastmcp import FastMCP
 
-from . import register_module
+from tool_pool_api.server.tool_modules import register_module
 
 logger = logging.getLogger(__name__)
 

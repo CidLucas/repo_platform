@@ -18,7 +18,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .context_schemas import (
+from blu_models.context_schemas import (
     SECTION_SCHEMAS,
     AvailableTools,
     BrandVoice,
@@ -27,7 +27,7 @@ from .context_schemas import (
     Policies,
     TeamStructure,
 )
-from .enums import ContextSection
+from blu_models.enums import ContextSection
 
 
 class SafeClientContext(BaseModel):

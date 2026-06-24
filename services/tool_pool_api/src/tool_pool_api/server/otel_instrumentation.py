@@ -67,7 +67,7 @@ def _wrap_tool_callable(tool_name: str, fn: Callable[..., Any]) -> Callable[...,
     """Wrap an MCP tool callable with a span + latency/error metrics."""
 
     @wraps(fn)
-    async def traced(*args, **kwargs):
+    async def traced(*args: Any, **kwargs: Any) -> Any:
         # Headers are the cheapest source for identity (no DB round-trip).
         headers = _read_request_headers()
         header_client_id = headers.get("x-cliente-id") or headers.get("x-client-id")
@@ -163,7 +163,7 @@ def instrument_mcp_tools(mcp: FastMCP) -> None:
 
     original_tool = mcp.tool
 
-    def tool(*tool_args, **tool_kwargs):
+    def tool(*tool_args: Any, **tool_kwargs: Any) -> Callable[..., Any]:
         decorator = original_tool(*tool_args, **tool_kwargs)
         # Best-effort: tool name is most reliably the `name=` kwarg.
         explicit_name = tool_kwargs.get("name")

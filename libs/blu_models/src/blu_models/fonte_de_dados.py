@@ -5,10 +5,10 @@ from sqlalchemy import Column, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID as pgUUID
 from sqlmodel import Field, Relationship, SQLModel
 
-from .enums import TipoFonte
+from blu_models.enums import TipoFonte
 
 if TYPE_CHECKING:
-    from .cliente_blu import ClienteBlu
+    from blu_models.cliente_blu import ClienteBlu
 
 
 class FonteDeDados(SQLModel, table=True):

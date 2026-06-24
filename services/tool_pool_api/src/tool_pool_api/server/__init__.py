@@ -8,9 +8,9 @@ Este pacote contém todos os componentes do servidor MCP:
 - mcp_server.py: Factory principal do servidor
 """
 
-from .mcp_server import create_mcp_server
-from .resources import register_resources
-from .tools import register_tools
+from tool_pool_api.server.mcp_server import create_mcp_server
+from tool_pool_api.server.resources import register_resources
+from tool_pool_api.server.tools import register_tools
 
 __all__ = [
     "create_mcp_server",

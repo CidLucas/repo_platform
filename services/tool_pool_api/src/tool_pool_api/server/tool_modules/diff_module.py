@@ -22,9 +22,19 @@ from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 
 from blu_auth.mcp.auth_middleware import mcp_inject_client_id
+from tool_pool_api.server.dependencies import get_context_service
 
 from tool_pool_api.server.tool_modules import register_module
 from tool_pool_api.server.tool_modules.version_module import _get_memory_version as _fetch_version
+
+# Bind mcp_inject_client_id to its already-configured form so it can be used
+# as a plain @decorator below. The factory signature is
+#     mcp_inject_client_id(get_context_service_fn) -> decorator
+# and the tools in this module use the @mcp_inject_client_id sugar form
+# (which would otherwise pass the tool function as get_context_service_fn,
+# breaking FastMCP's Pydantic schema generation). This rebind keeps the
+# @mcp_inject_client_id syntax working without touching every tool.
+mcp_inject_client_id = mcp_inject_client_id(get_context_service)
 
 logger = logging.getLogger(__name__)
 

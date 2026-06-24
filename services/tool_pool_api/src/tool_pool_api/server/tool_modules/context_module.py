@@ -7,6 +7,7 @@ Gives the context-gatherer agent the ability to:
   - list_data_sources: surface what data has already been ingested
 """
 
+import asyncio
 import logging
 import os
 from datetime import UTC, datetime
@@ -267,11 +268,19 @@ async def _list_data_sources_logic(
             )
             return result.count or 0
 
+        table_names = [
+            "fato_transacoes",
+            "dim_clientes",
+            "dim_fornecedores",
+            "dim_inventory",
+        ]
+        results = await asyncio.gather(
+            *(_count(t) for t in table_names),
+            return_exceptions=True,
+        )
         counts = {
-            "fato_transacoes": await _count("fato_transacoes"),
-            "dim_clientes": await _count("dim_clientes"),
-            "dim_fornecedores": await _count("dim_fornecedores"),
-            "dim_inventory": await _count("dim_inventory"),
+            name: (result if isinstance(result, int) else 0)
+            for name, result in zip(table_names, results)
         }
 
         # Most recent ingestion jobs

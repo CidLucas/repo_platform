@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from functools import lru_cache
 
 from pydantic import Field
@@ -128,6 +130,6 @@ def get_llm_settings() -> LLMSettings:
     return LLMSettings()
 
 
-def clear_settings_cache():
+def clear_settings_cache() -> None:
     """Limpa o cache das configurações (útil para testes)."""
     get_llm_settings.cache_clear()

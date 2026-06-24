@@ -25,6 +25,8 @@ Example workflow:
   4. Invoke: response = await llm_call.invoke(prompt)
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 import time
@@ -102,7 +104,7 @@ class TextToSqlLLMConfig:
     api_key: str | None = None  # Will be loaded from environment
     api_base: str | None = None  # Custom API endpoint
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate configuration and set defaults."""
         if self.stop_tokens is None:
             self.stop_tokens = ["UNABLE", ";", "\n\n"]

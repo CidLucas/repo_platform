@@ -1,0 +1,48 @@
+﻿nf_id;data_emissao;natureza_operacao;cliente;cpf_cnpj;descricao_produto;valor_total;icms_base;icms_valor;pis;cofins;observacao
+NFE-2025-0001;2025-12-07;VENDA;Roberto & Camila (casamento);;Buffet completo casamento 200 convidados;18500.00;12950.00;1554.00;305.25;1406.00;Compareceram 130. Prejuízo.
+NFE-2025-0002;2025-03-15;VENDA;Construtora Novo Norte Ltda.;;Coffee break reunião diretoria;922.08;645.46;77.45;15.21;70.08;
+NFE-2025-0003;2025-04-01;VENDA;Construtora Novo Norte Ltda.;;Coffee break reunião diretoria;889.17;622.42;74.69;14.67;67.58;
+NFE-2025-0004;2025-05-01;VENDA;Construtora Novo Norte Ltda.;;Coffee break reunião diretoria;959.39;671.57;80.59;15.83;72.91;
+NFE-2025-0005;2025-06-15;VENDA;Construtora Novo Norte Ltda.;;Coffee break reunião diretoria;1145.74;802.02;96.24;18.90;87.08;
+NFE-2025-0006;2025-07-15;VENDA;Construtora Novo Norte Ltda.;;Coffee break reunião diretoria;940.46;658.32;79.00;15.52;71.47;
+NFE-2025-0007;2025-08-15;VENDA;Construtora Novo Norte Ltda.;;Coffee break reunião diretoria;1071.81;750.27;90.03;17.68;81.46;
+NFE-2025-0008;2025-09-15;VENDA;Construtora Novo Norte Ltda.;;Coffee break reunião diretoria;1175.69;822.98;98.76;19.40;89.35;
+NFE-2025-0009;2025-10-01;VENDA;Construtora Novo Norte Ltda.;;Coffee break reunião diretoria;1150.82;805.57;96.67;18.99;87.46;
+NFE-2025-0010;2025-11-15;VENDA;Construtora Novo Norte Ltda.;;Coffee break reunião diretoria;871.43;610.00;73.20;14.38;66.23;
+NFE-2025-0011;2025-12-15;VENDA;Construtora Novo Norte Ltda.;;Coffee break reunião diretoria;815.30;570.71;68.49;13.45;61.96;
+NFE-2026-0012;2026-01-15;VENDA;Construtora Novo Norte Ltda.;;Coffee break reunião diretoria;938.27;656.79;78.81;15.48;71.31;
+NFE-2026-0013;2026-02-15;VENDA;Construtora Novo Norte Ltda.;;Coffee break reunião diretoria;974.56;682.19;81.86;16.08;74.07;
+NFE-2026-0014;2026-03-01;VENDA;Construtora Novo Norte Ltda.;;Coffee break reunião diretoria;954.08;667.86;80.14;15.74;72.51;
+NFE-2026-0015;2026-04-01;VENDA;Construtora Novo Norte Ltda.;;Coffee break reunião diretoria;901.89;631.32;75.76;14.88;68.54;
+NFE-2026-0016;2026-05-15;VENDA;Construtora Novo Norte Ltda.;;Coffee break reunião diretoria;800.68;560.48;67.26;13.21;60.85;
+NFE-2026-0017;2026-06-01;VENDA;Construtora Novo Norte Ltda.;;Coffee break reunião diretoria;945.69;661.98;79.44;15.60;71.87;
+NFE-2025-0018;2025-06-20;VENDA;Colégio São Miguel;;Buffet festa junina;4500.00;3150.00;378.00;74.25;342.00;Tradicional, todo ano
+NFE-2025-0019;2025-12-12;VENDA;Colégio São Miguel;;Buffet formatura 9º ano;5800.00;4060.00;487.20;95.70;440.80;
+NFE-2025-0020;2025-03-05;VENDA;Dra. Regina Advocacia;;Coffee break + almoço executivo;1500.00;1050.00;126.00;24.75;114.00;Mensal
+NFE-2025-0021;2025-04-15;VENDA;Dra. Regina Advocacia;;Coffee break + almoço executivo;1500.00;1050.00;126.00;24.75;114.00;Mensal
+NFE-2025-0022;2025-05-10;VENDA;Dra. Regina Advocacia;;Coffee break + almoço executivo;1500.00;1050.00;126.00;24.75;114.00;Mensal
+NFE-2025-0023;2025-06-15;VENDA;Dra. Regina Advocacia;;Coffee break + almoço executivo;1500.00;1050.00;126.00;24.75;114.00;Mensal
+NFE-2025-0024;2025-07-10;VENDA;Dra. Regina Advocacia;;Coffee break + almoço executivo;1500.00;1050.00;126.00;24.75;114.00;Mensal
+NFE-2025-0025;2025-08-15;VENDA;Dra. Regina Advocacia;;Coffee break + almoço executivo;1500.00;1050.00;126.00;24.75;114.00;Mensal
+NFE-2025-0026;2025-09-05;VENDA;Dra. Regina Advocacia;;Coffee break + almoço executivo;1500.00;1050.00;126.00;24.75;114.00;Mensal
+NFE-2025-0027;2025-10-15;VENDA;Dra. Regina Advocacia;;Coffee break + almoço executivo;1500.00;1050.00;126.00;24.75;114.00;Mensal
+NFE-2025-0028;2025-11-10;VENDA;Dra. Regina Advocacia;;Coffee break + almoço executivo;1500.00;1050.00;126.00;24.75;114.00;Mensal
+NFE-2025-0029;2025-12-15;VENDA;Dra. Regina Advocacia;;Coffee break + almoço executivo;1500.00;1050.00;126.00;24.75;114.00;Mensal
+NFE-2026-0030;2026-01-10;VENDA;Dra. Regina Advocacia;;Coffee break + almoço executivo;1500.00;1050.00;126.00;24.75;114.00;Mensal
+NFE-2026-0031;2026-02-15;VENDA;Dra. Regina Advocacia;;Coffee break + almoço executivo;1500.00;1050.00;126.00;24.75;114.00;Mensal
+NFE-2025-0032;2025-11-22;VENDA;Salão Villa Flora Eventos;;Coquetel inauguração nova ala do salão;3200.00;2240.00;268.80;52.80;243.20;Comissão informal Eliane 10%
+NFE-2025-0033;2025-07-16;VENDA;Buffet Premium (concorrente);66.777.888/0001-99;Brunch de final de semana;8672.66;6070.86;728.50;143.10;659.12;
+NFE-2025-0034;2025-06-28;VENDA;Eduardo Cunha;07991183842;Buffet de formatura;14153.16;9907.21;1188.87;233.53;1075.64;
+NFE-2025-0035;2025-01-01;VENDA;Pietro Pastor;08121913619;Buffet aniversário infantil (com recreação);5073.49;3551.44;426.17;83.71;385.59;
+NFE-2025-0036;2025-11-26;VENDA;Buffet Premium (concorrente);66.777.888/0001-99;Marmitas executivas (lote);3784.59;2649.21;317.91;62.45;287.63;
+NFE-2025-0037;2025-08-07;VENDA;Ana Beatriz Alves;73178108013;Canapés para evento corporativo;7078.67;4955.07;594.61;116.80;537.98;
+NFE-2025-0038;2025-06-23;VENDA;Henrique da Conceição;26773602606;Coffee break corporativo;12071.04;8449.73;1013.97;199.17;917.40;
+NFE-2025-0039;2025-12-10;VENDA;Buffet Premium (concorrente);66.777.888/0001-99;Coffee break corporativo;8119.42;5683.59;682.03;133.97;617.08;
+NFE-2025-0040;2025-08-29;VENDA;Anna Liz Novaes;80112805982;Buffet aniversário infantil (com recreação);14318.40;10022.88;1202.75;236.25;1088.20;
+NFE-2025-0041;2025-05-31;VENDA;Empresa Tech Solutions;88.999.000/0001-55;Buffet completo casamento;12253.19;8577.23;1029.27;202.18;931.24;
+NFE-2026-0042;2026-05-02;VENDA;Construtora Novo Norte Ltda.;22.456.789/0001-10;Buffet de formatura;4276.76;2993.73;359.25;70.57;325.03;
+NFE-2026-0043;2026-04-12;VENDA;Luiz Miguel Oliveira;62045053315;Brunch de final de semana;11712.55;8198.78;983.85;193.26;890.15;
+NFE-2025-0044;2025-07-19;VENDA;Bernardo Aparecida;86923226025;Brunch de final de semana;9742.67;6819.87;818.38;160.75;740.44;
+NFE-2025-0045;2025-06-01;VENDA;Henrique da Conceição;26773602606;Buffet completo casamento;6475.07;4532.55;543.91;106.84;492.11;
+NFE-2025-0046;2025-04-20;VENDA;Bernardo Aparecida;86923226025;Brunch de final de semana;11463.70;8024.59;962.95;189.15;871.24;
+NFE-2026-0047;2026-04-21;VENDA;Empresa Tech Solutions;88.999.000/0001-55;Buffet completo casamento;3297.59;2308.31;277.00;54.41;250.62;

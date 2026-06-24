@@ -1,0 +1,38 @@
+﻿nf_id;data_emissao;tipo;cliente;cpf_cnpj_cliente;descricao;valor_servico;iss_retido;iss_aliquota;iss_valor;valor_liquido
+NFSE-2025-0001;2025-03-15;SERVIÇO;TechNova Sistemas Ltda.;33.444.555/0001-66;Identidade visual + manual de marca (1ª parcela);9333.33;N;5.00;466.67;8866.66
+NFSE-2025-0002;2025-04-15;SERVIÇO;TechNova Sistemas Ltda.;33.444.555/0001-66;Identidade visual + manual de marca (2ª parcela);9333.33;N;5.00;466.67;8866.66
+NFSE-2025-0003;2025-05-15;SERVIÇO;TechNova Sistemas Ltda.;33.444.555/0001-66;Identidade visual + manual de marca (3ª parcela);9333.34;N;5.00;466.67;8866.67
+NFSE-2025-0004;2025-06-10;SERVIÇO;Buffet Lúcia's Food;48.792.305/0001-81;Criação de logotipo + cardápio digital;2500.00;N;5.00;125.00;2375.00
+NFSE-2025-0005;2025-02-20;SERVIÇO;NovaTech Soluções em TI;32.718.694/0001-07;Criação de logotipo e identidade visual;3500.00;N;5.00;175.00;3325.00
+NFSE-2025-0006;2025-04-05;SERVIÇO;Padaria Vitória;12.345.678/0001-00;Design de folder promocional + banner;1800.00;N;5.00;90.00;1710.00
+NFSE-2025-0007;2025-07-10;SERVIÇO;Padaria Vitória;12.345.678/0001-00;Cardápio digital e arte para redes sociais;1200.00;N;5.00;60.00;1140.00
+NFSE-2025-0008;2025-10-22;SERVIÇO;Padaria Vitória;12.345.678/0001-00;Arte para panfleto e banner de final de ano;1500.00;N;5.00;75.00;1425.00
+NFSE-2026-0009;2026-01-15;SERVIÇO;Padaria Vitória;12.345.678/0001-00;Reformulação cardápio + posts semanais (pacote);2200.00;N;5.00;110.00;2090.00
+NFSE-2025-0010;2025-03-01;SERVIÇO;Estúdio Pilates Corpo Livre;45.678.901/0001-23;Gestão de redes sociais + posts (mensal);600.00;N;5.00;30.00;570.00
+NFSE-2025-0011;2025-04-01;SERVIÇO;Estúdio Pilates Corpo Livre;45.678.901/0001-23;Gestão de redes sociais + posts (mensal);600.00;N;5.00;30.00;570.00
+NFSE-2025-0012;2025-05-10;SERVIÇO;Estúdio Pilates Corpo Livre;45.678.901/0001-23;Gestão de redes sociais + posts (mensal);600.00;N;5.00;30.00;570.00
+NFSE-2025-0013;2025-06-05;SERVIÇO;Estúdio Pilates Corpo Livre;45.678.901/0001-23;Gestão de redes sociais + posts (mensal);600.00;N;5.00;30.00;570.00
+NFSE-2025-0014;2025-07-05;SERVIÇO;Estúdio Pilates Corpo Livre;45.678.901/0001-23;Gestão de redes sociais + posts (mensal);600.00;N;5.00;30.00;570.00
+NFSE-2025-0015;2025-08-05;SERVIÇO;Estúdio Pilates Corpo Livre;45.678.901/0001-23;Gestão de redes sociais + posts (mensal);600.00;N;5.00;30.00;570.00
+NFSE-2025-0016;2025-09-01;SERVIÇO;Estúdio Pilates Corpo Livre;45.678.901/0001-23;Gestão de redes sociais + posts (mensal);600.00;N;5.00;30.00;570.00
+NFSE-2025-0017;2025-10-20;SERVIÇO;Estúdio Pilates Corpo Livre;45.678.901/0001-23;Gestão de redes sociais + posts (mensal);600.00;N;5.00;30.00;570.00
+NFSE-2025-0018;2025-11-01;SERVIÇO;Estúdio Pilates Corpo Livre;45.678.901/0001-23;Gestão de redes sociais + posts (mensal);600.00;N;5.00;30.00;570.00
+NFSE-2025-0019;2025-12-20;SERVIÇO;Estúdio Pilates Corpo Livre;45.678.901/0001-23;Gestão de redes sociais + posts (mensal);600.00;N;5.00;30.00;570.00
+NFSE-2026-0020;2026-01-15;SERVIÇO;Estúdio Pilates Corpo Livre;45.678.901/0001-23;Gestão de redes sociais + posts (mensal);600.00;N;5.00;30.00;570.00
+NFSE-2026-0021;2026-02-01;SERVIÇO;Estúdio Pilates Corpo Livre;45.678.901/0001-23;Gestão de redes sociais + posts (mensal);600.00;N;5.00;30.00;570.00
+NFSE-2026-0022;2026-03-01;SERVIÇO;Estúdio Pilates Corpo Livre;45.678.901/0001-23;Gestão de redes sociais + posts (mensal);600.00;N;5.00;30.00;570.00
+NFSE-2026-0023;2026-04-01;SERVIÇO;Estúdio Pilates Corpo Livre;45.678.901/0001-23;Gestão de redes sociais + posts (mensal);600.00;N;5.00;30.00;570.00
+NFSE-2026-0024;2026-05-05;SERVIÇO;Estúdio Pilates Corpo Livre;45.678.901/0001-23;Gestão de redes sociais + posts (mensal);600.00;N;5.00;30.00;570.00
+NFSE-2026-0025;2026-06-05;SERVIÇO;Estúdio Pilates Corpo Livre;45.678.901/0001-23;Gestão de redes sociais + posts (mensal);600.00;N;5.00;30.00;570.00
+NFSE-2025-0026;2025-10-15;SERVIÇO;Mercearia Santa Luzia;78.901.234/0001-56;Arte para banner e material gráfico;3169.29;S;5.00;158.46;3010.83
+NFSE-2025-0027;2025-05-23;SERVIÇO;Empório da Vila;56.789.012/0001-34;Criação de site institucional (Wix);2466.36;N;5.00;123.32;2343.04
+NFSE-2025-0028;2025-06-24;SERVIÇO;Estúdio Pilates Corpo Livre;45.678.901/0001-23;Edição e tratamento de imagens;3611.44;N;5.00;180.57;3430.87
+NFSE-2025-0029;2025-06-22;SERVIÇO;Empório da Vila;56.789.012/0001-34;Design de folder institucional;4803.18;N;5.00;240.16;4563.02
+NFSE-2026-0030;2026-03-10;SERVIÇO;NovaTech Soluções em TI;32.718.694/0001-07;Criação de posts para redes sociais (pacote 10);844.90;S;5.00;42.25;802.65
+NFSE-2025-0031;2025-10-02;SERVIÇO;Padaria Vitória;12.345.678/0001-00;Design de folder institucional;3756.77;S;5.00;187.84;3568.93
+NFSE-2026-0032;2026-03-01;SERVIÇO;TechNova Sistemas Ltda.;33.444.555/0001-66;Criação de logotipo;2939.39;S;5.00;146.97;2792.42
+NFSE-2025-0033;2025-02-05;SERVIÇO;Dr. Ricardo Barbosa (odontologia);89.012.345/0001-67;Criação de identidade visual completa (logo, cores, tipografia);1284.53;N;5.00;64.23;1220.30
+NFSE-2026-0034;2026-03-14;SERVIÇO;Clínica Vet Saúde Animal;67.890.123/0001-45;Arte para banner e material gráfico;4932.02;N;5.00;246.60;4685.42
+NFSE-2025-0035;2025-11-22;SERVIÇO;NovaTech Soluções em TI;32.718.694/0001-07;Pacote de marketing digital mensal;1678.68;S;5.00;83.93;1594.75
+NFSE-2025-0036;2025-04-18;SERVIÇO;Estúdio Pilates Corpo Livre;45.678.901/0001-23;Criação de logotipo;2102.83;S;5.00;105.14;1997.69
+NFSE-2025-0037;2025-03-29;SERVIÇO;TechNova Sistemas Ltda.;33.444.555/0001-66;Design de rótulo de produto;3202.00;N;5.00;160.10;3041.90

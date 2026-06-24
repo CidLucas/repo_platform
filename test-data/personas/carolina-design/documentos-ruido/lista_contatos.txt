@@ -1,0 +1,12 @@
+LISTA DE CONTATOS — CAROLINA MENDES
+=================================
+NOME                    | TEL                     | OBS
+Ana (Padaria Vitória)   | (11) 9 7654-3210       | Cliente, sempre atrasa mas indica
+Carla (Pilates)         | (11) 9 5432-1098       | Mensal, pontual
+Dr. Hélio (Vet)         | (11) 9 3210-9876       | Semestral
+Lúcia (Buffet)          | (11) 9 9345-6789       | Boa amiga, indicou cliente
+João (NovaTech)         | (11) 9 8888-7777       | Logo pendente (arquivo perdido)
+Seu Ricardo (Contador)  | (11) 9 2345-6789       | R$ 200/mês, reunião 1x mês
+Miguel (Gráfica)        | (11) 9 4567-8901       | Melhor gráfica da região
+André (freela designer) | (11) 9 8901-2345       | Freela quando sobrecarrega
+Marcela (fotógrafa)     | (11) 9 6789-0123       | Indica para jobs de foto

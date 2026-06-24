@@ -1,0 +1,14 @@
+NOTA DE EMPENHO — PREFEITURA MUNICIPAL (FICTÍCIA)
+====================================================
+Nº Empenho: 2026/004578
+Data: 15/03/2026
+Credor: NovaTech Soluções em Informática Ltda.
+CNPJ: 32.718.694/0001-07
+Valor: R$ 18.750,00
+Modalidade: Pregão Eletrônico
+Processo: 2025/12.345
+Descrição: Aquisição de 15 (quinze) computadores completos + suporte
+           para instalação na Secretaria Municipal de Educação.
+Dotação Orçamentária: 04.122.0015.2.100 — Material Permanente
+
+OBS: Empenho aguardando dotação — previsão pagamento 60 dias.

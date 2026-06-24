@@ -1,0 +1,19 @@
+INVENTÁRIO DE EQUIPAMENTOS — COZINHA INDUSTRIAL
+=================================================
+Item                          | Quant. | Aquisição | Valor   | Estado
+Fogão industrial 6 bocas      | 2      | 2020      | R$ 4.5K | Bom
+Fogão industrial 4 bocas      | 1      | 2018      | R$ 2.8K | Desgastado
+Câmara fria                   | 1      | 2019      | R$ 12K  | Manutenção em dia
+Freezer horizontal            | 2      | 2021      | R$ 3.2K | Ok
+Geladeira industrial          | 1      | 2022      | R$ 4K   | Ok
+Batedeira planetária          | 1      | 2020      | R$ 1.8K | Precisa revisão
+Liquidificador industrial     | 2      | 2021      | R$ 800  | Um queimou em maio
+Forno elétrico                | 2      | 2022      | R$ 2.5K | Bom
+Exaustor                      | 1      | 2020      | R$ 3K   | Trocar filtros
+Marmitex térmico transp       | 8      | 2023      | R$ 400  | Novos
+Panelas alumínio (conjunto)   | 3 conj | 2019      | R$ 1.5K | Precisam ser trocadas
+Facas profissionais (kit)     | 2 kits | 2021      | R$ 600  | Amolar urgente
+Utenślios diversos (conjunto) | 1      | 2020      | R$ 400  | Ok
+Balança digital               | 2      | 2022      | R$ 300  | Ok
+Microondas industrial         | 1      | 2021      | R$ 1.2K | Ok
+Lava-louças industrial        | 1      | 2019      | R$ 5K   | Com defeito desde jan/26

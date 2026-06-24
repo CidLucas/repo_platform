@@ -1,0 +1,42 @@
+﻿nf_id;data_emissao;natureza_operacao;fornecedor;cpf_cnpj_fornecedor;descricao_produto;quantidade;valor_unitario;valor_total;icms_base;icms_valor
+NFE-2025-0001;2025-01-15;COMPRA;CEAGESP (conta corrente);01.234.567/0001-89;Alface, rúcula, tomate, cebola;;;559.09;391.36;46.96
+NFE-2025-0002;2025-01-20;COMPRA;Atacadão Barra Funda;89.012.345/0001-78;Alimentos não perecíveis — compra regular;;;628.68;440.08;52.81
+NFE-2025-0003;2025-02-15;COMPRA;Atacadão Barra Funda;89.012.345/0001-78;Alimentos não perecíveis — compra regular;;;728.05;509.63;61.16
+NFE-2025-0004;2025-02-15;COMPRA;Doces da Vó Nina ME;78.901.234/0001-67;Bem-casados (200 un.);;;418.47;292.93;35.15
+NFE-2025-0005;2025-02-25;COMPRA;Distribuidora Bebidas SP;45.678.901/0001-34;Bebidas — compra regular;;;644.37;451.06;54.13
+NFE-2025-0006;2025-02-21;COMPRA;Doces da Vó Nina ME;78.901.234/0001-67;Doces finos sortidos;;;405.51;283.86;34.06
+NFE-2025-0007;2025-02-23;COMPRA;CEAGESP (conta corrente);01.234.567/0001-89;Verduras, legumes e frutas;;;478.58;335.01;40.20
+NFE-2025-0008;2025-03-18;COMPRA;Embalagens Premium Ltda.;56.789.012/0001-45;Descartáveis — compra regular;;;156.40;109.48;13.14
+NFE-2025-0009;2025-03-08;COMPRA;Açougue do Zé;23.456.789/0001-12;Filé mignon (5kg);;;944.73;661.31;79.36
+NFE-2025-0010;2025-03-03;COMPRA;Casa dos Frios Ipiranga;34.567.890/0001-23;Queijos e embutidos — compra regular;;;390.41;273.29;32.79
+NFE-2025-0011;2025-03-18;COMPRA;Embalagens Premium Ltda.;56.789.012/0001-45;Descartáveis — compra regular;;;426.15;298.30;35.80
+NFE-2025-0012;2025-04-27;COMPRA;Casa dos Frios Ipiranga;34.567.890/0001-23;Queijos e embutidos — compra regular;;;394.10;275.87;33.10
+NFE-2025-0013;2025-04-23;COMPRA;Padaria Pão Quente;90.123.456/0001-89;Pães artesanais — compra regular;;;113.67;79.57;9.55
+NFE-2025-0014;2025-05-01;COMPRA;Doces da Vó Nina ME;78.901.234/0001-67;Doces finos sortidos;;;862.78;603.95;72.47
+NFE-2025-0015;2025-05-28;COMPRA;Gás e Equipamentos Ltda.;67.890.123/0001-56;Gás P45 — compra regular;;;724.15;506.90;60.83
+NFE-2025-0016;2025-05-18;COMPRA;Gás e Equipamentos Ltda.;67.890.123/0001-56;Gás P45 — compra regular;;;623.26;436.28;52.35
+NFE-2025-0017;2025-05-26;COMPRA;Atacadão Barra Funda;89.012.345/0001-78;Alimentos não perecíveis — compra regular;;;522.28;365.60;43.87
+NFE-2025-0018;2025-05-16;COMPRA;Casa dos Frios Ipiranga;34.567.890/0001-23;Queijos e embutidos — compra regular;;;253.60;177.52;21.30
+NFE-2025-0019;2025-06-01;COMPRA;Doces da Vó Nina ME;78.901.234/0001-67;Tortas e bolos decorados (4 un.);;;502.76;351.93;42.23
+NFE-2025-0020;2025-06-24;COMPRA;Gás e Equipamentos Ltda.;67.890.123/0001-56;Gás P45 — compra regular;;;215.53;150.87;18.10
+NFE-2025-0021;2025-06-05;COMPRA;Doces da Vó Nina ME;78.901.234/0001-67;Tortas e bolos decorados (4 un.);;;887.47;621.23;74.55
+NFE-2025-0022;2025-06-13;COMPRA;Mercearia do Porto;12.345.678/0001-00;Polvo (3kg);;;1510.27;1057.19;126.86
+NFE-2025-0023;2025-06-03;COMPRA;Mercearia do Porto;12.345.678/0001-00;Camarão rosa (3kg);;;1571.30;1099.91;131.99
+NFE-2025-0024;2025-07-02;COMPRA;Açougue do Zé;23.456.789/0001-12;Alcatra (8kg);;;834.14;583.90;70.07
+NFE-2025-0025;2025-07-15;COMPRA;Casa dos Frios Ipiranga;34.567.890/0001-23;Queijos e embutidos — compra regular;;;328.79;230.15;27.62
+NFE-2025-0026;2025-07-09;COMPRA;Gás e Equipamentos Ltda.;67.890.123/0001-56;Gás P45 — compra regular;;;626.41;438.49;52.62
+NFE-2025-0027;2025-07-09;COMPRA;Gás e Equipamentos Ltda.;67.890.123/0001-56;Gás P45 — compra regular;;;684.44;479.11;57.49
+NFE-2025-0028;2025-07-01;COMPRA;Doces da Vó Nina ME;78.901.234/0001-67;Bem-casados (200 un.);;;736.87;515.81;61.90
+NFE-2025-0029;2025-08-21;COMPRA;Casa dos Frios Ipiranga;34.567.890/0001-23;Queijos e embutidos — compra regular;;;148.03;103.62;12.43
+NFE-2025-0030;2025-08-25;COMPRA;Mercearia do Porto;12.345.678/0001-00;Camarão rosa (3kg);;;837.24;586.07;70.33
+NFE-2025-0031;2025-08-27;COMPRA;Casa dos Frios Ipiranga;34.567.890/0001-23;Queijos e embutidos — compra regular;;;114.27;79.99;9.60
+NFE-2025-0032;2025-08-08;COMPRA;Açougue do Zé;23.456.789/0001-12;Patinho moído (10kg);;;713.60;499.52;59.94
+NFE-2025-0033;2025-09-23;COMPRA;Doces da Vó Nina ME;78.901.234/0001-67;Doces finos sortidos;;;416.56;291.59;34.99
+NFE-2025-0034;2025-09-20;COMPRA;Açougue do Zé;23.456.789/0001-12;Patinho moído (10kg);;;1146.52;802.56;96.31
+NFE-2025-0035;2025-09-10;COMPRA;Açougue do Zé;23.456.789/0001-12;Patinho moído (10kg);;;697.29;488.10;58.57
+NFE-2025-0036;2025-10-22;COMPRA;Padaria Pão Quente;90.123.456/0001-89;Pães artesanais — compra regular;;;735.62;514.93;61.79
+NFE-2025-0037;2025-10-13;COMPRA;Gás e Equipamentos Ltda.;67.890.123/0001-56;Gás P45 — compra regular;;;759.03;531.32;63.76
+NFE-2025-0038;2025-10-03;COMPRA;Casa dos Frios Ipiranga;34.567.890/0001-23;Queijos e embutidos — compra regular;;;514.47;360.13;43.22
+NFE-2025-0039;2025-10-04;COMPRA;Casa dos Frios Ipiranga;34.567.890/0001-23;Queijos e embutidos — compra regular;;;588.04;411.63;49.40
+NFE-2025-0040;2025-11-26;COMPRA;Padaria Pão Quente;90.123.456/0001-89;Pães artesanais — compra regular;;;788.69;552.08;66.25
+NFE-2025-0041;2025-12-23;COMPRA;Doces da Vó Nina ME;78.901.234/0001-67;Tortas e bolos decorados (4 un.);;;364.49;255.14;30.62

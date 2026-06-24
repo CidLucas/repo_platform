@@ -1,0 +1,17 @@
+CONTROLE DE SENHAS — NOVATECH TI
+==================================
+ATENÇÃO: Arquivo interno. Não compartilhar.
+
+CLIENTES:
+- AutoPeças Lima: admin / Lima@2023! (servidor local)
+- Rocha & Silva: suporte / Roch@Adv2024 (servidor)
+- Farmácia Bem-Estar: adm / Farmac!a2024 (sistema)
+- Construtora Novo Norte: adm / N0v0N0rte! (Google Workspace)
+
+INTERNO:
+- Servidor AWS: root / N0v@T3ch!2025 (MUDAR!)
+- Wi-Fi escritório: NovaTechTI / 0987654321
+- E-mail administrativo: admin@novatechti.com.br / NT!adm2024
+- Conta azul (Maria): maria@novatechti.com.br / M@ri@2025
+
+MARIA: Por favor, trocar senhas a cada 3 meses!!!

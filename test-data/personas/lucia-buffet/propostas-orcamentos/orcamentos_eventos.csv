@@ -1,0 +1,11 @@
+﻿orcamento_id;data;cliente;contato;tipo_evento;num_convidados;valor_estimado;status
+ORC-EVENT-001;2025-11-13;Carolina Mendes (designer);;Casamento;100;19034.26;EM_NEGOCIAÇÃO
+ORC-EVENT-002;2026-01-24;Dra. Regina Advocacia;Dra. Regina;Aniversário;100;13396.99;APROVADO
+ORC-EVENT-003;2025-11-14;Empresa Tech Solutions;;15 anos;100;5636.80;RECUSADO
+ORC-EVENT-004;2025-10-22;Roberto & Camila (casamento);;Corporativo;150;19606.40;APROVADO
+ORC-EVENT-005;2025-09-06;Associação Comercial de SP;;Aniversário;120;3712.26;APROVADO
+ORC-EVENT-006;2026-04-27;Empresa Tech Solutions;;Aniversário;50;16236.85;APROVADO
+ORC-EVENT-007;2025-09-22;Carolina Mendes (designer);;15 anos;100;10088.02;RECUSADO
+ORC-EVENT-008;2026-03-11;Empresa Tech Solutions;;Aniversário;200;12618.44;RECUSADO
+ORC-EVENT-009;2026-05-26;Roberto & Camila (casamento);;Corporativo;100;11074.91;APROVADO
+ORC-EVENT-010;2026-06-05;Construtora Novo Norte Ltda.;Fernanda (secretária);Casamento;200;5851.69;APROVADO

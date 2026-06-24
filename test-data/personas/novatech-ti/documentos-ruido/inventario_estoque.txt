@@ -1,0 +1,23 @@
+INVENTÁRIO — ESTOQUE NOVATECH TI (ATUALIZADO EM 20/06/2026)
+=================================================================
+
+EQUIPAMENTOS DISPONÍVEIS:
+Item                       | Qtd | Custo Unit. | Preço Venda
+Notebook Dell Latitude     | 3   | R$ 2.200    | R$ 3.800
+Notebook Samsung           | 2   | R$ 1.800    | R$ 3.200
+Monitor Dell 24"           | 5   | R$ 650      | R$ 1.100
+SSD Kingston 480GB         | 12  | R$ 280      | R$ 450
+SSD Kingston 240GB         | 8   | R$ 150      | R$ 260
+Switch Intelbras 24p       | 1   | R$ 890      | R$ 1.490
+Roteador Intelbras         | 4   | R$ 180      | R$ 320
+Cabo de rede CAT6 (metro)  | 200 | R$ 2        | R$ 4
+Fonte notebook universal   | 6   | R$ 60       | R$ 120
+Mouse óptico               | 15  | R$ 25       | R$ 50
+Teclado simples            | 10  | R$ 35       | R$ 70
+
+VALOR TOTAL ESTOQUE: Aprox. R$ 31.000
+
+OBSERVAÇÕES (MARIA):
+- Estoque baixo de monitores — pedir mais 10 na DigiDistri
+- Preços DigiDistri subiram 8% em junho
+- Verificar com Intelbras se vai lançar novo modelo de switch

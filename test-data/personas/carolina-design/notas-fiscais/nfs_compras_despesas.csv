@@ -1,0 +1,57 @@
+﻿nf_id;data_emissao;tipo;fornecedor;cpf_cnpj_fornecedor;descricao;valor
+NFCE-2025-0001;2025-01-15;ASSINATURA;Adobe Inc.;EXTERIOR;Assinatura Creative Cloud (PS+AI+ID);401.00
+NFCE-2026-0002;2026-01-15;ASSINATURA;Adobe Inc.;EXTERIOR;Assinatura Creative Cloud (PS+AI+ID);401.00
+NFCE-2025-0003;2025-02-15;ASSINATURA;Adobe Inc.;EXTERIOR;Assinatura Creative Cloud (PS+AI+ID);401.00
+NFCE-2026-0004;2026-02-15;ASSINATURA;Adobe Inc.;EXTERIOR;Assinatura Creative Cloud (PS+AI+ID);401.00
+NFCE-2025-0005;2025-03-15;ASSINATURA;Adobe Inc.;EXTERIOR;Assinatura Creative Cloud (PS+AI+ID);401.00
+NFCE-2026-0006;2026-03-15;ASSINATURA;Adobe Inc.;EXTERIOR;Assinatura Creative Cloud (PS+AI+ID);401.00
+NFCE-2025-0007;2025-04-15;ASSINATURA;Adobe Inc.;EXTERIOR;Assinatura Creative Cloud (PS+AI+ID);401.00
+NFCE-2026-0008;2026-04-15;ASSINATURA;Adobe Inc.;EXTERIOR;Assinatura Creative Cloud (PS+AI+ID);401.00
+NFCE-2025-0009;2025-05-15;ASSINATURA;Adobe Inc.;EXTERIOR;Assinatura Creative Cloud (PS+AI+ID);401.00
+NFCE-2026-0010;2026-05-15;ASSINATURA;Adobe Inc.;EXTERIOR;Assinatura Creative Cloud (PS+AI+ID);401.00
+NFCE-2025-0011;2025-06-15;ASSINATURA;Adobe Inc.;EXTERIOR;Assinatura Creative Cloud (PS+AI+ID);401.00
+NFCE-2026-0012;2026-06-15;ASSINATURA;Adobe Inc.;EXTERIOR;Assinatura Creative Cloud (PS+AI+ID);401.00
+NFCE-2025-0013;2025-07-15;ASSINATURA;Adobe Inc.;EXTERIOR;Assinatura Creative Cloud (PS+AI+ID);401.00
+NFCE-2025-0014;2025-08-15;ASSINATURA;Adobe Inc.;EXTERIOR;Assinatura Creative Cloud (PS+AI+ID);401.00
+NFCE-2025-0015;2025-09-15;ASSINATURA;Adobe Inc.;EXTERIOR;Assinatura Creative Cloud (PS+AI+ID);401.00
+NFCE-2025-0016;2025-10-15;ASSINATURA;Adobe Inc.;EXTERIOR;Assinatura Creative Cloud (PS+AI+ID);401.00
+NFCE-2025-0017;2025-11-15;ASSINATURA;Adobe Inc.;EXTERIOR;Assinatura Creative Cloud (PS+AI+ID);401.00
+NFCE-2025-0018;2025-12-15;ASSINATURA;Adobe Inc.;EXTERIOR;Assinatura Creative Cloud (PS+AI+ID);401.00
+NFCE-2025-0019;2025-01-05;SERVIÇO;Google Brasil Internet Ltda.;06.190.287/0001-17;Google Workspace Individual;28.00
+NFCE-2026-0020;2026-01-05;SERVIÇO;Google Brasil Internet Ltda.;06.190.287/0001-17;Google Workspace Individual;28.00
+NFCE-2025-0021;2025-02-05;SERVIÇO;Google Brasil Internet Ltda.;06.190.287/0001-17;Google Workspace Individual;28.00
+NFCE-2026-0022;2026-02-05;SERVIÇO;Google Brasil Internet Ltda.;06.190.287/0001-17;Google Workspace Individual;28.00
+NFCE-2025-0023;2025-03-05;SERVIÇO;Google Brasil Internet Ltda.;06.190.287/0001-17;Google Workspace Individual;28.00
+NFCE-2026-0024;2026-03-05;SERVIÇO;Google Brasil Internet Ltda.;06.190.287/0001-17;Google Workspace Individual;28.00
+NFCE-2025-0025;2025-04-05;SERVIÇO;Google Brasil Internet Ltda.;06.190.287/0001-17;Google Workspace Individual;28.00
+NFCE-2026-0026;2026-04-05;SERVIÇO;Google Brasil Internet Ltda.;06.190.287/0001-17;Google Workspace Individual;28.00
+NFCE-2025-0027;2025-05-05;SERVIÇO;Google Brasil Internet Ltda.;06.190.287/0001-17;Google Workspace Individual;28.00
+NFCE-2026-0028;2026-05-05;SERVIÇO;Google Brasil Internet Ltda.;06.190.287/0001-17;Google Workspace Individual;28.00
+NFCE-2025-0029;2025-06-05;SERVIÇO;Google Brasil Internet Ltda.;06.190.287/0001-17;Google Workspace Individual;28.00
+NFCE-2026-0030;2026-06-05;SERVIÇO;Google Brasil Internet Ltda.;06.190.287/0001-17;Google Workspace Individual;28.00
+NFCE-2025-0031;2025-07-05;SERVIÇO;Google Brasil Internet Ltda.;06.190.287/0001-17;Google Workspace Individual;28.00
+NFCE-2025-0032;2025-08-05;SERVIÇO;Google Brasil Internet Ltda.;06.190.287/0001-17;Google Workspace Individual;28.00
+NFCE-2025-0033;2025-09-05;SERVIÇO;Google Brasil Internet Ltda.;06.190.287/0001-17;Google Workspace Individual;28.00
+NFCE-2025-0034;2025-10-05;SERVIÇO;Google Brasil Internet Ltda.;06.190.287/0001-17;Google Workspace Individual;28.00
+NFCE-2025-0035;2025-11-05;SERVIÇO;Google Brasil Internet Ltda.;06.190.287/0001-17;Google Workspace Individual;28.00
+NFCE-2025-0036;2025-12-05;SERVIÇO;Google Brasil Internet Ltda.;06.190.287/0001-17;Google Workspace Individual;28.00
+NFCE-2026-0037;2026-04-19;COMPRA;Gráfica Nova Era Ltda.;23.456.789/0001-12;Impressão de cartões de visita (1000 un.);579.46
+NFCE-2025-0038;2025-02-27;COMPRA;Stone Pagamentos S.A.;18.938.072/0001-82;Entrega de materiais / frete;45.92
+NFCE-2026-0039;2026-02-15;COMPRA;Stone Pagamentos S.A.;18.938.072/0001-82;Entrega de materiais / frete;51.15
+NFCE-2025-0040;2025-11-19;COMPRA;Mercado Livre (Magalu);03.789.654/0001-09;Entrega de materiais / frete;43.70
+NFCE-2026-0041;2026-02-10;COMPRA;Kalunga Comercial;43.276.987/0001-01;Toner para impressora;359.64
+NFCE-2025-0042;2025-05-27;COMPRA;Kalunga Comercial;43.276.987/0001-01;Papel sulfite e materiais de escritório;142.71
+NFCE-2026-0043;2026-02-13;FRETE;Transportadora Flash Ltda.;34.567.890/0001-23;Entrega de materiais / frete;63.87
+NFCE-2026-0044;2026-06-06;COMPRA;Gráfica Nova Era Ltda.;23.456.789/0001-12;Impressão de folders (500 un.);693.52
+NFCE-2025-0045;2025-06-06;COMPRA;iStock by Getty Images;EXTERIOR;Licenciamento de vetores;127.84
+NFCE-2025-0046;2025-03-07;FRETE;Transportadora Flash Ltda.;34.567.890/0001-23;Entrega de materiais / frete;66.94
+NFCE-2025-0047;2025-09-15;COMPRA;Kalunga Comercial;43.276.987/0001-01;Papel sulfite e materiais de escritório;389.88
+NFCE-2025-0048;2025-10-01;COMPRA;iStock by Getty Images;EXTERIOR;Royalty-free images (lote 10);147.60
+NFCE-2025-0049;2025-10-28;COMPRA;iStock by Getty Images;EXTERIOR;Royalty-free images (lote 10);100.87
+NFCE-2026-0050;2026-06-04;COMPRA;Gráfica Nova Era Ltda.;23.456.789/0001-12;Impressão de banners (3 un.);1112.63
+NFCE-2025-0051;2025-06-06;COMPRA;Mercado Livre (Magalu);03.789.654/0001-09;Entrega de materiais / frete;65.48
+NFCE-2025-0052;2025-01-01;COMPRA;Gráfica Nova Era Ltda.;23.456.789/0001-12;Impressão de panfletos (2000 un.);798.94
+NFCE-2026-0053;2026-01-07;COMPRA;iStock by Getty Images;EXTERIOR;Royalty-free images (lote 10);163.02
+NFCE-2025-0054;2025-03-01;COMPRA;Mercado Livre (Magalu);03.789.654/0001-09;Entrega de materiais / frete;47.52
+NFCE-2025-0055;2025-03-29;COMPRA;iStock by Getty Images;EXTERIOR;Pacote de imagens (banco de fotos);142.47
+NFCE-2025-0056;2025-05-12;COMPRA;Gráfica Nova Era Ltda.;23.456.789/0001-12;Impressão de cartões de visita (1000 un.);859.75

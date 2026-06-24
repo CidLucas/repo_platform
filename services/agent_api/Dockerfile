@@ -5,7 +5,7 @@ ENV POETRY_VIRTUALENVS_IN_PROJECT=true
 ENV POETRY_HTTP_TIMEOUT=300
 WORKDIR /app
 
-RUN pip install poetry==1.8.0
+RUN pip install poetry==2.1.4
 
 # Copy internal libs (needed for path-dependency resolution during install)
 COPY libs/blu_auth ./libs/blu_auth

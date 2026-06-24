@@ -7,7 +7,7 @@ ENV POETRY_HTTP_TIMEOUT=300
 ENV POETRY_REQUESTS_TIMEOUT=300
 WORKDIR /app
 
-RUN pip install poetry==1.8.0
+RUN pip install poetry==2.1.4
 
 # System deps required by Playwright/Chromium
 RUN apt-get update && apt-get install -y --no-install-recommends \

@@ -2,6 +2,8 @@
 Jinja2-based template rendering with safety features.
 """
 
+from __future__ import annotations
+
 import logging
 import re
 from typing import Any
@@ -22,7 +24,7 @@ class TemplateRenderer:
         self,
         autoescape: bool = False,
         undefined_behavior: str = "empty",
-    ):
+    ) -> None:
         """
         Initialize renderer.
 
@@ -152,7 +154,7 @@ class SafeRenderer(TemplateRenderer):
         max_output_size: int = 100000,
         max_variable_depth: int = 3,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(**kwargs)
         self.max_template_size = max_template_size
         self.max_output_size = max_output_size

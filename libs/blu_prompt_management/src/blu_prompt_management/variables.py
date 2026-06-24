@@ -2,6 +2,8 @@
 Variable extraction and preparation for prompt templates.
 """
 
+from __future__ import annotations
+
 import logging
 from dataclasses import dataclass, field
 from typing import Any
@@ -267,7 +269,7 @@ class VariableExtractor:
 
     @staticmethod
     def build_tools_description(
-        tools: list,
+        tools: list[Any],
         tool_registry: Any | None = None,
     ) -> str:
         """
@@ -317,7 +319,7 @@ class ContextVariableBuilder:
     Builder for constructing PromptVariables with fluent interface.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._variables = PromptVariables()
 
     def with_empresa(self, nome: str) -> "ContextVariableBuilder":

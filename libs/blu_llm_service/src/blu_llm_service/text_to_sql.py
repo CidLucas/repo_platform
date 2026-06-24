@@ -11,6 +11,8 @@ Key changes:
 - Uses Langfuse SDK's native get_prompt() + compile()
 """
 
+from __future__ import annotations
+
 import logging
 
 from blu_models import BluClientContext

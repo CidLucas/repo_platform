@@ -1,4 +1,5 @@
 # libs/blu_models/src/blu_models/ingestion/schema_config.py
+from __future__ import annotations
 
 from enum import Enum
 

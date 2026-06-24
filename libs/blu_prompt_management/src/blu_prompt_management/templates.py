@@ -5,6 +5,8 @@ These templates serve as defaults when no database prompts are configured.
 They can be overridden per-client in the database.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from enum import Enum
 

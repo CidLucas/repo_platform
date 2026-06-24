@@ -15,6 +15,8 @@ Usage:
     truncated = budget.truncate_messages(messages, system_prompt)
 """
 
+from __future__ import annotations
+
 import logging
 from dataclasses import dataclass
 from typing import Any

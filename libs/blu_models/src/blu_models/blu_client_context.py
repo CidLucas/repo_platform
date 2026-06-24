@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 import uuid
-from typing import Any
+from typing import Any, Callable
 
 from blu_models.credencial_servico_externo import CredencialServicoExternoBase
 
@@ -110,7 +112,7 @@ class BluClientContext(ClienteBluBase):
                 loaded_sections.append(section_enum)
 
         # Validate sections against schemas (best effort)
-        def _safe_validate(data, schema_cls):
+        def _safe_validate(data: dict[str, Any] | None, schema_cls: Callable[..., Any]) -> Any:
             if not data:
                 return None
             try:

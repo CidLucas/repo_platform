@@ -13,6 +13,8 @@ Key changes from previous implementation:
 - Redis caching handled at ContextService layer, not here
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 import time as _time
@@ -84,7 +86,7 @@ class PromptLoader:
         cache_ttl_seconds: int = 300,
         renderer: TemplateRenderer | None = None,
         langfuse_label: str = "production",
-    ):
+    ) -> None:
         """
         Initialize PromptLoader.
 
@@ -98,7 +100,7 @@ class PromptLoader:
         self.langfuse_label = langfuse_label
         self._langfuse_client = None
 
-    def _get_langfuse_client(self):
+    def _get_langfuse_client(self) -> Any | None:
         """Lazily initialize Langfuse client. Returns None if in cooldown."""
         if _time.time() < self._langfuse_cooldown_until:
             remaining = int(self._langfuse_cooldown_until - _time.time())

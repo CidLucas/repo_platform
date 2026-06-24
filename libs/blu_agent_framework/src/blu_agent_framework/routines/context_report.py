@@ -1062,15 +1062,16 @@ def _main() -> int:
         result = asyncio.run(
             run_for_client(args.client_id, dry_run=args.dry_run)
         )
-        print(json.dumps(result.__dict__, default=str, indent=2))
+        logger.info(json.dumps(result.__dict__, default=str, indent=2))
         return 1 if result.error else 0
 
     results = asyncio.run(
         run_all_enabled(concurrency=args.concurrency, dry_run=args.dry_run)
     )
-    print(json.dumps([r.__dict__ for r in results], default=str, indent=2))
+    logger.info(json.dumps([r.__dict__ for r in results], default=str, indent=2))
     return 1 if any(r.error for r in results) else 0
 
 
 if __name__ == "__main__":
     raise SystemExit(_main())
+

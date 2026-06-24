@@ -7,6 +7,7 @@ Este módulo define:
 2. HitlConfig - Configuração dos critérios de roteamento para HITL
 3. HitlCriteria - Enum dos critérios disponíveis para roteamento
 """
+from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum

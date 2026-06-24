@@ -1,10 +1,12 @@
 import logging
 import os
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastmcp import FastMCP
 from slowapi import Limiter
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
@@ -58,7 +60,7 @@ _mcp_asgi = None
 _mcp_initialized = False
 
 
-def _create_mcp() -> FastMCP:
+def _create_mcp() -> tuple[FastMCP, Any]:
     """Create MCP server and ASGI app."""
     global _mcp, _mcp_asgi, _mcp_initialized
 

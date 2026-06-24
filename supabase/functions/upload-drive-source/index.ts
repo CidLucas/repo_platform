@@ -24,6 +24,14 @@ import {
   driveMetadata,
   getAccessToken,
 } from "../_shared/google_drive.ts";
+import {
+  type ColumnDef,
+  type MatchResult,
+  detectSeparator,
+  inferType,
+  parseLine,
+  scoreSheetName,
+} from "../_shared/sheet_intake.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -33,15 +41,8 @@ const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 
 // =============================================================================
-// Sheet selection (mirrors upload-csv-source)
+// Sheet scoring — neutral patterns are Drive-specific (month names, versions)
 // =============================================================================
-
-const TRANSACTION_SHEET_KEYWORDS = [
-  "lancamentos", "lancamento", "faturamento", "fatura", "faturas",
-  "transacoes", "transacao", "entradas", "saidas", "movimentacao",
-  "movimentacoes", "despesas", "receitas", "vendas", "compras",
-  "financeiro", "pagamentos", "pagamento", "notas", "registros",
-];
 
 // Month names and versioning patterns score 0 (neutral) — row count wins as tiebreaker.
 const NEUTRAL_PATTERNS = [
@@ -50,50 +51,6 @@ const NEUTRAL_PATTERNS = [
   /rev\./i,
   /^v\d/i,
 ];
-
-function scoreSheetName(name: string): number {
-  const n = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  if (TRANSACTION_SHEET_KEYWORDS.some((kw) => n.includes(kw))) return 1;
-  if (NEUTRAL_PATTERNS.some((p) => p.test(name))) return 0;
-  return 0;
-}
-
-// =============================================================================
-// Types
-// =============================================================================
-
-interface ColumnDef {
-  name: string;
-  type: "integer" | "numeric" | "date" | "text";
-  sample: string[];
-}
-
-interface MatchResult {
-  matched: Record<string, string>;
-  unmatched: string[];
-  needs_review: Array<{ source: string; candidates: Array<{ canonical: string; confidence: number }> }>;
-  confidence_scores: Record<string, number>;
-  detected_context?: string;
-}
-
-// =============================================================================
-// Type inference (mirrors upload-csv-source)
-// =============================================================================
-
-function inferType(values: string[]): "integer" | "numeric" | "date" | "text" {
-  const nonEmpty = values.filter((v) => v !== "");
-  if (nonEmpty.length === 0) return "text";
-  if (nonEmpty.every((v) => /^\d+$/.test(v.trim()))) return "integer";
-  if (nonEmpty.every((v) => /^[\d.,]+$/.test(v.trim().replace(",", ".")))) return "numeric";
-  if (
-    nonEmpty.every((v) =>
-      /^\d{4}-\d{2}-\d{2}/.test(v.trim()) ||
-      /^\d{2}\/\d{2}\/\d{4}/.test(v.trim()) ||
-      /^\d{2}-\d{2}-\d{4}/.test(v.trim())
-    )
-  ) return "date";
-  return "text";
-}
 
 // =============================================================================
 // Handler
@@ -208,7 +165,7 @@ Deno.serve(async (req: Request) => {
         const ref = workbook.Sheets[name]["!ref"] ?? "A1:A1";
         const range = XLSX.utils.decode_range(ref);
         const rowCount = range.e.r - range.s.r + 1;
-        return { name, score: scoreSheetName(name), rowCount };
+              return { name, score: scoreSheetName(name, NEUTRAL_PATTERNS), rowCount };
       });
       scored.sort((a: { score: number; rowCount: number }, b: { score: number; rowCount: number }) =>
         b.score - a.score || b.rowCount - a.rowCount
@@ -240,10 +197,10 @@ Deno.serve(async (req: Request) => {
       const text = new TextDecoder().decode(fileBuffer);
       const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "");
       if (lines.length === 0) return json({ error: "Empty CSV" }, 400);
-      const sep = (lines[0].match(/;/g) ?? []).length > (lines[0].match(/,/g) ?? []).length ? ";" : ",";
-      headers = lines[0].split(sep).map((h) => h.replace(/^"|"$/g, "").trim()).filter(Boolean);
+      const sep = detectSeparator(lines[0]);
+      headers = parseLine(lines[0], sep).map((h) => h.replace(/^"|"$/g, "").trim()).filter(Boolean);
       sampleRows = lines.slice(1, 11).map((l) =>
-        l.split(sep).map((v) => v.replace(/^"|"$/g, "").trim())
+        parseLine(l, sep).map((v) => v.replace(/^"|"$/g, ""))
       );
     } else {
       return json({ error: "Unsupported MIME type" }, 400);

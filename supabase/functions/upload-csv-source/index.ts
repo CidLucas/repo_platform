@@ -16,106 +16,17 @@ import {
   requireAuth,
 } from "../_shared/blu_auth.ts";
 import { corsHeaders, json } from "../_shared/cors.ts";
+import {
+  type ColumnDef,
+  type MatchResult,
+  inferType,
+  parseCSV,
+  scoreSheetName,
+} from "../_shared/sheet_intake.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
-
-// =============================================================================
-// Sheet selection helpers
-// =============================================================================
-
-const TRANSACTION_SHEET_KEYWORDS = [
-  "lancamentos", "lancamento", "faturamento", "fatura", "faturas",
-  "transacoes", "transacao", "entradas", "saidas", "movimentacao",
-  "movimentacoes", "despesas", "receitas", "vendas", "compras",
-  "financeiro", "pagamentos", "pagamento", "notas", "registros",
-];
-
-function scoreSheetName(name: string): number {
-  const n = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  return TRANSACTION_SHEET_KEYWORDS.some((kw) => n.includes(kw)) ? 1 : 0;
-}
-
-// =============================================================================
-// Types
-// =============================================================================
-
-interface ColumnDef {
-  name: string;
-  type: "integer" | "numeric" | "date" | "text";
-  sample: string[];
-}
-
-interface MatchResult {
-  matched: Record<string, string>;
-  unmatched: string[];
-  needs_review: Array<{ source: string; candidates: Array<{ canonical: string; confidence: number }> }>;
-  confidence_scores: Record<string, number>;
-  detected_context?: string;
-}
-
-// =============================================================================
-// CSV Parsing
-// =============================================================================
-
-function inferType(values: string[]): "integer" | "numeric" | "date" | "text" {
-  const nonEmpty = values.filter((v) => v !== "");
-  if (nonEmpty.length === 0) return "text";
-  if (nonEmpty.every((v) => /^\d+$/.test(v.trim()))) return "integer";
-  if (nonEmpty.every((v) => /^[\d.,]+$/.test(v.trim().replace(",", ".")))) return "numeric";
-  if (
-    nonEmpty.every((v) =>
-      /^\d{4}-\d{2}-\d{2}/.test(v.trim()) ||
-      /^\d{2}\/\d{2}\/\d{4}/.test(v.trim()) ||
-      /^\d{2}-\d{2}-\d{4}/.test(v.trim())
-    )
-  ) return "date";
-  return "text";
-}
-
-function parseLine(line: string, sep: string): string[] {
-  const result: string[] = [];
-  let current = "";
-  let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '"') {
-      if (inQuotes && line[i + 1] === '"') { current += '"'; i++; }
-      else inQuotes = !inQuotes;
-    } else if (ch === sep && !inQuotes) {
-      result.push(current.trim());
-      current = "";
-    } else {
-      current += ch;
-    }
-  }
-  result.push(current.trim());
-  return result;
-}
-
-function parseCSV(text: string): { headers: string[]; sampleRows: string[][] } {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "");
-  if (lines.length === 0) throw new Error("Empty CSV file");
-
-  // Detect separator using the line with the most delimiters
-  const candidateLine = lines.slice(0, 10).reduce((best, l) =>
-    l.length > best.length ? l : best, lines[0]);
-  const sep = (candidateLine.match(/;/g) ?? []).length > (candidateLine.match(/,/g) ?? []).length ? ";" : ",";
-
-  // Find the row with the most non-empty cells in the first 10 lines
-  const searchLines = lines.slice(0, 10);
-  const headerIdx = searchLines.reduce((bestIdx, line, i) => {
-    const count = parseLine(line, sep).filter((c) => c.replace(/^"|"$/g, "").trim() !== "").length;
-    const bestCount = parseLine(searchLines[bestIdx], sep).filter((c) => c.replace(/^"|"$/g, "").trim() !== "").length;
-    return count > bestCount ? i : bestIdx;
-  }, 0);
-
-  const headers = parseLine(lines[headerIdx], sep).map((h) => h.replace(/^"|"$/g, "").trim()).filter(Boolean);
-  const sampleRows = lines.slice(headerIdx + 1, headerIdx + 11).map((l) => parseLine(l, sep).map((v) => v.replace(/^"|"$/g, "")));
-
-  return { headers, sampleRows };
-}
 
 // =============================================================================
 // Handler
@@ -214,9 +125,11 @@ Deno.serve(async (req: Request) => {
       );
     } else {
       const text = new TextDecoder().decode(fileBuffer);
-      const parsed = parseCSV(text);
+      const parsed = parseCSV(text, { maxSampleRows: 10 });
       headers = parsed.headers;
-      sampleRows = parsed.sampleRows;
+      sampleRows = parsed.rows.map((row) =>
+        headers.map((h) => row[h] ?? ""),
+      );
     }
 
     if (headers.length === 0) return json({ error: "No columns found in file" }, 400);

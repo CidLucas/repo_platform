@@ -16,6 +16,7 @@ import {
   requireAuth,
 } from "../_shared/blu_auth.ts";
 import { corsHeaders, json } from "../_shared/cors.ts";
+import { parseCSV, scoreSheetName } from "../_shared/sheet_intake.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -29,73 +30,6 @@ interface RunCsvEtlRequest {
   // the ETL ignores any canonical not present in column_mapping, so exclusion
   // is implicit. This field is not used to filter staged rows.
   ignored_columns?: string[];
-}
-
-// =============================================================================
-// Sheet selection (mirrors upload-csv-source)
-// =============================================================================
-
-const TRANSACTION_SHEET_KEYWORDS = [
-  "lancamentos", "lancamento", "faturamento", "fatura", "faturas",
-  "transacoes", "transacao", "entradas", "saidas", "movimentacao",
-  "movimentacoes", "despesas", "receitas", "vendas", "compras",
-  "financeiro", "pagamentos", "pagamento", "notas", "registros",
-];
-
-function scoreSheetName(name: string): number {
-  const n = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  return TRANSACTION_SHEET_KEYWORDS.some((kw) => n.includes(kw)) ? 1 : 0;
-}
-
-// =============================================================================
-// CSV row parser
-// =============================================================================
-
-function parseLine(line: string, sep: string): string[] {
-  const result: string[] = [];
-  let current = "";
-  let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '"') {
-      if (inQuotes && line[i + 1] === '"') { current += '"'; i++; }
-      else inQuotes = !inQuotes;
-    } else if (ch === sep && !inQuotes) {
-      result.push(current.trim());
-      current = "";
-    } else {
-      current += ch;
-    }
-  }
-  result.push(current.trim());
-  return result;
-}
-
-function parseCSVRows(text: string): Record<string, string>[] {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "");
-  if (lines.length < 2) return [];
-
-  const firstLine = lines[0];
-  const sep = (firstLine.match(/;/g) ?? []).length > (firstLine.match(/,/g) ?? []).length ? ";" : ",";
-
-  // Mirror upload-csv-source: find the row with most non-empty cells in first 10 rows
-  const searchLines = lines.slice(0, 10);
-  const headerIdx = searchLines.reduce((bestIdx, line, i) => {
-    const count = parseLine(line, sep).filter((c) => c.replace(/^"|"$/g, "").trim() !== "").length;
-    const bestCount = parseLine(searchLines[bestIdx], sep).filter((c) => c.replace(/^"|"$/g, "").trim() !== "").length;
-    return count > bestCount ? i : bestIdx;
-  }, 0);
-
-  const headers = parseLine(lines[headerIdx], sep).map((h) => h.replace(/^"|"$/g, ""));
-  return lines.slice(headerIdx + 1)
-    .filter((line) => line.trim() !== "")
-    .map((line) => {
-      const values = parseLine(line, sep).map((v) => v.replace(/^"|"$/g, ""));
-      const row: Record<string, string> = {};
-      headers.forEach((h, i) => { row[h] = values[i] ?? ""; });
-      return row;
-    })
-    .filter((row) => Object.values(row).some((v) => v.trim() !== ""));
 }
 
 // =============================================================================
@@ -300,7 +234,10 @@ Deno.serve(async (req: Request) => {
         });
     } else {
       const text = await fileData.text();
-      rows = parseCSVRows(text);
+      const parsed = parseCSV(text);
+      rows = parsed.rows.filter((row) =>
+        Object.values(row).some((v) => v.trim() !== "")
+      );
     }
 
     if (rows.length === 0) {

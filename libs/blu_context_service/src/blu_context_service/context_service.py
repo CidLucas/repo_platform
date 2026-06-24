@@ -785,60 +785,75 @@ class ContextService:
             supabase = get_supabase_client(use_service_role=True)
             parts: list[str] = []
 
-            # --- 1. Pending approvals ---
-            try:
-                resp = (
-                    supabase.table("approval_requests")
-                    .select("title, agent_slug, priority")
-                    .eq("client_id", str(client_id_uuid))
-                    .eq("status", "pending")
-                    .order("created_at", desc=True)
-                    .limit(5)
-                    .execute()
-                )
-                rows = resp.data or []
-                if rows:
-                    lines = ["## Aprovações Pendentes"]
-                    for r in rows:
-                        title = r.get("title") or ""
-                        slug = r.get("agent_slug") or ""
-                        pri = r.get("priority") or "normal"
-                        lines.append(f"• {title} — {slug} ({pri})")
-                    parts.append("\n".join(lines))
-            except Exception as e:
-                logger.warning("[morning_brief] approval_requests failed: %s", e)
+            async def _fetch_approvals():
+                try:
+                    resp = (
+                        supabase.table("approval_requests")
+                        .select("title, agent_slug, priority")
+                        .eq("client_id", str(client_id_uuid))
+                        .eq("status", "pending")
+                        .order("created_at", desc=True)
+                        .limit(5)
+                        .execute()
+                    )
+                    rows = resp.data or []
+                    if rows:
+                        lines = ["## Aprovações Pendentes"]
+                        for r in rows:
+                            title = r.get("title") or ""
+                            slug = r.get("agent_slug") or ""
+                            pri = r.get("priority") or "normal"
+                            lines.append(f"• {title} — {slug} ({pri})")
+                        return "\n".join(lines)
+                    return None
+                except Exception as e:
+                    logger.warning("[morning_brief] approval_requests failed: %s", e)
+                    return None
 
-            # --- 2. Active routines ---
-            try:
-                resp = (
-                    supabase.table("cross_agent_routines")
-                    .select("name, trigger_config, client_routine_configs!inner(client_id)")
-                    .eq("client_routine_configs.client_id", str(client_id_uuid))
-                    .eq("is_active", True)
-                    .limit(10)
-                    .execute()
-                )
-                rows = resp.data or []
-                if rows:
-                    lines = ["## Rotinas Ativas"]
-                    for r in rows:
-                        name = r.get("name") or ""
-                        tc = r.get("trigger_config") or {}
-                        cron = tc.get("cron") or tc.get("expression") or str(tc)
-                        lines.append(f"• {name} (cron: {cron})")
-                    parts.append("\n".join(lines))
-            except Exception as e:
-                logger.warning("[morning_brief] cross_agent_routines failed: %s", e)
+            async def _fetch_routines():
+                try:
+                    resp = (
+                        supabase.table("cross_agent_routines")
+                        .select("name, trigger_config, client_routine_configs!inner(client_id)")
+                        .eq("client_routine_configs.client_id", str(client_id_uuid))
+                        .eq("is_active", True)
+                        .limit(10)
+                        .execute()
+                    )
+                    rows = resp.data or []
+                    if rows:
+                        lines = ["## Rotinas Ativas"]
+                        for r in rows:
+                            name = r.get("name") or ""
+                            tc = r.get("trigger_config") or {}
+                            cron = tc.get("cron") or tc.get("expression") or str(tc)
+                            lines.append(f"• {name} (cron: {cron})")
+                        return "\n".join(lines)
+                    return None
+                except Exception as e:
+                    logger.warning("[morning_brief] cross_agent_routines failed: %s", e)
+                    return None
 
-            # --- 3. Business memory snapshot ---
-            try:
-                snapshot = await self.get_business_memory_snapshot(
-                    client_id_uuid, max_chars=max_chars
-                )
-                if snapshot:
-                    parts.append(snapshot)
-            except Exception as e:
-                logger.warning("[morning_brief] get_business_memory_snapshot failed: %s", e)
+            async def _fetch_snapshot():
+                try:
+                    snapshot = await self.get_business_memory_snapshot(
+                        client_id_uuid, max_chars=max_chars
+                    )
+                    return snapshot or None
+                except Exception as e:
+                    logger.warning("[morning_brief] get_business_memory_snapshot failed: %s", e)
+                    return None
+
+            results = await asyncio.gather(
+                _fetch_approvals(),
+                _fetch_routines(),
+                _fetch_snapshot(),
+                return_exceptions=True,
+            )
+
+            for result in results:
+                if isinstance(result, str) and result:
+                    parts.append(result)
 
             if not parts:
                 return ""

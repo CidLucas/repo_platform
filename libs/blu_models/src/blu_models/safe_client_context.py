@@ -12,9 +12,10 @@ Context 2.0 Features:
 - Selective injection based on node requirements
 - Immutable to prevent accidental modifications
 """
+from __future__ import annotations
 
 import uuid
-from typing import Any
+from typing import Any, Callable
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -157,7 +158,7 @@ class SafeClientContext(BaseModel):
 
         return "\n".join(lines) if len(lines) > 1 else ""
 
-    def _format_data_schema_section(self, header: str, content_dict: dict) -> str:
+    def _format_data_schema_section(self, header: str, content_dict: dict[str, Any]) -> str:
         """
         Format DATA_SCHEMA section with detailed table schemas for SQL agents.
 
@@ -224,7 +225,7 @@ class SafeClientContext(BaseModel):
                 # Join keys
                 join_keys = table.get("join_keys", [])
                 if join_keys:
-                    def _fmt_join_key(k):
+                    def _fmt_join_key(k: dict[str, Any] | str) -> str:
                         if isinstance(k, dict):
                             return f"`{k.get('from', '?')}` → `{k.get('to', '?')}`"
                         return f"`{k}`"
@@ -251,7 +252,7 @@ class SafeClientContext(BaseModel):
         return "\n".join(lines) if len(lines) > 1 else ""
 
     def _format_dict_to_lines(
-        self, data: dict, lines: list[str], indent: int = 0
+        self, data: dict[str, Any], lines: list[str], indent: int = 0
     ) -> None:
         """Recursively format a dict into readable lines."""
         prefix = "  " * indent

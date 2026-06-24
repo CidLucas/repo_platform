@@ -1,4 +1,5 @@
 # blu_models/__init__.py (Versão Corrigida para Exportação)
+from __future__ import annotations
 
 from sqlmodel import SQLModel
 

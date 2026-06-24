@@ -6,6 +6,7 @@ Database model and schemas for modular client context storage.
 Each client can have multiple sections, each storing a different
 type of context (company profile, brand voice, current moment, etc.).
 """
+from __future__ import annotations
 
 import uuid
 from datetime import datetime

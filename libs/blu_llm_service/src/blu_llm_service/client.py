@@ -134,16 +134,22 @@ def get_langfuse_callback(
 def get_base_callbacks() -> list[BaseCallbackHandler]:
     """Return list of default callbacks (Langfuse, etc).
 
-    Langfuse SDK v3 reads trace attributes from config["metadata"]
-    at invoke time, so no parameters needed here.
+    Historically this returned a Langfuse singleton handler that was
+    baked into LLM constructors. That created a SECOND, flat trace in
+    Langfuse (no trace_id, no session_id) which appeared as a single
+    non-expandable trace in the UI and hid the proper hierarchical
+    trace created per-invocation by agent_api/core/observability.py.
+
+    Now returns an empty list so the per-invocation handler passed via
+    LangGraph config is the SOLE source of LLM tracing — yielding one
+    hierarchical trace per request. LangChain's automatic callback
+    propagation routes the config callbacks to every nested Runnable
+    (graph nodes, LLM calls, tool calls).
+
+    Re-enable this only if you need to trace LLM calls made OUTSIDE a
+    LangGraph context (e.g., standalone scripts, ad-hoc classifiers).
     """
-    callbacks = []
-
-    lf = get_langfuse_callback()
-    if lf:
-        callbacks.append(lf)
-
-    return callbacks
+    return []
 
 
 # ============================================================================

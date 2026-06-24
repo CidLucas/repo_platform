@@ -1,3 +1,6 @@
+import logging
+
+logger = logging.getLogger(__name__)
 #!/usr/bin/env python3
 import asyncio
 import os
@@ -18,7 +21,7 @@ async def main():
     if not key:
         key = Fernet.generate_key().decode()
         os.environ["CREDENTIALS_ENCRYPTION_KEY"] = key
-    print("Using CREDENTIALS_ENCRYPTION_KEY (len):", len(key))
+    logger.info("Using CREDENTIALS_ENCRYPTION_KEY (len):", len(key))
 
     redis_client = Redis(host="redis", port=6379, db=0, decode_responses=False)
     cache = RedisService(redis_client)
@@ -28,11 +31,11 @@ async def main():
     supabase = get_supabase_client()
     row = supabase.table("clientes_blu").select("client_id").limit(1).execute()
     if not row.data:
-        print("No existing clientes_blu found. Please seed a client first.")
+        logger.info("No existing clientes_blu found. Please seed a client first.")
         return
 
     client_id = uuid.UUID(row.data[0]["client_id"])
-    print("Using existing client_id:", client_id)
+    logger.info("Using existing client_id:", client_id)
 
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
@@ -50,7 +53,7 @@ async def main():
         redirect_uri="http://localhost/integrations/google/callback",
         scopes=scopes,
     )
-    print("Saved integration config")
+    logger.info("Saved integration config")
 
     tokens = TokenResponse(
         access_token="access_test_123",
@@ -72,23 +75,22 @@ async def main():
         scopes=scopes,
         metadata={"test": True},
     )
-    print("Saved integration tokens")
+    logger.info("Saved integration tokens")
 
     wrapper = await ctx.get_integration_tokens(client_id, "google", auto_refresh=False)
     if not wrapper:
-        print("ERROR: tokens not found")
+        logger.error("ERROR: tokens not found")
         return
 
-    print("Token is_valid():", wrapper.is_valid())
+    logger.info("Token is_valid():", wrapper.is_valid())
     dec = wrapper.get_decrypted_tokens()
-    print(
-        "Decrypted tokens:",
+    logger.info(        "Decrypted tokens:",
         {
             k: (v if k not in ["access_token", "refresh_token"] else str(v)[:20])
             for k, v in dec.items()
-        },
-    )
+        })
 
 
 if __name__ == "__main__":
     asyncio.run(main())
+

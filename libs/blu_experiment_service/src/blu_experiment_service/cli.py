@@ -240,7 +240,7 @@ async def export_run(run_id: str, output_format: str = "jsonl", output_path: str
             Path(output_path).write_text(data)
             logger.info(f"Exported to {output_path}")
         else:
-            print(data)
+            logger.info(data)
 
         return data
 
@@ -318,3 +318,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

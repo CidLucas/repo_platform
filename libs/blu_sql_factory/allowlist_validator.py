@@ -374,7 +374,7 @@ if __name__ == "__main__":
     import sys
 
     if len(sys.argv) < 3:
-        print("Usage: python allowlist_validator.py <allowlist.json> <schema.json>")
+        logger.info("Usage: python allowlist_validator.py <allowlist.json> <schema.json>")
         sys.exit(1)
 
     allowlist_path = Path(sys.argv[1])
@@ -384,8 +384,9 @@ if __name__ == "__main__":
 
     for error in errors:
         level = "ERROR" if error.severity == "error" else "WARNING"
-        print(f"[{level}] {error.message}")
+        logger.error(f"[{level}] {error.message}")
         if error.path:
-            print(f"        Path: {error.path}")
+            logger.error(f"        Path: {error.path}")
 
     sys.exit(0 if is_valid else 1)
+

@@ -149,11 +149,7 @@ export interface RoutineExecution {
 
 // ─── Fetch functions ──────────────────────────────────────────────────────────
 
-export async function fetchRoutines(
-  clientId: string,
-  domain?: string
-): Promise<ClientRoutine[]> {
-  // NOTE: filter on `room` (not `trigger_domain`) — room is the canonical field
+export async function fetchRoutines(clientId: string, domain?: string, platform?: string): Promise<ClientRoutine[]> {
   let query = supabase
     .from('client_routines')
     .select('*, cross_agent_routines(name, room, trigger_type, trigger_config, config_schema, steps)')
@@ -165,6 +161,7 @@ export async function fetchRoutines(
   if (error) throw error
 
   const rows = (data ?? []) as ClientRoutine[]
+  if (platform) return rows.filter(r => r.cross_agent_routines?.room === platform)
   if (domain) return rows.filter(r => r.cross_agent_routines?.room === domain)
   return rows
 }

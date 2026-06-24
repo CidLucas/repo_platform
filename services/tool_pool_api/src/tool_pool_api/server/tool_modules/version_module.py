@@ -464,22 +464,25 @@ async def _prune_old_versions(
     # IDs to delete: the oldest (total - max_versions) entries
     to_delete = [r["id"] for r in rows[:total - max_versions]]
 
-    deleted_count = 0
-    for vid in to_delete:
-        try:
-            await (
-                db.schema("public")
-                .table(_VERSION_TABLE)
-                .delete()
-                .eq("id", vid)
-                .eq("client_id", client_id)
-                .execute()
-            )
-            deleted_count += 1
-        except Exception as exc:
-            logger.warning(
-                "[version_module] Failed to prune version %s: %s", vid, exc
-            )
+    if not to_delete:
+        return 0
+
+    try:
+        await (
+            db.schema("public")
+            .table(_VERSION_TABLE)
+            .delete()
+            .in_("id", to_delete)
+            .eq("client_id", client_id)
+            .execute()
+        )
+        deleted_count = len(to_delete)
+    except Exception as exc:
+        logger.warning(
+            "[version_module] Failed to batch-prune %d versions: %s",
+            len(to_delete), exc,
+        )
+        return 0
 
     if deleted_count > 0:
         logger.info(

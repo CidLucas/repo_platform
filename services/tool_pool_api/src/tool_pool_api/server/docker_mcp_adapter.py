@@ -53,7 +53,7 @@ class DockerMCPAdapter:
 
         await self.bridge.initialize()
         logger.info(
-            f"Docker MCP Adapter initialized. "
+            "Docker MCP Adapter initialized. "
             f"Configured integrations: {self.integrations_config}"
         )
 

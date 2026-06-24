@@ -98,6 +98,8 @@ from blu_models.experiment import (
     ExperimentStatus,
     HitlRoutingConfig,
     LangfuseConfig,
+    ModelOverride,
+    PromptVariant,
     TestCaseDefinition,
 )
 from blu_models.fonte_de_dados import FonteDeDados
@@ -290,6 +292,8 @@ __all__ = [
     "ExperimentProgress",
     "ExperimentRun",
     "ExperimentCase",
+    "ModelOverride",
+    "PromptVariant",
     # Integrations
     "IntegrationConfig",
     "IntegrationTokens",

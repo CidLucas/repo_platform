@@ -98,3 +98,6 @@ docs/prompt_drafts/_plain_rewrite.py
 langfuse/
 .ssh/
 *.pem
+.env
+.hermes/
+.coverage

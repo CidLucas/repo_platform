@@ -395,6 +395,29 @@ services:
       - "8080:8080"
     restart: unless-stopped
 
+  # =========================================
+  # FRONTEND APP (blu_v3 — Vite + React)
+  # Dev server with hot-reload. Mounts source from apps/blu_v3
+  # and packages/ (needed for the @blu/auth Vite alias).
+  # =========================================
+  blu_v3:
+    container_name: blu_v3
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./apps/blu_v3:/app
+      - ./packages:/packages
+      - blu_v3_node_modules:/app/node_modules
+    ports:
+      - "5175:5175"
+    env_file:
+      - .env
+    # Polling on macOS to keep HMR working through bind mounts
+    environment:
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+
 # Definição de volumes persistentes
 volumes:
   postgres_data:
@@ -403,3 +426,4 @@ volumes:
   langfuse_clickhouse_data:
   langfuse_redis_data:
   langfuse_minio_data:
+  blu_v3_node_modules:

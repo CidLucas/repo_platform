@@ -118,6 +118,7 @@ dev:
 	@echo "   ✓ agent_api (unified backend)"
 	@echo "   ✓ tool_pool_api (MCP tools)"
 	@echo "   ✓ redis (dependency)"
+	@echo "   ✓ blu_v3 (frontend — Vite dev server, hot-reload)"
 	@echo ""
 	@echo "💡 Uses remote Supabase (no local DB)"
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -125,22 +126,23 @@ dev:
 	@echo "📋 Services:"
 	@echo "   🤖 Agent API:  http://localhost:8003"
 	@echo "   🔧 Tool Pool:  http://localhost:8006"
+	@echo "   🎨 Frontend:   http://localhost:5175"
 	@echo ""
 	@echo "🛑 Stop stack:   Ctrl+C then 'make dev-down'"
 	@echo ""
-	$(COMPOSE) up --build redis tool_pool_api agent_api
+	$(COMPOSE) up --build redis tool_pool_api agent_api blu_v3
 
 dev-down:
 	@echo "🛑 Stopping dev stack..."
-	$(COMPOSE) stop agent_api tool_pool_api redis
+	$(COMPOSE) stop agent_api tool_pool_api redis blu_v3
 	@echo "✅ Dev stack stopped (containers preserved, use 'make down' to remove)"
 
 dev-logs:
-	$(COMPOSE) logs -f --tail=100 agent_api tool_pool_api redis
+	$(COMPOSE) logs -f --tail=100 agent_api tool_pool_api redis blu_v3
 
 dev-rebuild:
 	@echo "🔨 Rebuilding dev services (no cache)..."
-	$(COMPOSE) build --no-cache agent_api tool_pool_api
+	$(COMPOSE) build --no-cache agent_api tool_pool_api blu_v3
 	@echo "✅ Rebuild complete. Run 'make dev' to start."
 
 up:

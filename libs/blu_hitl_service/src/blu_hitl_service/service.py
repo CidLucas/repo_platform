@@ -3,6 +3,8 @@
 HITL Service - Avalia critérios e decide roteamento para revisão humana.
 """
 
+from __future__ import annotations
+
 import logging
 import random
 import re
@@ -33,7 +35,7 @@ class HitlService:
     3. Enfileirar interações para revisão
     """
 
-    def __init__(self, queue: HitlQueue, config: HitlConfig | None = None):
+    def __init__(self, queue: HitlQueue, config: HitlConfig | None = None) -> None:
         """
         Args:
             queue: Instância do HitlQueue para gerenciar fila
@@ -51,7 +53,7 @@ class HitlService:
             return self._client_configs[client_id]
         return self.default_config
 
-    def set_client_config(self, client_id: UUID, config: HitlConfig):
+    def set_client_config(self, client_id: UUID, config: HitlConfig) -> None:
         """Define configuração específica para um cliente."""
         self._client_configs[client_id] = config
         logger.info(f"HITL config set for client {client_id}")

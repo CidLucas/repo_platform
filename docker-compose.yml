@@ -397,16 +397,19 @@ services:
 
   # =========================================
   # FRONTEND APP (blu_v3 — Vite + React)
-  # Dev server with hot-reload. Mounts source from apps/blu_v3
-  # and packages/ (needed for the @blu/auth Vite alias).
+  # Dev server with hot-reload. The repo is mounted as a single
+  # workspace at /app so that `npm install` runs from the root
+  # package.json (which declares "workspaces": ["apps/*","packages/*"]).
+  # This hoists all workspace deps — including @supabase/supabase-js
+  # declared by packages/blu-auth — into a single /app/node_modules,
+  # so Vite can resolve them from any file in the tree.
   # =========================================
   blu_v3:
     container_name: blu_v3
     image: node:20-alpine
     working_dir: /app
     volumes:
-      - ./apps/blu_v3:/app
-      - ./packages:/packages
+      - ./:/app
       - blu_v3_node_modules:/app/node_modules
     ports:
       - "5175:5175"
@@ -416,7 +419,9 @@ services:
     environment:
       WATCHPACK_POLLING: "true"
       CHOKIDAR_USEPOLLING: "true"
-    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    # Install at workspace root (hoists deps), then run dev from the
+    # blu-v3 workspace via `npm -w blu-v3 run dev`.
+    command: sh -c "npm install && npm -w blu-v3 run dev -- --host 0.0.0.0"
 
 # Definição de volumes persistentes
 volumes:

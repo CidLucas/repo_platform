@@ -305,7 +305,7 @@ class ToolResultCache:
             logger.warning(f"Error generating summary: {e}")
             return f"Tool {tool_name} executed successfully"
 
-    def _summarize_sql_result(self, result: dict) -> str:
+    def _summarize_sql_result(self, result: dict[str, Any]) -> str:
         """Generate summary for SQL tool results."""
         output = result.get("output", "")
         all_rows = result.get("all_rows", [])
@@ -318,7 +318,7 @@ class ToolResultCache:
 
         return f"SQL query returned {row_count} rows.\n\nPreview:\n{preview}"
 
-    def _summarize_rag_result(self, result: dict) -> str:
+    def _summarize_rag_result(self, result: dict[str, Any]) -> str:
         """Generate summary for RAG tool results."""
         if isinstance(result, str):
             return result[:MAX_SUMMARY_LENGTH]

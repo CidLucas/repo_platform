@@ -2,6 +2,8 @@
 Agent state definition using TypedDict for LangGraph compatibility.
 """
 
+from __future__ import annotations
+
 from typing import Annotated, Any
 
 from langchain_core.messages import BaseMessage
@@ -54,7 +56,7 @@ def _cap_learning_notes(left: list[dict], right: list[dict]) -> list[dict]:
     return combined[-20:] if len(combined) > 20 else combined
 
 
-def _list_reducer(left: list | None, right: list | None) -> list:
+def _list_reducer(left: list[Any] | None, right: list[Any] | None) -> list[Any]:
     """
     Reducer for lists that supports fan-out accumulation and clearing.
 
@@ -202,7 +204,7 @@ class AgentState(TypedDict, total=False):
 
     # Pending user confirmation — set by confirm_node, cleared by parse_intent on response.
     # {type: "plan" | "clarification" | "mutation", message: str}
-    pending_confirmation: dict | None
+    pending_confirmation: dict[str, Any] | None
 
     # User approval state — True=approved, False=rejected, None=not yet asked.
     # Set by parse_intent when it detects a confirmation response.
@@ -227,10 +229,10 @@ class AgentState(TypedDict, total=False):
     # Structure: {agent_metadata: [...], agent_results: [...], execution_count: int, agent_slug: str}
     # Read by graphs that want historical execution context.
     # Optional — graphs that don't use it ignore the field.
-    agent_preflight_context: dict | None
+    agent_preflight_context: dict[str, Any] | None
 
     # Reserved for T1.2 (post-flight): pending post-flight data to write after execution.
-    agent_postflight_pending: dict | None
+    agent_postflight_pending: dict[str, Any] | None
 
     # =========================================================================
     # Handoff Fields (Issue #19 — Hook de handoff entre agentes)

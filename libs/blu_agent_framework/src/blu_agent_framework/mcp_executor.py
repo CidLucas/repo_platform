@@ -5,6 +5,8 @@ TODO(phase4): Inline MCPConnectionManager calls directly into AgentBuilder
 and remove this module entirely.  All new code should use MCPConnectionManager.
 """
 
+from __future__ import annotations
+
 import logging
 from dataclasses import dataclass
 from typing import Any
@@ -23,7 +25,7 @@ class ToolResult:
     execution_time_ms: float = 0.0
     metadata: dict[str, Any] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.metadata is None:
             self.metadata = {}
 
@@ -57,7 +59,7 @@ class MCPToolExecutor:
         # When None, a private manager is created lazily (legacy / test behaviour).
         self._mcp_manager = mcp_manager
 
-    async def _get_mcp_manager(self):
+    async def _get_mcp_manager(self) -> None:
         """Get or create MCP manager (lazy)."""
         if self._mcp_manager is None:
             from blu_agent_framework.mcp_client import MCPConnectionManager
@@ -161,7 +163,7 @@ class MCPToolExecutor:
             return []
         return [t for name in names if (t := mcp_mgr.get_tool_by_name(name)) is not None]
 
-    async def close(self):
+    async def close(self) -> None:
         """Close MCP connection."""
         if self._mcp_manager:
             await self._mcp_manager.disconnect()

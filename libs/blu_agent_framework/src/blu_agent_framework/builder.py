@@ -2,6 +2,8 @@
 Agent builder factory for creating LangGraph agents.
 """
 
+from __future__ import annotations
+
 import logging
 from collections import defaultdict
 from collections.abc import Callable
@@ -485,7 +487,7 @@ class AgentBuilder:
         self._orchestrator_tier = tier
 
         # Sentinel callables — replaced with real closures in _wrap_nodes()
-        async def _sentinel(state: Any) -> dict:
+        async def _sentinel(state: Any) -> dict[str, Any]:
             return {}
 
         self._nodes["parse_intent"]   = _sentinel

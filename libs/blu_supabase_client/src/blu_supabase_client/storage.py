@@ -3,6 +3,8 @@ Supabase Storage - Helper for file upload/download operations.
 
 Uses Supabase Storage API instead of GCS for file operations.
 """
+
+from __future__ import annotations
 import logging
 import uuid
 from dataclasses import dataclass
@@ -42,19 +44,19 @@ class SupabaseStorage:
         url = storage.get_signed_url(result.path)
     """
 
-    def __init__(self, bucket: str = DEFAULT_BUCKET):
+    def __init__(self, bucket: str = DEFAULT_BUCKET) -> None:
         self.bucket = bucket
         self._client = None
 
     @property
-    def client(self):
+    def client(self) -> None:
         """Lazy-load the Supabase client."""
         if self._client is None:
             self._client = get_supabase_client()
         return self._client
 
     @property
-    def storage(self):
+    def storage(self) -> None:
         """Get the storage client for the configured bucket."""
         return self.client.storage.from_(self.bucket)
 

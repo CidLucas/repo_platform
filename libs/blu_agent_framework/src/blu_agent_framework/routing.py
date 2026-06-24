@@ -2,6 +2,8 @@
 Routing functions for agent graph edges.
 """
 
+from __future__ import annotations
+
 import logging
 import re
 from typing import Literal

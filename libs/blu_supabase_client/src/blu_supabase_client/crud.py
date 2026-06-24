@@ -3,6 +3,8 @@ CRUD operations for Supabase tables.
 
 Replaces SQLAlchemy-based CRUD with Supabase SDK operations.
 """
+
+from __future__ import annotations
 import logging
 from typing import Any
 from uuid import UUID
@@ -21,7 +23,7 @@ class SupabaseCRUD:
     Replaces blu_db_connector.crud functions with Supabase REST API calls.
     """
 
-    def __init__(self, client: Client | None = None):
+    def __init__(self, client: Client | None = None) -> None:
         """
         Initialize CRUD with optional client injection (for testing).
 
@@ -287,7 +289,7 @@ class SupabaseCRUD:
         client_id_encrypted: str,
         client_secret_encrypted: str,
         redirect_uri: str,
-        scopes: list,
+        scopes: list[Any],
     ) -> dict[str, Any] | None:
         """Save or update integration config."""
         try:
@@ -358,8 +360,8 @@ class SupabaseCRUD:
         refresh_token: str | None,
         token_type: str | None,
         expires_at: Any | None,
-        scopes: list,
-        metadata: dict | None = None,
+        scopes: list[Any],
+        metadata: dict[str, Any] | None = None,
         account_email: str | None = None,
         account_name: str | None = None,
         is_default: bool = False,

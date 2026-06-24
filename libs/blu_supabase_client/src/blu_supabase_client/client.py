@@ -4,6 +4,8 @@ Supabase Client - Singleton pattern for Supabase SDK connection.
 Uses HTTP REST API (PostgREST), NOT direct PostgreSQL connection.
 This solves DNS resolution issues with Supabase pooler.
 """
+
+from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass
@@ -94,7 +96,7 @@ def get_supabase_client(use_service_role: bool = True) -> Client:
     return _supabase_client
 
 
-async def get_async_supabase_client(use_service_role: bool = True):
+async def get_async_supabase_client(use_service_role: bool = True) -> None:
     """
     Get or create a singleton async Supabase client.
 

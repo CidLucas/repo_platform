@@ -20,6 +20,7 @@ Usage:
 """
 
 from __future__ import annotations
+from typing import Any
 
 import logging
 from dataclasses import dataclass, field
@@ -365,7 +366,7 @@ _AGENT_TYPES: dict[str, AgentTypeConfig] = {
         description=(
             "Calendar, scheduling, and project management specialist. "
             "Checks availability, detects conflicts, and recommends optimal slots. "
-            "Manages Monday.com boards: list, create, update items and track status. "
+            "Manages Monday.com boards: list[Any], create, update items and track status. "
             "Produces meeting briefs and agenda digests."
         ),
         prompt_name="agents/agenda",

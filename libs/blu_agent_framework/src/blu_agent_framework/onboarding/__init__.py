@@ -1,3 +1,5 @@
+
+from __future__ import annotations
 # GOAL: Hook pós-ETL onboarding — Issue #24, Fase 2
 # BEHAVIOR: Hook que escreve snapshot inicial na shared memory após ETL onboarding
 

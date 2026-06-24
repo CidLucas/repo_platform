@@ -2,7 +2,7 @@
 Utilities for parsing LLM outputs and extracting the first JSON object found.
 
 Functions
-- parse_first_json(text: str) -> dict | None
+- parse_first_json(text: str) -> dict[str, Any] | None
 
 Behavior
 1) Try to detect fenced code blocks containing JSON (```json ... ``` or ``` ... ```).
@@ -13,6 +13,7 @@ Behavior
 No external dependencies — uses stdlib only to keep testability portable.
 """
 from __future__ import annotations
+from typing import Any
 
 import json
 import re
@@ -26,7 +27,7 @@ def _remove_trailing_commas(s: str) -> str:
     return s
 
 
-def _try_load_json(s: str) -> dict | None:
+def _try_load_json(s: str) -> dict[str, Any] | None:
     try:
         return json.loads(s)
     except Exception:
@@ -54,7 +55,7 @@ def _extract_balanced_braces(text: str) -> str | None:
     return None
 
 
-def parse_first_json(text: str) -> dict | None:
+def parse_first_json(text: str) -> dict[str, Any] | None:
     """Parse and return the first JSON object found in `text`.
 
     Returns parsed dict on success, or None if no valid JSON could be extracted.

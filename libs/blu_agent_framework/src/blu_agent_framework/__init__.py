@@ -10,6 +10,8 @@ This library provides:
 - Langfuse observability hooks
 """
 
+from __future__ import annotations
+
 __version__ = "0.1.0"
 
 from blu_agent_framework.builder import AgentBuilder

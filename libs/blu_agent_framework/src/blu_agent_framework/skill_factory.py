@@ -158,7 +158,7 @@ class SkillFactory:
         # Scalars are immutable so they need no copying; mutable containers
         # (dicts, lists) get a shallow copy — skills don't mutate nested values.
         parent_messages = list(parent_state.get("messages", []))
-        skill_state: dict = {
+        skill_state: dict[str, Any] = {
             # Immutable scalars — pass through directly
             "session_id": parent_state.get("session_id", ""),
             "client_id": parent_state.get("client_id", ""),

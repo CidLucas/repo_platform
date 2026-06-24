@@ -86,9 +86,9 @@ def _register_listeners(engine: Engine, label: str) -> None:
     """Log slow queries and connection events for observability."""
 
     @event.listens_for(engine, "connect")
-    def on_connect(dbapi_conn, _):
+    def on_connect(dbapi_conn, _) -> None:
         logger.debug(f"[{label}] New DB connection opened")
 
     @event.listens_for(engine, "checkout")
-    def on_checkout(dbapi_conn, _, __):  # noqa: F811
+    def on_checkout(dbapi_conn, _, __) -> None:  # noqa: F811
         logger.debug(f"[{label}] Connection checked out from pool")

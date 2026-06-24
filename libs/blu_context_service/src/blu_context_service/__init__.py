@@ -1,3 +1,5 @@
+
+from __future__ import annotations
 from .context_service import ContextService
 from .dependencies import get_context_service, get_redis_service
 from .tool_cache import ToolResultCache, get_tool_cache

@@ -2,6 +2,8 @@
 Reusable graph nodes for agent workflows.
 """
 
+from __future__ import annotations
+
 import logging
 import os
 from collections.abc import Callable
@@ -61,7 +63,7 @@ class NodeMetadata:
         self.inputs = inputs or []
         self.outputs = outputs or []
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "description": self.description,
@@ -89,11 +91,11 @@ class NodeRegistry:
 
         Usage:
             @NodeRegistry.register("custom_validation", description="Validates order data")
-            async def validate_order(state: AgentState) -> dict:
+            async def validate_order(state: AgentState) -> dict[str, Any]:
                 ...
         """
 
-        def decorator(func: Callable):
+        def decorator(func: Callable) -> None:
             cls._registry[name] = func
             cls._metadata[name] = NodeMetadata(
                 name=name,
@@ -668,12 +670,12 @@ async def rate_limit_node(state: AgentState) -> dict[str, Any]:
 # =============================================================================
 
 
-def with_logging(node_name: str):
+def with_logging(node_name: str) -> None:
     """
     Decorator to add logging to a node function.
     """
 
-    def decorator(func: Callable):
+    def decorator(func: Callable) -> None:
         @wraps(func)
         async def wrapper(state: AgentState) -> dict[str, Any]:
             session_id = state.get("session_id", "unknown")
@@ -691,7 +693,7 @@ def with_logging(node_name: str):
     return decorator
 
 
-def with_tracing(_trace_name: str):
+def with_tracing(_trace_name: str) -> None:
     """
     Decorator to add Langfuse tracing to a node function.
 
@@ -703,7 +705,7 @@ def with_tracing(_trace_name: str):
         _trace_name: Unused in v3, kept for API compatibility
     """
 
-    def decorator(func: Callable):
+    def decorator(func: Callable) -> None:
         @wraps(func)
         async def wrapper(state: AgentState) -> dict[str, Any]:
             # Langfuse SDK v3 no longer supports direct trace creation via Langfuse().trace()

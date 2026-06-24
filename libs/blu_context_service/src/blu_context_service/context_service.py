@@ -1,3 +1,5 @@
+
+from __future__ import annotations
 import asyncio
 import logging
 import os
@@ -65,7 +67,7 @@ class ContextService:
     CACHE_TTL_SECONDS = 300        # 5 minutes — client context
     CANONICAL_TTL_SECONDS = 3600   # 1 hour — changes only on schema migrations
 
-    def __init__(self, cache_service: RedisService):
+    def __init__(self, cache_service: RedisService) -> None:
         """
         Initialize ContextService.
 
@@ -99,7 +101,7 @@ class ContextService:
         except Exception as e:
             logger.warning(f"Could not set RLS context via Supabase: {e}")
 
-    def _build_context_from_dict(self, data: dict) -> BluClientContext:
+    def _build_context_from_dict(self, data: dict[str, Any]) -> BluClientContext:
         """Build BluClientContext from Supabase response dict."""
         return BluClientContext(
             id=UUID(data["client_id"]) if isinstance(data["client_id"], str) else data["client_id"],
@@ -273,7 +275,7 @@ class ContextService:
         await asyncio.to_thread(self.cache.delete, cache_key)
         logger.info(f"Cache invalidado para: {client_id}")
 
-    async def get_domain_projection(self, domain: str, client_id: UUID) -> dict:
+    async def get_domain_projection(self, domain: str, client_id: UUID) -> dict[str, Any]:
         """
         Return a filtered view of the cached BluClientContext for a given domain.
 
@@ -303,7 +305,7 @@ class ContextService:
 
         allowed_sections = _DOMAIN_SECTIONS.get(domain.lower(), _ALL_CONTEXT_SECTIONS)
 
-        projection: dict = {
+        projection: dict[str, Any] = {
             "id": str(ctx.id),
             "nome_empresa": ctx.nome_empresa,
             "tier": ctx.tier,
@@ -447,7 +449,7 @@ class ContextService:
         self,
         name: str,
         loader: "PromptLoader",
-        variables: dict,
+        variables: dict[str, Any],
         langfuse_label: str | None = None,
     ) -> str:
         """Get prompt with Redis caching. Caches raw template; applies variables after retrieval."""
@@ -891,7 +893,7 @@ class ContextService:
         oauth_client_id: str,
         client_secret: str,
         redirect_uri: str,
-        scopes: list,
+        scopes: list[Any],
     ):
         """Encrypt and persist integration client credentials."""
         enc_client_id = await asyncio.to_thread(self._encrypt, oauth_client_id)
@@ -907,13 +909,13 @@ class ContextService:
             scopes,
         )
 
-    async def get_integration_config(self, client_id: UUID, provider: str):
+    async def get_integration_config(self, client_id: UUID, provider: str) -> None:
         """Retrieve integration config."""
         return await asyncio.to_thread(
             self._supabase_crud.get_integration_config, client_id, provider
         )
 
-    async def get_platform_oauth_config(self, provider: str) -> dict | None:
+    async def get_platform_oauth_config(self, provider: str) -> dict[str, Any] | None:
         """Retrieve platform-level OAuth credentials from Supabase Vault."""
         return await asyncio.to_thread(
             self._supabase_crud.get_platform_oauth_config, provider
@@ -983,8 +985,8 @@ class ContextService:
         access_token: str,
         refresh_token: str | None,
         token_type: str | None,
-        scopes: list,
-        metadata: dict | None = None,
+        scopes: list[Any],
+        metadata: dict[str, Any] | None = None,
         account_email: str | None = None,
         account_name: str | None = None,
         is_default: bool = False,
@@ -1007,14 +1009,14 @@ class ContextService:
     class _IntegrationTokenWrapper:
         """Wrapper around a DB row exposing token validity and decryption helpers."""
 
-        def __init__(self, row, decrypt_fn, context_service=None, client_id=None, provider=None):
+        def __init__(self, row, decrypt_fn, context_service=None, client_id=None, provider=None) -> None:
             self._row = row
             self._decrypt = decrypt_fn
             self._context_service = context_service
             self._client_id = client_id
             self._provider = provider
 
-        def _get(self, key):
+        def _get(self, key) -> None:
             try:
                 return self._row[key]
             except Exception:
@@ -1070,7 +1072,7 @@ class ContextService:
                 exp_dt = exp_dt.replace(tzinfo=UTC)
             return exp_dt <= now + timedelta(seconds=margin_seconds)
 
-        def get_decrypted_tokens(self) -> dict:
+        def get_decrypted_tokens(self) -> dict[str, Any]:
             access_token = self._get("access_token") or self._get("access_token_encrypted")
             refresh_token = self._get("refresh_token") or self._get("refresh_token_encrypted")
             return {
@@ -1090,7 +1092,7 @@ class ContextService:
         client_id: UUID,
         refresh_token: str,
         account_email: str | None = None,
-    ) -> Optional["ContextService._IntegrationTokenWrapper"]:
+    ) -> "ContextService._IntegrationTokenWrapper" | None:
         """Refresh a Google access token using the stored refresh token."""
         try:
             oauth_config_values = await self._get_google_oauth_config_cached()
@@ -1198,7 +1200,7 @@ class ContextService:
 
         return wrapper
 
-    async def list_integration_accounts(self, client_id: UUID, provider: str) -> list:
+    async def list_integration_accounts(self, client_id: UUID, provider: str) -> list[Any]:
         """List all connected accounts for a cliente/provider."""
         rows = await asyncio.to_thread(
             self._supabase_crud.list_integration_accounts, client_id, provider

@@ -1,3 +1,6 @@
+
+from __future__ import annotations
+from typing import Any
 # GOAL: Hook de handoff entre agentes na shared memory
 # BEHAVIOR: B2 — Criar handoff_hook.py com run_handoff_hook()
 # DECISÃO: create_new
@@ -9,7 +12,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-async def run_handoff_hook(agent_state: dict, tool_pool_client) -> None:
+async def run_handoff_hook(agent_state: dict[str, Any], tool_pool_client) -> None:
     """Executa o hook de handoff, escrevendo learning notes na shared memory.
 
     Args:

@@ -60,7 +60,7 @@ from blu_agent_framework.utils.observability import (
 logger = logging.getLogger(__name__)
 
 
-async def _load_prompt(name: str, variables: dict | None = None) -> str:
+async def _load_prompt(name: str, variables: dict[str, Any] | None = None) -> str:
     """Load an orchestrator prompt via PromptLoader (Langfuse-first, builtin fallback)."""
     try:
         from blu_prompt_management import build_prompt
@@ -124,7 +124,7 @@ def _parse_yes_no(text: str) -> bool | None:
     return None
 
 
-def _get_next_step(plan: list[dict]) -> dict | None:
+def _get_next_step(plan: list[dict]) -> dict[str, Any] | None:
     """Return the first pending step whose dependencies are all done."""
     done_ids = {s["id"] for s in plan if s["status"] == "done"}
     for step in plan:
@@ -135,7 +135,7 @@ def _get_next_step(plan: list[dict]) -> dict | None:
     return None
 
 
-def _enrich_task(task: str, step: dict, step_results: dict[str, str]) -> str:
+def _enrich_task(task: str, step: dict[str, Any], step_results: dict[str, str]) -> str:
     """Prepend outputs of dependency steps as context for the current task."""
     deps = step.get("depends_on") or []
     ctx_lines = [
@@ -170,7 +170,7 @@ def _parse_json_with_model(text: str, model_cls: type) -> Any | None:
 _parse_json = _parse_json_with_model
 
 
-def _step_to_dict(step: PlanStep) -> dict:
+def _step_to_dict(step: PlanStep) -> dict[str, Any]:
     return step.model_dump() | {"status": "pending", "result": None}
 
 
@@ -188,7 +188,7 @@ def _format_plan(plan: list[dict]) -> str:
 # (called by AgentBuilder to bind LLM / MCP dependencies at graph-build time)
 # ---------------------------------------------------------------------------
 
-def make_parse_intent_node(llm: Any, tier: str):
+def make_parse_intent_node(llm: Any, tier: str) -> None:
     """
     Layer 4 entry — classifies the user request and detects confirmation responses.
 
@@ -199,7 +199,7 @@ def make_parse_intent_node(llm: Any, tier: str):
        - uncertain: set pending_confirmation with a clarifying question
     """
 
-    async def parse_intent_node(state: AgentState) -> dict:
+    async def parse_intent_node(state: AgentState) -> dict[str, Any]:
         messages     = state.get("messages", [])
         last_msg     = messages[-1] if messages else None
         pending_conf = state.get("pending_confirmation")
@@ -245,7 +245,7 @@ def make_parse_intent_node(llm: Any, tier: str):
                               reason="Could not parse intent JSON; defaulting to uncertain")
             return {"complexity": "uncertain", "involved_domains": [], "confirmed": None}
 
-        updates: dict = {
+        updates: dict[str, Any] = {
             "complexity":        parsed.complexity,
             "involved_domains":  parsed.involved_domains,
             "confirmed":         None,
@@ -269,13 +269,13 @@ def make_parse_intent_node(llm: Any, tier: str):
     return parse_intent_node
 
 
-def make_gather_context_node(context_service: Any | None):
+def make_gather_context_node(context_service: Any | None) -> None:
     """
     Loads client context and enriches metadata with available Layer-3 skills.
     Deterministic — no LLM call.
     """
 
-    async def gather_context_node(state: AgentState) -> dict:
+    async def gather_context_node(state: AgentState) -> dict[str, Any]:
         cur_tier    = state.get("tier", "BASIC")
         nome_empresa = state.get("nome_empresa", "")
 
@@ -295,14 +295,14 @@ def make_gather_context_node(context_service: Any | None):
     return gather_context_node
 
 
-def make_decompose_node(llm: Any, tier: str):
+def make_decompose_node(llm: Any, tier: str) -> None:
     """
     (Complex path) Decomposes the user request into domain-level sub-tasks
     without yet deciding which Layer-3 skill handles each one.
     Output is stored in _sub_tasks for the plan node.
     """
 
-    async def decompose_node(state: AgentState) -> dict:
+    async def decompose_node(state: AgentState) -> dict[str, Any]:
         messages = state.get("messages", [])
         last_msg = next((m for m in reversed(messages) if isinstance(m, HumanMessage)), None)
         if not last_msg:
@@ -336,13 +336,13 @@ def make_decompose_node(llm: Any, tier: str):
     return decompose_node
 
 
-def make_plan_node(llm: Any, tier: str):
+def make_plan_node(llm: Any, tier: str) -> None:
     """
     (Complex path) Maps decomposed sub-tasks to Layer-3 skills, determines execution
     order, and flags mutations.  Produces the plan list consumed by execute_step.
     """
 
-    async def plan_node(state: AgentState) -> dict:
+    async def plan_node(state: AgentState) -> dict[str, Any]:
         sub_tasks = state.get("_sub_tasks") or []
         cur_tier  = state.get("tier") or tier
 
@@ -381,7 +381,7 @@ def make_plan_node(llm: Any, tier: str):
     return plan_node
 
 
-def make_execute_step_node(llm: Any, mcp_executor: Any, context_service: Any | None):
+def make_execute_step_node(llm: Any, mcp_executor: Any, context_service: Any | None) -> None:
     """
     Executes the next pending Layer-3 skill in the plan via a specialist subgraph.
 
@@ -400,12 +400,12 @@ def make_execute_step_node(llm: Any, mcp_executor: Any, context_service: Any | N
     # Per-orchestrator-instance cache: slug → compiled specialist CompiledGraph
     _compiled_specialists: dict[str, Any] = {}
 
-    async def execute_step_node(state: AgentState) -> dict:
+    async def execute_step_node(state: AgentState) -> dict[str, Any]:
         from langchain_core.messages import AIMessage as _AIMessage
         from langchain_core.messages import HumanMessage as _HumanMessage
 
         plan: list[dict]   = list(state.get("plan") or [])
-        step_results: dict = dict(state.get("step_results") or {})
+        step_results: dict[str, Any] = dict(state.get("step_results") or {})
 
         step = _get_next_step(plan)
         if not step:
@@ -498,7 +498,7 @@ def make_execute_step_node(llm: Any, mcp_executor: Any, context_service: Any | N
 
         step_results[step["id"]] = summary
 
-        updates: dict = {"plan": plan, "step_results": step_results}
+        updates: dict[str, Any] = {"plan": plan, "step_results": step_results}
         structured_data = result_state.get("structured_data")
         if structured_data:
             updates["structured_data"] = structured_data
@@ -508,13 +508,13 @@ def make_execute_step_node(llm: Any, mcp_executor: Any, context_service: Any | N
     return execute_step_node
 
 
-def make_synthesize_node(llm: Any):
+def make_synthesize_node(llm: Any) -> None:
     """
     Combines all step results into a single, coherent user-facing response.
     Last node before end.
     """
 
-    async def synthesize_node(state: AgentState) -> dict:
+    async def synthesize_node(state: AgentState) -> dict[str, Any]:
         plan         = state.get("plan") or []
         step_results = state.get("step_results") or {}
         messages     = state.get("messages", [])
@@ -551,7 +551,7 @@ def make_synthesize_node(llm: Any):
 # Static nodes (no LLM / MCP dependency)
 # ---------------------------------------------------------------------------
 
-async def confirm_node(state: AgentState) -> dict:
+async def confirm_node(state: AgentState) -> dict[str, Any]:
     """
     Presents the plan or a clarifying question to the user and waits.
 
@@ -593,7 +593,7 @@ async def confirm_node(state: AgentState) -> dict:
     }
 
 
-async def escalate_node(state: AgentState) -> dict:
+async def escalate_node(state: AgentState) -> dict[str, Any]:
     """Handles failed steps — logs, generates user message, and ends the graph."""
     plan   = state.get("plan") or []
     failed = [s for s in plan if s["status"] == "failed"]

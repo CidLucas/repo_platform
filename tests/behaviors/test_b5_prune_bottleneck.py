@@ -243,7 +243,7 @@ class _DeleteCallRecorder:
     """
 
     def __init__(self) -> None:
-        self.in_calls: list[list] = []
+        self.in_calls: list[tuple[str, list]] = []
         self.eq_calls: list[tuple[str, object]] = []
         self.execute_calls: int = 0
 
@@ -262,7 +262,7 @@ class _DeleteCallRecorder:
         def _delete_factory() -> MagicMock:
             chain = MagicMock()
             chain.in_.side_effect = (
-                lambda col, values: recorder.in_calls.append(list(values))
+                lambda col, values: recorder.in_calls.append((col, list(values)))
                 or chain
             )
             chain.eq.side_effect = (

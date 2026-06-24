@@ -68,6 +68,9 @@ class ChatResponse(BaseModel):
     session_id: str
     agent_slug: str = "frontdesk"
     model_used: str | None = None
+    tools_called: list[str] | None = Field(
+        None, description="Tools called during this request (e.g. ['executar_sql_agent']). Used by experiment runner for assertion validation."
+    )
     elicitation_pending: ElicitationRequest | None = None
     structured_data: dict[str, Any] | None = None
     structured_data_list: list[dict[str, Any]] | None = None

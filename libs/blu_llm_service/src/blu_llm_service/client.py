@@ -426,8 +426,8 @@ def _get_huggingface_model(
 MODEL_MAPPINGS: dict[LLMProvider, dict[ModelTier, str]] = {
     LLMProvider.OLLAMA_CLOUD: {
         ModelTier.FAST:     OllamaCloudModel.MINISTRAL_3,        # confirmed working
-        ModelTier.DEFAULT:  OllamaCloudModel.MINISTRAL_3,        # confirmed working (qwen3.5 → 403 em streaming)
-        ModelTier.POWERFUL: OllamaCloudModel.MINISTRAL_3,        # confirmed working — calibrar modelos maiores depois
+        ModelTier.DEFAULT:  OllamaCloudModel.DEEPSEEK_V4_FLASH,   # 284B MoE, 1M ctx, SQL tasks
+        ModelTier.POWERFUL: OllamaCloudModel.DEEPSEEK_V4_PRO,     # frontier MoE, 1M ctx
     },
     LLMProvider.OPENAI: {
         ModelTier.FAST:     "gpt-4o-mini",

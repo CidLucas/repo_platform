@@ -245,6 +245,7 @@ class ChatResult:
         pending_elicitation: dict | None = None,
         structured_data: dict[str, Any] | None = None,
         structured_data_list: list[dict[str, Any]] | None = None,
+        tools_called: list[str] | None = None,
     ) -> None:
         self.response = response
         self.model_used = model_used
@@ -252,6 +253,7 @@ class ChatResult:
         self.pending_elicitation = pending_elicitation
         self.structured_data = structured_data
         self.structured_data_list = structured_data_list
+        self.tools_called = tools_called or []
 
 
 # ---------------------------------------------------------------------------
@@ -486,6 +488,27 @@ class ChatService:
             )
         )
 
+        # Extract tools called from message history
+        tools_called = []
+        if final_state and isinstance(final_state.get("messages"), list):
+            for msg in final_state["messages"]:
+                if hasattr(msg, "tool_calls") and msg.tool_calls:
+                    for tc in msg.tool_calls:
+                        if hasattr(tc, "name"):
+                            tools_called.append(tc["name"])
+                        elif isinstance(tc, dict):
+                            tools_called.append(tc.get("name", ""))
+                elif isinstance(msg, ToolMessage):
+                    content = str(msg.content)
+                    if content.startswith("__ROUTE_TO_SPECIALIST__:"):
+                        tools_called.append("route_to_specialist")
+                    elif content and not content.startswith("__"):
+                        # ToolMessage with tool name in the 'name' attribute
+                        tn = getattr(msg, "name", None)
+                        if tn:
+                            tools_called.append(tn)
+        tools_called = list(dict.fromkeys(tools_called))  # deduplicate, preserve order
+
         return ChatResult(
             response=response_text,
             model_used=self._resolve_model_used(model_override),
@@ -493,6 +516,7 @@ class ChatService:
             pending_elicitation=final_state.get("pending_elicitation"),
             structured_data=final_state.get("structured_data"),
             structured_data_list=final_state.get("structured_data_list") or None,
+            tools_called=tools_called,
         )
 
     async def process_message_stream(

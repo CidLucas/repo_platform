@@ -108,6 +108,7 @@ async def chat_endpoint(
         session_id=body.session_id,
         agent_slug=result.agent_slug,
         model_used=result.model_used,
+        tools_called=result.tools_called,
         elicitation_pending=pending,
         structured_data=result.structured_data,
         structured_data_list=result.structured_data_list,

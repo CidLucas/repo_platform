@@ -7,6 +7,7 @@ Tabela para armazenar prompts versionados que podem ser:
 
 Integração com MCP: @mcp.prompt() pode buscar templates desta tabela.
 """
+from __future__ import annotations
 
 import uuid
 from datetime import datetime

@@ -15,7 +15,7 @@ from blu_models.blu_client_context import BluClientContext
 from blu_supabase_client import SupabaseCRUD, get_supabase_client
 from blu_supabase_client.client import set_rls_context as supabase_set_rls
 
-from .redis_service import RedisService
+from blu_context_service.redis_service import RedisService
 
 logger = logging.getLogger(__name__)
 

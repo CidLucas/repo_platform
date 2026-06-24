@@ -17,6 +17,11 @@ To generate SQL without applying (for Supabase or review):
 
 from __future__ import annotations  # noqa: I001
 
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 import argparse
 import os
 import sys
@@ -63,9 +68,7 @@ def main() -> None:
 
     db_url = args.db or os.getenv("DATABASE_URL")
     if not db_url:
-        print(
-            "Error: set DATABASE_URL environment variable or pass --db", file=sys.stderr
-        )
+        logger.error(            "Error: set DATABASE_URL environment variable or pass --db")
         sys.exit(1)
 
     base_dir = os.path.abspath(os.path.dirname(__file__))
@@ -75,9 +78,7 @@ def main() -> None:
 
     alembic_ini = locate_alembic_ini(base_dir)
     if not alembic_ini:
-        print(
-            "Error: could not find alembic.ini (looked near package)", file=sys.stderr
-        )
+        logger.error(            "Error: could not find alembic.ini (looked near package)")
         sys.exit(1)
 
     cfg = Config(alembic_ini)
@@ -91,15 +92,16 @@ def main() -> None:
     sql_file = args.sql_file
     if sql_file:
         # Write generated SQL to file by redirecting stdout while running alembic in SQL mode
-        print(f"Generating SQL to: {sql_file}")
+        logger.info(f"Generating SQL to: {sql_file}")
         with open(sql_file, "w", encoding="utf-8") as fh:
             with redirect_stdout(fh):
                 command.upgrade(cfg, "head", sql=True)
-        print("SQL generation complete")
+        logger.info("SQL generation complete")
     else:
-        print(f"Applying migrations from {alembic_ini} -> {db_url}")
+        logger.info(f"Applying migrations from {alembic_ini} -> {db_url}")
         command.upgrade(cfg, "head")
 
 
 if __name__ == "__main__":
     main()
+

@@ -705,16 +705,16 @@ async def _list_backups(db: Any) -> None:
 
     files = resp or []
     if not files:
-        print("No backups found.")
+        logger.info("No backups found.")
         return
 
-    print(f"{'Path':<40} {'Size':>10} {'Created'}")
-    print("-" * 70)
+    logger.info(f"{'Path':<40} {'Size':>10} {'Created'}")
+    logger.info("-" * 70)
     for item in sorted(files, key=lambda x: x.get("name", ""), reverse=True):
         name = item.get("name", "")
         size = item.get("metadata", {}).get("size", 0)
         created = item.get("created_at", "")
-        print(f"{name:<40} {size:>10} {created}")
+        logger.info(f"{name:<40} {size:>10} {created}")
 
 
 async def _restore_backup(db: Any, date_str: str) -> None:
@@ -727,11 +727,11 @@ async def _restore_backup(db: Any, date_str: str) -> None:
         )
         decompressed = gzip.decompress(raw)
         data = json.loads(decompressed)
-        print(f"Restored backup from {date_str}: {len(data)} records")
-        print(json.dumps(data, indent=2, ensure_ascii=False, default=str))
+        logger.info(f"Restored backup from {date_str}: {len(data)} records")
+        logger.info(json.dumps(data, indent=2, ensure_ascii=False, default=str))
 
     except Exception as exc:
-        print(f"Failed to restore backup {date_str}: {exc}")
+        logger.error(f"Failed to restore backup {date_str}: {exc}")
         sys.exit(1)
 
 
@@ -760,22 +760,23 @@ def main() -> None:
 
     # Print summary
     if args.dry_run:
-        print("\n=== DRY RUN ===")
-    print(f"Exec ID:      {result.exec_id}")
-    print(f"Status:       {result.status}")
-    print(f"Row count:    {result.row_count}")
-    print(f"Size:         {result.size_bytes} bytes")
-    print(f"SHA256:       {result.sha256[:32]}...")
-    print(f"Dump path:    {result.dump_path}")
-    print(f"Pruned daily: {result.pruned_daily}")
-    print(f"Consolidated: {result.consolidated_weekly}")
+        logger.info("\n=== DRY RUN ===")
+    logger.info(f"Exec ID:      {result.exec_id}")
+    logger.info(f"Status:       {result.status}")
+    logger.info(f"Row count:    {result.row_count}")
+    logger.info(f"Size:         {result.size_bytes} bytes")
+    logger.info(f"SHA256:       {result.sha256[:32]}...")
+    logger.info(f"Dump path:    {result.dump_path}")
+    logger.info(f"Pruned daily: {result.pruned_daily}")
+    logger.info(f"Consolidated: {result.consolidated_weekly}")
     if result.error:
-        print(f"ERROR:        {result.error}")
-    print(f"Duration:     {result.duration_ms}ms")
-    print(f"Success:      {result.success}")
+        logger.error(f"ERROR:        {result.error}")
+    logger.info(f"Duration:     {result.duration_ms}ms")
+    logger.info(f"Success:      {result.success}")
 
     sys.exit(0 if result.success else 1)
 
 
 if __name__ == "__main__":
     main()
+

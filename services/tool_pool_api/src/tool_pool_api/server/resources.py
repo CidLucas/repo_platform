@@ -109,7 +109,7 @@ async def _get_knowledge_summary(client_id: str | None = None) -> str:
         if not docs:
             return (
                 f"# Base de Conhecimento - {context.nome_empresa}\n\n"
-                f"📊 Status: Nenhum documento encontrado\n\n"
+                "📊 Status: Nenhum documento encontrado\n\n"
                 "A base de conhecimento ainda não foi populada."
             )
 

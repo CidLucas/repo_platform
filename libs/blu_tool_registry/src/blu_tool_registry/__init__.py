@@ -24,18 +24,18 @@ Usage:
     )
 """
 
-from .docker_mcp_bridge import DockerMCPBridge
-from .exceptions import (
+from blu_tool_registry.docker_mcp_bridge import DockerMCPBridge
+from blu_tool_registry.exceptions import (
     DockerMCPConnectionError,
     TierAccessDeniedError,
     ToolNotFoundError,
     ToolRegistryError,
 )
-from .features import FEATURES, TIER_FEATURES, FeatureConfig, FeatureRegistry
-from .registry import ToolRegistry
-from .resource_resolver import ResourceResolver
-from .tier_validator import TierValidator
-from .tool_metadata import ToolCategory, ToolMetadata
+from blu_tool_registry.features import FEATURES, TIER_FEATURES, FeatureConfig, FeatureRegistry
+from blu_tool_registry.registry import ToolRegistry
+from blu_tool_registry.resource_resolver import ResourceResolver
+from blu_tool_registry.tier_validator import TierValidator
+from blu_tool_registry.tool_metadata import ToolCategory, ToolMetadata
 
 __all__ = [
     # Core classes

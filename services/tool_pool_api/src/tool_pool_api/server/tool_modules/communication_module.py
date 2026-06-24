@@ -25,7 +25,7 @@ from fastmcp.exceptions import ToolError
 from blu_auth.mcp.auth_middleware import mcp_inject_client_id
 from tool_pool_api.server.dependencies import get_context_service
 
-from . import register_module
+from tool_pool_api.server.tool_modules import register_module
 
 logger = logging.getLogger(__name__)
 

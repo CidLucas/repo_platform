@@ -14,12 +14,12 @@ This service coordinates:
 4. Training dataset generation from approved cases
 """
 
-from .classifier import BatchClassifier, ResponseClassifier
-from .config import ExperimentSettings, get_experiment_settings, settings
-from .dataset_generator import TrainingDatasetGenerator
-from .langfuse_runner import LangfuseExperimentRunner  # Langfuse-native runner
-from .manifest import ManifestLoader
-from .runner import ExperimentRunner  # Legacy runner (kept for compatibility)
+from blu_experiment_service.classifier import BatchClassifier, ResponseClassifier
+from blu_experiment_service.config import ExperimentSettings, get_experiment_settings, settings
+from blu_experiment_service.dataset_generator import TrainingDatasetGenerator
+from blu_experiment_service.langfuse_runner import LangfuseExperimentRunner  # Langfuse-native runner
+from blu_experiment_service.manifest import ManifestLoader
+from blu_experiment_service.runner import ExperimentRunner  # Legacy runner (kept for compatibility)
 
 __all__ = [
     # Config

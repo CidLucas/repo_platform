@@ -7,14 +7,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from .api.admin_router import router as admin_router
-from .api.business_memory_router import router as business_memory_router
-from .api.inbox_dispatch_router import router as inbox_dispatch_router
-from .api.ingest_router import router as ingest_router
-from .api.integrations_router import router as integrations_router
-from .api.reports_router import router as reports_router
-from .api.polp_webhook_router import router as polp_webhook_router
-from .api.twilio_webhook_router import router as twilio_webhook_router
+from tool_pool_api.api.admin_router import router as admin_router
+from tool_pool_api.api.business_memory_router import router as business_memory_router
+from tool_pool_api.api.inbox_dispatch_router import router as inbox_dispatch_router
+from tool_pool_api.api.ingest_router import router as ingest_router
+from tool_pool_api.api.integrations_router import router as integrations_router
+from tool_pool_api.api.reports_router import router as reports_router
+from tool_pool_api.api.polp_webhook_router import router as polp_webhook_router
+from tool_pool_api.api.twilio_webhook_router import router as twilio_webhook_router
 
 logger = logging.getLogger(__name__)
 
@@ -55,12 +55,12 @@ _mcp_asgi = None
 _mcp_initialized = False
 
 
-def _create_mcp():
+def _create_mcp() -> FastMCP:
     """Create MCP server and ASGI app."""
     global _mcp, _mcp_asgi, _mcp_initialized
 
     logger.info("🚀 Creating MCP server...")
-    from .server.mcp_server import create_mcp_server
+    from tool_pool_api.server.mcp_server import create_mcp_server
 
     _mcp, _mcp_asgi = create_mcp_server()
     _mcp_initialized = True
@@ -161,13 +161,13 @@ logger.info(f"CORS configured for: {origins}")
 
 # Health check endpoint that doesn't require MCP
 @app.get("/health")
-async def health_check():
+async def health_check() -> dict:
     """Health check for load balancers - fast endpoint."""
     return {"status": "healthy", "service": "tool_pool_api"}
 
 
 @app.get("/info")
-async def server_info():
+async def server_info() -> dict:
     """Server info endpoint."""
     try:
         if not _mcp_initialized:
@@ -176,7 +176,7 @@ async def server_info():
                 status_code=503,
             )
 
-        from .server.tools import get_available_modules
+        from tool_pool_api.server.tools import get_available_modules
 
         modules = get_available_modules()
 
@@ -196,7 +196,7 @@ async def server_info():
 
 
 @app.on_event("startup")
-async def startup_event():
+async def startup_event() -> None:
     """App startup logging."""
     logger.debug(
         "Tool Pool API started - endpoints: /health, /info, /mcp, /integrations, /admin/clients"

@@ -12,11 +12,14 @@ Usage:
     from blu_agent_framework.skills import SKILL_REGISTRY, SkillDefinition
 
     skill = SKILL_REGISTRY["analyze_csv"]
-    print(skill.prompt_name)   # "skill:analyze_csv:system"
-    print(skill.required_tool_names)
+    logger.info(skill.prompt_name)   # "skill:analyze_csv:system")
+    logger.info(skill.required_tool_names)
 """
 
 from __future__ import annotations
+import logging
+
+logger = logging.getLogger(__name__)
 
 from dataclasses import dataclass, field
 
@@ -651,3 +654,4 @@ SKILL_REGISTRY: dict[str, SkillDefinition] = {
     ),
 
 }
+

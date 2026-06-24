@@ -13,6 +13,7 @@ Flow:
 4. Results are classified and routed to HITL or directly to dataset
 5. HITL-reviewed items become golden training samples
 """
+from __future__ import annotations
 
 import uuid
 from datetime import datetime

@@ -39,7 +39,7 @@ from sqlalchemy import text
 from tool_pool_api.server.dependencies import get_context_service
 from blu_context_service.context_schemas import _SNAPSHOT_DIMENSION_FIELDS
 
-from . import register_module
+from tool_pool_api.server.tool_modules import register_module
 
 logger = logging.getLogger(__name__)
 
@@ -983,7 +983,7 @@ async def _shared_memory_upsert_logic(
     ttl_info = _compute_ttl_columns(ttl_tier=ttl_tier, source=source)
 
     # ── Archive current version before overwriting (T5.3) ──────────
-    from .version_module import _archive_memory_version as _archive_version
+    from tool_pool_api.server.tool_modules.version_module import _archive_memory_version as _archive_version
 
     archive_result = await _archive_version(
         client_id=client_id,

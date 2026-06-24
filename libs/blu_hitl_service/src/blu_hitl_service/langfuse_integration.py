@@ -10,6 +10,8 @@ Langfuse-First Architecture:
 This is the bridge between local HITL and Langfuse platform.
 """
 
+from __future__ import annotations
+
 import logging
 import os
 from datetime import datetime
@@ -36,7 +38,7 @@ class LangfuseDatasetManager:
         public_key: str | None = None,
         secret_key: str | None = None,
         host: str | None = None,
-    ):
+    ) -> None:
         self._client = None
         self._public_key = public_key or os.getenv("LANGFUSE_PUBLIC_KEY")
         self._secret_key = secret_key or os.getenv("LANGFUSE_SECRET_KEY")
@@ -47,7 +49,7 @@ class LangfuseDatasetManager:
     def enabled(self) -> bool:
         return self._enabled
 
-    def _get_client(self):
+    def _get_client(self) -> Any:
         """Lazy load do cliente Langfuse."""
         if self._client is None and self._enabled:
             try:
@@ -77,7 +79,7 @@ class LangfuseDatasetManager:
         name: str,
         description: str | None = None,
         metadata: dict[str, Any] | None = None,
-    ):
+    ) -> Any:
         """Busca ou cria um dataset no Langfuse."""
         client = self._get_client()
         if not client:

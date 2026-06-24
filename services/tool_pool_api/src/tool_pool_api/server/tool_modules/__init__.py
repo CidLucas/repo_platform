@@ -83,7 +83,7 @@ def register_all_tools(mcp: FastMCP) -> dict:
         web_monitor_module,
         slack_module,  # noqa: F401
         memory_module,
-        memory_pre_flight_module,
+        memory_pre_flight,
         version_module,
         diff_module,
     )

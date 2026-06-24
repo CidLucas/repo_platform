@@ -20,6 +20,8 @@ Key changes:
 - Builtin fallback disabled by default (set PROMPT_ALLOW_FALLBACK=true to enable)
 """
 
+from __future__ import annotations
+
 import logging
 import os
 from typing import TYPE_CHECKING, Any
@@ -294,7 +296,7 @@ def filter_prompt_tools(prompt_base: str, available_tool_names: set[str]) -> str
 
 
 def build_tools_description(
-    available_tools: list,
+    available_tools: list[Any],
     tool_registry: Any | None = None,
 ) -> str:
     """

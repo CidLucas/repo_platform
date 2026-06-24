@@ -18,10 +18,12 @@ def get_langfuse_config(
     """
     Return a LangGraph config dict wired up com Langfuse callback POR INVOCAÇÃO.
 
-    IMPORTANTE: cria um CallbackHandler novo a cada chamada com trace_id,
-    session_id e user_id explícitos. Isso garante que todos os steps de uma
-    mesma execução (LLM calls, tool calls, chains) vão para UM ÚNICO trace no
-    Langfuse — em vez de gerar uma trace fragmentada por evento.
+    IMPORTANTE: cria um CallbackHandler novo a cada chamada com trace_id
+    explícito. Session/user/tags/name são propagados via
+    ``config["metadata"]`` usando as chaves reservadas ``langfuse_*`` que o
+    Langfuse SDK v4 lê do callback handler. Isso garante que todos os steps
+    de uma mesma execução (LLM calls, tool calls, chains) vão para UM ÚNICO
+    trace no Langfuse — em vez de gerar uma trace fragmentada por evento.
 
     O singleton de get_langfuse_callback() NÃO é usado aqui porque ele não
     carrega os IDs da invocação e causaria traces separados para cada chain.
@@ -35,39 +37,41 @@ def get_langfuse_config(
                     valor em múltiplas chamadas se quiser linkar traces manualmente.
         trace_name: Nome legível da trace no Langfuse UI. Default: session_id.
     """
-    try:
-        from blu_observability_bootstrap.langfuse import is_langfuse_enabled, get_langfuse_settings
-        if not is_langfuse_enabled():
-            raise RuntimeError("Langfuse not configured")
-
-        from langfuse.langchain import CallbackHandler
-
-        resolved_trace_id = trace_id or str(uuid.uuid4())
-
-        # CallbackHandler por invocação — todos os eventos desta execução
-        # (LLM start/end, tool start/end, chain start/end) ficam sob a mesma trace.
-        settings = get_langfuse_settings()
-        handler = CallbackHandler(
-            public_key=settings["public_key"],
-            secret_key=settings["secret_key"],
-            host=settings["host"],
-            trace_id=resolved_trace_id,
-            session_id=session_id,
-            user_id=client_id or None,
-            tags=tags or [],
-            trace_name=trace_name or session_id,
-        )
-
-        return {
-            "configurable": {"thread_id": f"{client_id}:{session_id}"},
-            "callbacks": [handler],
-            "metadata": {
-                "trace_id": resolved_trace_id,
-                "client_id": client_id,
-                "session_id": session_id,
-                "tags": tags or [],
-            },
-        }
-    except Exception as exc:
-        logger.debug("Langfuse not available: %s", exc)
+    from blu_observability_bootstrap.langfuse import is_langfuse_enabled
+    if not is_langfuse_enabled():
+        logger.debug("Langfuse not enabled (missing credentials) — tracing disabled")
         return {"configurable": {"thread_id": f"{client_id}:{session_id}"}}
+
+    from langfuse.langchain import CallbackHandler
+
+    resolved_trace_id = trace_id or str(uuid.uuid4())
+
+    # Langfuse v4 SDK: CallbackHandler accepts only public_key + trace_context.
+    # session_id / user_id / tags / trace_name come from config["metadata"]
+    # with the langfuse_* keys (see _parse_langfuse_trace_attributes in the SDK).
+    try:
+        handler = CallbackHandler(
+            public_key=None,  # SDK reads from LANGFUSE_PUBLIC_KEY env
+            trace_context={"trace_id": resolved_trace_id},
+        )
+    except Exception as exc:
+        # Hard-fail on programming errors (don't silently swallow like before).
+        logger.warning("Failed to create Langfuse CallbackHandler: %s", exc)
+        return {"configurable": {"thread_id": f"{client_id}:{session_id}"}}
+
+    return {
+        "configurable": {"thread_id": f"{client_id}:{session_id}"},
+        "callbacks": [handler],
+        "metadata": {
+            # Langfuse v4 reads these keys to populate the trace root
+            "langfuse_session_id": session_id,
+            "langfuse_user_id": client_id or None,
+            "langfuse_tags": tags or [],
+            "langfuse_trace_name": trace_name or session_id,
+            # App-level metadata (also captured as generic trace metadata;
+            # langfuse_* keys are stripped by the SDK before persistence)
+            "client_id": client_id,
+            "session_id": session_id,
+            "tags": tags or [],
+        },
+    }

@@ -19,6 +19,8 @@ import { snoozeUntil } from '../../utils/time'
 import { AGENT_COLORS } from '../../utils/constants'
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
+import PostBoardingEmptyState from '../../components/shared/PostBoardingEmptyState'
+import ConnectionsSection from '../../components/home/ConnectionsSection'
 
 const DAY_ABBR = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
@@ -306,6 +308,8 @@ export default function HomePage() {
 
   const openInsight = insights.find(i => i.id === openInsightId) ?? null
 
+  const hasNoData = !!clientId && !localStorage.getItem(`blu_has_data:${clientId}`)
+
   function handleIchClick(e: React.MouseEvent<HTMLDivElement>, ins: InsightItem) {
     track('insight_click', { id: ins.id, room: ins.room })
     if (openInsightId === ins.id) {
@@ -321,6 +325,8 @@ export default function HomePage() {
     setOpenInsightId(null)
     setInsightAnchor(null)
   }
+
+  if (hasNoData) return <PostBoardingEmptyState onAddConnection={() => {}} />
 
   return (
     <div className="home-grid">
@@ -505,6 +511,7 @@ export default function HomePage() {
               )}
             </div>
         </CollapsiblePanel>
+        {clientId && <ConnectionsSection clientId={clientId} />}
       </div>
 
       <div className="bstrip">

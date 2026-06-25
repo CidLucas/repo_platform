@@ -63,11 +63,6 @@ verify_jwt = false
 [functions.google-calendar-events]
 verify_jwt = false
 
-# preview-bigquery-columns: BigQuery column preview (sample rows) — invoked by
-# the onboarding wizard; validates JWT internally.
-[functions.preview-bigquery-columns]
-verify_jwt = false
-
 # etl-bigquery-ingest: BigQuery → ingest_staging → fato_transacoes worker.
 # Invoked by analytics_v2.process_pending_jobs (pg_net) with the sb_secret_*
 # service key OR directly by an authenticated user. JWT validation is done

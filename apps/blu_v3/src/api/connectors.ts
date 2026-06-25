@@ -275,7 +275,10 @@ export async function createBigQueryCredentialWithDiscovery(
  * StepLaunch (which is what actually persists credentials, after clientes_blu
  * is created by onboarding_bootstrap_tx).
  *
- * Calls the `preview-bigquery-columns` Edge Function (auth-only, no DB writes).
+ * Calls `discover-bigquery-columns?preview=true` (read-only BigQuery
+ * passthrough, no DB writes). Uses fetch directly so we can pass the
+ * `?preview=true` query param — supabase.functions.invoke doesn't support
+ * query strings in the function name.
  */
 export async function previewBigQueryColumns(
   credentials: BigQueryCredentials,
@@ -284,16 +287,30 @@ export async function previewBigQueryColumns(
   const effectiveProject = projectId || credentials.project_id
   const effectiveDataset = datasetId || credentials.dataset_id || 'default'
 
-  const { data, error } = await supabase.functions.invoke('preview-bigquery-columns', {
-    body: {
-      service_account_json: credentials.service_account_json,
-      project_id: effectiveProject,
-      dataset_id: effectiveDataset,
-      table_name: tableName,
+  const { data: { session } } = await supabase.auth.getSession()
+  const resp = await fetch(
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/discover-bigquery-columns?preview=true`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${session?.access_token ?? ''}`,
+      },
+      body: JSON.stringify({
+        service_account_json: credentials.service_account_json,
+        project_id: effectiveProject,
+        dataset_id: effectiveDataset,
+        table_name: tableName,
+      }),
     },
-  })
-  if (error) throw new Error(error.message)
-  const columns: string[] = (data?.columns ?? []).map(
+  )
+  if (!resp.ok) {
+    const txt = await resp.text()
+    throw new Error(`previewBigQueryColumns ${resp.status}: ${txt}`)
+  }
+  const data = await resp.json() as { columns?: Array<{ name: string } | string> }
+  const columns: string[] = (data.columns ?? []).map(
     (c: { name: string } | string) => (typeof c === 'string' ? c : c.name),
   )
   return columns

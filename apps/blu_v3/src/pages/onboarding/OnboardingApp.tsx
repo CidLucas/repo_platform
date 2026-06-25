@@ -454,6 +454,24 @@ function formatCnpj(raw: string): string {
     .replace(/(\d{4})(\d{1,2})$/, '$1-$2')
 }
 
+function deriveVerticalFromCnae(cnae: string): string {
+  if (!cnae) return 'other'
+  const code = cnae.replace(/\D/g, '').padStart(7, '0')
+  const section = code.slice(0, 2)
+  // CNAE section → vertical map
+  if (['10', '11', '12'].includes(section)) return 'food'
+  if (['45', '46', '47'].includes(section)) return 'retail'
+  if (['58', '59', '60', '61', '62', '63'].includes(section)) return 'technology'
+  if (['41', '42', '43'].includes(section)) return 'construction'
+  if (['49', '50', '51', '52', '53'].includes(section)) return 'transport'
+  if (['85'].includes(section)) return 'education'
+  if (['86'].includes(section)) return 'health'
+  if (['24', '25', '26', '27', '28', '29', '30', '31', '32', '33'].includes(section)) return 'industry'
+  if (['64', '65', '66'].includes(section)) return 'financial'
+  if (['01', '02', '03'].includes(section)) return 'agriculture'
+  return 'services'
+}
+
 function StepInfo({
   onNext, onBack, saveDraft,
   initialNome, initialEmpresa, initialWebsite, initialVertical, initialPorte,
@@ -484,6 +502,19 @@ function StepInfo({
   const [detecting, setDetecting] = useState(false)
   const [siteContext, setSiteContext] = useState<SiteContext | null>(null)
   const clearSiteCtx = () => setSiteContext(null)
+
+  // ── CNPJ enrichment states (B-2, B-3, B-4, B-5) ─────────────────────────
+  const [enrichedForCnpj, setEnrichedForCnpj] = useState<string>('')
+  const [enrichingCnpj, setEnrichingCnpj] = useState(false)
+  const [cnpjEnrichData, setCnpjEnrichData] = useState<null | {
+    razao_social: string
+    cnpj: string
+    cnae: string
+    cnae_descricao: string
+    situacao: string
+    uf: string
+  }>(null)
+  const [rateLimitMsg, setRateLimitMsg] = useState<string | null>(null)
 
   async function handleWebsiteBlur() {
     const url = website.trim()
@@ -516,6 +547,38 @@ function StepInfo({
       // best-effort, silent
     } finally {
       setDetecting(false)
+    }
+  }
+
+  async function handleCnpjBlur() {
+    setRateLimitMsg(null)
+    // B-5: Only dispatch for valid 14-digit CNPJ
+    if (cnpj.length !== 14) return
+    // B-2: Idempotency — skip if already enriched this CNPJ
+    if (cnpj === enrichedForCnpj) return
+    setRateLimitMsg(null)
+    setEnrichingCnpj(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('onboarding-cnpj-enrich', {
+        body: { cnpj: cnpj },
+      })
+      if (error) return // silently swallowed (B-5)
+      if (data?.error === "rate_limit") {
+        setRateLimitMsg('Servico temporariamente indisponivel. Tente novamente em alguns instantes.')
+        return
+      }
+      if (data) {
+        setEnrichedForCnpj(cnpj)
+        setCnpjEnrichData(data)
+        // B-3: Auto-fill company name only if empty
+        if (!empresa.trim() && data.razao_social) {
+          setEmpresa(data.razao_social)
+        }
+      }
+    } catch {
+      // silently swallowed — no alert, no modal, no setError (B-5)
+    } finally {
+      setEnrichingCnpj(false)
     }
   }
 
@@ -587,10 +650,62 @@ function StepInfo({
               placeholder="00.000.000/0001-00"
               value={formatCnpj(cnpj)}
               onChange={e => setCnpj(e.target.value.replace(/\D/g, ''))}
+              onBlur={handleCnpjBlur}
               inputMode="numeric"
               maxLength={18}
             />
           </div>
+
+          {/* CNPJ enrichment: loading indicator (B-4) */}
+          {enrichingCnpj && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: -8, marginBottom: 8, fontSize: 12.5, color: 'var(--muted2)' }}>
+              <div className="spin-sm" />
+              Consultando Receita Federal...
+            </div>
+          )}
+
+          {/* CNPJ enrichment: rate limit message (B-5) */}
+          {rateLimitMsg && (
+            <div style={{ marginTop: -8, marginBottom: 8, fontSize: 12, color: 'var(--amber, #ca8a04)' }}>
+              {rateLimitMsg}
+            </div>
+          )}
+
+          {/* CNPJ enrichment: Dados da Receita Federal section (B-3, B-4) */}
+          {cnpjEnrichData && (
+            <div className="scrape-panel" style={{ margin: '0 0 4px' }}>
+              <div className="scrape-h">
+                <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                Dados da Receita Federal
+                <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--green, #16a34a)', background: 'rgba(22, 163, 74, 0.1)', padding: '1px 7px', borderRadius: 20, marginLeft: 6 }}>Confirmado pela Receita</span>
+              </div>
+              <div className="scrape-grid">
+                <ScrapeField label="Razão Social" value={cnpjEnrichData.razao_social} delay={0} />
+                <ScrapeField label="CNPJ" value={formatCnpj(cnpjEnrichData.cnpj)} delay={100} />
+                <ScrapeField label="CNAE" value={`${cnpjEnrichData.cnae} — ${cnpjEnrichData.cnae_descricao}`} delay={200} />
+                {cnpjEnrichData.situacao && (
+                  <ScrapeField label="Situação" value={cnpjEnrichData.situacao} delay={300} />
+                )}
+                {cnpjEnrichData.uf && (
+                  <ScrapeField label="UF" value={cnpjEnrichData.uf} delay={300} />
+                )}
+              </div>
+              <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+                <button
+                  className="btn btn-ghost"
+                  style={{ fontSize: 12, padding: '4px 10px' }}
+                  onClick={() => {
+                    setCnpjEnrichData(null)
+                    // Optionally clear auto-filled empresa if user didn't type it
+                  }}
+                >
+                  Limpar dados da Receita
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Scrape panel: shown after website-intel returns results */}
           {siteContext && (

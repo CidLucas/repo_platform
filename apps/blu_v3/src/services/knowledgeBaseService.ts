@@ -138,12 +138,6 @@ export async function getDocumentProgress(documentId: string): Promise<Embedding
   }
 }
 
-async function getAuthToken(): Promise<string> {
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session?.access_token) throw new Error('Sessão expirada — faça login novamente.')
-  return session.access_token
-}
-
 export async function uploadSimpleFile(
   file: File,
   clientId: string,

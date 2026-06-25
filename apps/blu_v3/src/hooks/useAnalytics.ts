@@ -208,6 +208,7 @@ export function useSupplyIndicators(period = '30d') {
     queryFn: () => getSupplyIndicators(period),
     enabled: !!clientId,
     staleTime: 2 * 60 * 1000,
+    retry: false,
   })
 }
 

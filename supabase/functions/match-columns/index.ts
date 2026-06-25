@@ -137,6 +137,13 @@ const INVOICES_COLUMNS: CanonicalColumnDef[] = [
     // → dim_inventory
     { column_name: "produto_sku",         data_type: "text",    is_required: false, description: "Product SKU",                                              examples: ["SKU-001"] },
     { column_name: "produto_nome",        data_type: "text",    is_required: false, description: "Product name",                                              examples: ["Camiseta Azul M"] },
+    // → tax fields (Brazilian NF)
+    { column_name: "icms_base",     data_type: "numeric", is_required: false, description: "ICMS tax base (base de cálculo)",                examples: ["1000.00"] },
+    { column_name: "icms_valor",    data_type: "numeric", is_required: false, description: "ICMS tax value",                                 examples: ["180.00"] },
+    { column_name: "iss_aliquota",  data_type: "numeric", is_required: false, description: "ISS tax rate (alíquota, percentage)",           examples: ["5.00"] },
+    { column_name: "iss_valor",     data_type: "numeric", is_required: false, description: "ISS tax value",                                 examples: ["50.00"] },
+    { column_name: "pis",           data_type: "numeric", is_required: false, description: "PIS contribution value",                       examples: ["16.50"] },
+    { column_name: "cofins",        data_type: "numeric", is_required: false, description: "COFINS contribution value",                    examples: ["76.00"] },
 ];
 
 async function getCanonicalDefs(schemaType: SchemaType): Promise<CanonicalColumnDef[]> {
@@ -234,6 +241,30 @@ const COLUMN_ALIASES: Record<string, string[]> = {
         "sub_familia", "sub-familia", "subfamilia", "sub familia",
         "subgrupo", "descricao",
         "centro de custo - sub familia", "centro_custo_sub_familia",
+    ],
+    icms_base: [
+        "base_icms", "icms base", "base de calculo icms", "base cálculo icms",
+        "bc_icms", "base icms", "base de calculo",
+    ],
+    icms_valor: [
+        "valor_icms", "icms valor", "valor icms", "icms",
+        "vlr_icms", "vl_icms", "total_icms",
+    ],
+    iss_aliquota: [
+        "iss_aliquota", "aliquota_iss", "iss aliquota", "aliquota iss",
+        "iss_alq", "iss %", "taxa_iss",
+    ],
+    iss_valor: [
+        "iss_valor", "valor_iss", "iss valor", "valor iss",
+        "vlr_iss", "vl_iss", "total_iss",
+    ],
+    pis: [
+        "pis", "valor_pis", "pis valor", "valor pis",
+        "vlr_pis", "vl_pis", "total_pis", "pis_cofins",
+    ],
+    cofins: [
+        "cofins", "valor_cofins", "cofins valor", "valor cofins",
+        "vlr_cofins", "vl_cofins", "total_cofins",
     ],
 };
 

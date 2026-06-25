@@ -5103,6 +5103,18 @@ CREATE TRIGGER polp_integrations_updated_at BEFORE UPDATE ON public.polp_integra
 CREATE TRIGGER polp_transactions_updated_at BEFORE UPDATE ON public.polp_transactions FOR EACH ROW EXECUTE FUNCTION polp_set_updated_at();
 
 -- =============================================================================
+-- auth.users -> public.clientes_blu (B1)
+-- =============================================================================
+-- Connects a new auth.users INSERT to handle_new_auth_user() so the
+-- clientes_blu row is materialised at signup time, not lazily by
+-- ensure_tenant_row() during onboarding. Idempotent (uses ON CONFLICT
+-- DO NOTHING on external_user_id).
+CREATE TRIGGER on_auth_user_created
+  ON auth.users
+  AFTER INSERT
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_auth_user();
+
+-- =============================================================================
 -- analytics_v2.dim_clientes (materialized from archive)
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS analytics_v2.dim_clientes (

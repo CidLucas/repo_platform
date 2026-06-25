@@ -64,10 +64,6 @@ verify_jwt = true
 [functions.polp-connect]
 verify_jwt = true
 
-# search-documents: hybrid vector + keyword retrieval for the RAG factory.
-[functions.search-documents]
-verify_jwt = true
-
 # process-document: document ingestion pipeline. Called with service key
 # from backend OR with a user JWT from frontend; edge-layer validation
 # covers both paths.

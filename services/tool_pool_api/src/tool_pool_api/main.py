@@ -21,6 +21,7 @@ from tool_pool_api.api.match_columns_router import router as match_columns_route
 from tool_pool_api.api.reports_router import router as reports_router
 from tool_pool_api.api.polp_webhook_router import router as polp_webhook_router
 from tool_pool_api.api.twilio_webhook_router import router as twilio_webhook_router
+from tool_pool_api.api.search_documents_router import router as search_documents_router
 
 logger = logging.getLogger(__name__)
 
@@ -136,6 +137,7 @@ app.include_router(inbox_dispatch_router)
 app.include_router(reports_router)
 app.include_router(ingest_router)
 app.include_router(match_columns_router)
+app.include_router(search_documents_router)
 
 # Add database timeout middleware
 app.add_middleware(DatabaseTimeoutMiddleware)

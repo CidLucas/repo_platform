@@ -152,11 +152,22 @@ async def _build_rag_pipeline(
         pool_size = int(cfg.top_k * cfg.retrieval_pool_multiplier)
 
         # --- Retriever: select based on search_mode config ---
+        # Phase 3.3: search now goes through tool_pool_api's /v1/search-documents
+        # router (replaces the search-documents Edge Function). The env var
+        # is the same one the upload-* EFs use to reach tool_pool_api.
+        tool_pool_api_url = os.environ.get("TOOL_POOL_API_URL")
+        if not tool_pool_api_url:
+            raise RuntimeError(
+                "TOOL_POOL_API_URL não configurada — defina a env var com a URL "
+                "do serviço tool_pool_api (ex.: http://tool_pool_api:8000 em "
+                "docker compose ou http://localhost:8006 em dev local)."
+            )
         if cfg.search_mode == "semantic":
             # Legacy path — pure cosine similarity
             retriever = SupabaseVectorRetriever(
                 supabase_url=os.environ["SUPABASE_URL"],
                 supabase_service_key=os.environ["SUPABASE_SERVICE_KEY"],
+                tool_pool_api_url=tool_pool_api_url,
                 client_id=str(contexto.id),
                 match_count=pool_size,
                 match_threshold=cfg.score_threshold,
@@ -167,6 +178,7 @@ async def _build_rag_pipeline(
             retriever = HybridRetriever(
                 supabase_url=os.environ["SUPABASE_URL"],
                 supabase_service_key=os.environ["SUPABASE_SERVICE_KEY"],
+                tool_pool_api_url=tool_pool_api_url,
                 client_id=str(contexto.id),
                 match_count=pool_size,
                 match_threshold=cfg.score_threshold,

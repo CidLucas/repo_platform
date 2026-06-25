@@ -16,6 +16,7 @@ def retriever() -> SupabaseVectorRetriever:
     return SupabaseVectorRetriever(
         supabase_url="https://test.supabase.co",
         supabase_service_key="test-service-key",
+        tool_pool_api_url="http://tool_pool_api:8000",
         client_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
         match_count=3,
         match_threshold=0.6,
@@ -27,6 +28,7 @@ def hybrid_retriever() -> HybridRetriever:
     return HybridRetriever(
         supabase_url="https://test.supabase.co",
         supabase_service_key="test-service-key",
+        tool_pool_api_url="http://tool_pool_api:8000",
         client_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
         match_count=5,
         match_threshold=0.4,

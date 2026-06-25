@@ -181,6 +181,7 @@ A racionalização original propôs ~3.580 LOC de redução em 5 ondas. **~30% j
 | 3.3 | etl-refresh-dashboards → pg_cron | ⏸️ **pendente** | |
 | 3.4 | match-columns → Python service | ⏸️ **pendente** | |
 | 3.5 | search-documents → direct SQL + Cohere | ⏸️ **pendente** | |
+| 3.6 | search-documents → Python service (Phase 3.3 da nova onda 5) | ✅ **feito** | 212 LOC → Python `services/search_documents/` + FastAPI `/v1/search-documents`. Bloqueado por **Issue 3.6.1** (função RPC sumiu do baseline ativo). |
 | 4.1 | Matar generate-context-report EF (M7) | ⚠️ **bloqueada** | Tentativa `73c7080c` revertida em `cf33ffd1`. Re-avaliar contexto antes de retentar |
 | 4.2 | etl-bigquery-ingest → Python | ⏸️ **pendente** (opcional) | |
 | 4.3 | routine-builder → agent_api | ⏸️ **pendente** (opcional) | |
@@ -350,6 +351,30 @@ A racionalização original propôs ~3.580 LOC de redução em 5 ondas. **~30% j
 | 3.3.3 | Remover bloco `[functions.search-documents]` do config | -5 |
 
 **Risco:** Médio. SQL RPC precisa ter grants corretos para service-role do RAG factory.
+
+---
+
+#### Issue 3.6.1 — `vector_db.hybrid_match_documents` não existe no baseline ativo (BLOQUEADOR P0)
+
+**Achado durante a execução da Fase 3.3:**
+
+1. A EF `search-documents` chama `vector_db.hybrid_match_documents` com **12 parâmetros** (incluindo `scope`, `categories`, `themes`, `fusion_strategy`, `keyword_weight`, `vector_weight`).
+2. A única definição no repo está em `archive/20260430000000_baseline.sql:2692` e tem apenas **5 parâmetros**: `(p_client_id, p_query_embed, p_query_text, p_match_count, p_theme_filter)`.
+3. O baseline ativo `20260523999999_baseline_v2.sql` **NÃO DEFINE** nenhuma das duas funções (`hybrid_match_documents` nem `match_documents`).
+4. A tabela `vector_db.document_chunks` também não está definida no baseline ativo.
+
+**Implicações:**
+- A EF `search-documents` retorna 500 silenciosamente em produção (ou nunca foi deployada — não há como saber sem checar logs do Supabase).
+- O port Python (`services/search_documents/`) replica a assinatura de 12 params, então também vai falhar até que a função seja reaplicada.
+- Toda a stack RAG (process-document, search-documents, HybridRetriever) está morta no DB atual.
+
+**Ação necessária (P0):**
+- [ ] Investigar via Supabase Studio / logs se a função `vector_db.hybrid_match_documents` existe no banco remoto (pode ter sido aplicada manualmente e nunca commitada).
+- [ ] Se NÃO existe: criar migration em `supabase/migrations/proposed/` que (a) cria `vector_db.document_chunks` se faltar, (b) re-aplica `hybrid_match_documents` com a assinatura de 12 params, (c) re-aplica `match_documents` (5 params). Lucas revisa antes de aplicar.
+- [ ] Se existe: commitar a migration que a define no repo para reprodutibilidade.
+- [ ] Adicionar test smoke E2E que valida `POST /v1/search-documents` retorna 200 com resultados reais (hoje os 33 tests do port são todos unit-mocked).
+
+**LOC:** +0 (port já feito). Migration a criar: ~150 LOC SQL.
 
 ---
 

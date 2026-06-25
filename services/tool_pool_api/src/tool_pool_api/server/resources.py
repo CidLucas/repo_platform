@@ -158,8 +158,9 @@ async def _search_knowledge(query: str, client_id: str | None = None, limit: int
     """
     Busca documentos na base de conhecimento (read-only, sem LLM).
 
-    Uses the ``search-documents`` Edge Function (same as SupabaseVectorRetriever)
-    to embed the query and perform cosine-similarity search.
+    Uses the in-process ``search_documents`` engine (same Cohere + RPC
+    pipeline as the SupabaseVectorRetriever / HybridRetriever).
+    Replaces the previous ``supabase/functions/search-documents`` EF call.
 
     Args:
         query: Texto de busca
@@ -169,9 +170,8 @@ async def _search_knowledge(query: str, client_id: str | None = None, limit: int
     Returns:
         Documentos encontrados em formato Markdown
     """
-    import os
-
-    import httpx
+    from blu_supabase_client import get_supabase_client
+    from tool_pool_api.services.search_documents import search_documents
 
     context = await _resolve_client_context(client_id)
 
@@ -182,25 +182,15 @@ async def _search_knowledge(query: str, client_id: str | None = None, limit: int
     client_id_str = str(context.id)
 
     try:
-        supabase_url = os.environ["SUPABASE_URL"]
-        supabase_key = os.environ["SUPABASE_SERVICE_KEY"]
-
-        response = httpx.post(
-            f"{supabase_url}/functions/v1/search-documents",
-            json={
-                "query": query,
-                "client_id": client_id_str,
-                "match_count": limit,
-                "match_threshold": 0.5,
-            },
-            headers={
-                "Authorization": f"Bearer {supabase_key}",
-                "Content-Type": "application/json",
-            },
-            timeout=30.0,
+        db = get_supabase_client(use_service_role=True)
+        data = search_documents(
+            db,
+            query=query,
+            client_id=client_id_str,
+            match_count=limit,
+            match_threshold=0.5,
+            search_mode="hybrid",
         )
-        response.raise_for_status()
-        data = response.json()
         results = data.get("results", [])
 
         if not results:

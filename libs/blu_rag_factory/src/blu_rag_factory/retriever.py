@@ -5,8 +5,14 @@ Provides:
 - ``HybridRetriever``: Hybrid semantic + keyword search with configurable fusion
   (RRF or weighted linear) via the ``hybrid_match_documents`` RPC.
 
-Both call the ``search-documents`` Edge Function to embed queries and
-search against ``vector_db.document_chunks``.
+Both call the ``tool_pool_api`` service's ``/v1/search-documents`` endpoint
+to embed queries and search against ``vector_db.document_chunks``.
+Replaces the previous ``supabase/functions/search-documents`` Edge Function
+call (Phase 3.3 of the edge-functions rationalization plan).
+
+Callers must supply ``tool_pool_api_url`` — typically the value of the
+``TOOL_POOL_API_URL`` environment variable. In docker compose this is
+``http://tool_pool_api:8000``; in local dev ``http://localhost:8006``.
 """
 
 import json
@@ -86,8 +92,14 @@ class _BaseSupabaseRetriever(BaseRetriever):
     Subclasses must override ``_build_payload`` and ``_log_prefix``.
     """
 
-    supabase_url: str = Field(description="Supabase project URL")
+    supabase_url: str = Field(description="Supabase project URL (kept for callers that need it)")
     supabase_service_key: str = Field(description="Service role key for auth")
+    tool_pool_api_url: str = Field(
+        description=(
+            "Base URL of the tool_pool_api service (Phase 3.3 — replaces the "
+            "search-documents Edge Function). Example: http://tool_pool_api:8000."
+        ),
+    )
     client_id: str = Field(description="Client UUID for RLS filtering")
     match_count: int = Field(default=5)
     match_threshold: float = Field(default=0.3)
@@ -112,7 +124,7 @@ class _BaseSupabaseRetriever(BaseRetriever):
 
     @property
     def _search_url(self) -> str:
-        return f"{self.supabase_url}/functions/v1/search-documents"
+        return f"{self.tool_pool_api_url}/v1/search-documents"
 
     # ── Sync retrieval (used by .invoke()) ───────────────────
 

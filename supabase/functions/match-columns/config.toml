@@ -1,5 +1,0 @@
-# match-columns: stateless fuzzy schema matcher — pure computation, no DB writes.
-# verify_jwt = false: called by both authenticated frontend users and server-to-server
-# from other edge functions (upload-csv-source, run-sync-etl). No sensitive data
-# is accessed or returned, so no auth gate is needed.
-verify_jwt = false

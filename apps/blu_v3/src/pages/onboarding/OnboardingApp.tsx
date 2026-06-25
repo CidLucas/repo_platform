@@ -141,14 +141,24 @@ export type ColumnMappingResult = {
 async function callMatchColumns(sourceColumns: string[], schemaType?: string): Promise<ColumnMappingResult | null> {
   if (sourceColumns.length === 0) return null
   try {
-    const { data, error } = await supabase.functions.invoke('match-columns', {
-      body: { source_columns: sourceColumns, schema_type: schemaType || 'invoices' },
+    // match-columns moved from a Deno EF to a Python service in Phase 3.2.
+    // The endpoint is mounted at /v1/match-columns in tool_pool_api.
+    const toolPoolUrl = import.meta.env.VITE_TOOL_POOL_API_URL || 'http://localhost:8006'
+    const { data: { session } } = await supabase.auth.getSession()
+    const resp = await fetch(`${toolPoolUrl}/v1/match-columns`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({ source_columns: sourceColumns, schema_type: schemaType || 'invoices' }),
     })
-    if (error) {
-      console.warn('[onboarding] match-columns failed:', error.message)
+    if (!resp.ok) {
+      console.warn('[onboarding] match-columns failed', resp.status)
       return null
     }
-    return data as ColumnMappingResult
+    return await resp.json() as ColumnMappingResult
   } catch (e) {
     console.warn('[onboarding] match-columns error:', e)
     return null

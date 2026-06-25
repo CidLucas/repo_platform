@@ -36,6 +36,11 @@ import {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+// tool_pool_api host — used to call /v1/match-columns (the Python
+// replacement for the match-columns Deno EF). Default assumes the
+// compose-internal hostname; override via the Supabase secrets UI
+// in production.
+const TOOL_POOL_API_URL = Deno.env.get("TOOL_POOL_API_URL") ?? "http://tool_pool_api:8000";
 
 // 20 MB cap — Drive export for large Sheets can be slow and hit the 60s timeout.
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
@@ -257,8 +262,8 @@ Deno.serve(async (req: Request) => {
 
     const sourceId = dataSource.id as string;
 
-    // ── 10. Call match-columns ─────────────────────────────────────────────────
-    const matchRes = await fetch(`${SUPABASE_URL}/functions/v1/match-columns`, {
+    // ── 10. Call match-columns (Python service, replaced the Deno EF in Phase 3.2) ──
+    const matchRes = await fetch(`${TOOL_POOL_API_URL}/v1/match-columns`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

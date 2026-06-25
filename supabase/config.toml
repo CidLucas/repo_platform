@@ -143,19 +143,10 @@ verify_jwt = false
 # routes service-role callers to a fast path; requireAuth is the fallback
 # for user-JWT callers.
 
-# match-columns: fuzzy schema matcher. Called server-to-server from
-# upload-csv-source, upload-drive-source, and the tool_pool_api
-# context_module (service role). Frontend can also call it directly
-# with a user JWT. Note: does have an internal auth gate (added in
-# Phase 1.1) — the function body checks isSystemInvocation first, then
-# requireAuth.
-[functions.match-columns]
-verify_jwt = false
-
 # etl-bigquery-ingest: BigQuery → ingest_staging → fato_transacoes
 # worker. Invoked by analytics_v2.process_pending_jobs (pg_net) with
 # the sb_secret_* service key OR directly by an authenticated user.
-# Same dual-auth pattern as match-columns.
+# Dual-auth pattern (isSystemInvocation + requireAuth fallback).
 [functions.etl-bigquery-ingest]
 verify_jwt = false
 

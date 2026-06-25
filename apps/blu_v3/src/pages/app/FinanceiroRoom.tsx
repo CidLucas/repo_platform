@@ -19,6 +19,8 @@ import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
 
 import RoutineExecutionFeed from '../../components/shared/RoutineExecutionFeed'
 import DecisionCard from '../../components/shared/DecisionCard'
+import EmptyState from '../../components/shared/EmptyState'
+import LoadingState from '../../components/shared/LoadingState'
 import { snoozeUntil } from '../../utils/time'
 import { formatBRL } from '../../utils/formatters'
 
@@ -272,10 +274,14 @@ export default function FinanceiroRoom() {
             <div className={`tc${tab === 'decisoes' ? ' on' : ''}`} id="f-decisoes">
               <div className="dl">
                 {approvalsQ.isLoading && (
-                  <div style={{ padding: '12px 0', color: 'var(--mu)', fontSize: 12 }}>Carregando…</div>
+                  <LoadingState message="Carregando decisões financeiras…" />
                 )}
                 {!approvalsQ.isLoading && approvals.length === 0 && (
-                  <div style={{ padding: '12px 0', color: 'var(--mu)', fontSize: 12 }}>Nenhuma decisão pendente ✓</div>
+                  <EmptyState
+                    icon="✓"
+                    title="Nenhuma decisão pendente"
+                    description="Tudo em dia. O Blu irá notificá-lo quando houver algo financeiro para resolver."
+                  />
                 )}
                 {approvals.map(approval => (
                   <DecisionCard
@@ -292,12 +298,14 @@ export default function FinanceiroRoom() {
             {/* COMPROMISSOS */}
             <div className={`tc${tab === 'compromissos' ? ' on' : ''}`} id="f-compromissos">
               {polpBillsQ.isLoading && (
-                <div style={{ padding: '12px 0', color: 'var(--mu)', fontSize: 12 }}>Carregando…</div>
+                <LoadingState message="Carregando faturas de cartão…" />
               )}
               {!polpBillsQ.isLoading && polpBills.length === 0 && (
-                <div style={{ padding: '12px 0', color: 'var(--mu)', fontSize: 12 }}>
-                  Nenhuma fatura encontrada. Conecte suas contas em Integrações.
-                </div>
+                <EmptyState
+                  icon="💳"
+                  title="Nenhuma fatura encontrada"
+                  description="Conecte suas contas em Integrações para acompanhar faturas e vencimentos."
+                />
               )}
               {(() => {
                 // Deduplicate: show only the most recent cycle per card
@@ -450,7 +458,11 @@ export default function FinanceiroRoom() {
                 </div>
               ))}
               {!polpTxQ.isLoading && polpTransactions.length === 0 && (
-                <div style={{ color: 'var(--mu)', fontSize: 12, padding: '12px 0' }}>Nenhuma transação encontrada. Conecte suas contas bancárias em Integrações.</div>
+                <EmptyState
+                  icon="💸"
+                  title="Nenhuma transação encontrada"
+                  description="Conecte suas contas bancárias em Integrações para visualizar movimentações."
+                />
               )}
               {polpTransactions.map(tx => {
                 const isCredit = tx.type === 'CREDIT'
@@ -593,7 +605,7 @@ export default function FinanceiroRoom() {
             </div>
             <div className={`anl-body${analyticsOpen ? ' open' : ''}`} id="anlBody">
               {kpiQ.isLoading ? (
-                <div style={{ fontSize: 11, color: 'var(--mu)', textAlign: 'center', padding: '8px 0' }}>Carregando…</div>
+                <LoadingState message="Carregando indicadores financeiros…" />
               ) : kpiQ.isError ? (
                 <div style={{ fontSize: 11, color: 'var(--urg)', textAlign: 'center', padding: '8px 0' }}>
                   Erro ao carregar.{' '}
@@ -695,7 +707,11 @@ export default function FinanceiroRoom() {
                 </div>
               ))}
               {!polpAccountsQ.isLoading && polpAccounts.length === 0 && accounts.length === 0 && (
-                <div style={{ color: 'var(--mu)', fontSize: 12 }}>Nenhuma conta conectada.</div>
+                <EmptyState
+                  icon="🏦"
+                  title="Nenhuma conta conectada"
+                  description="Conecte contas bancárias e cartões em Integrações para acompanhar saldos e transações."
+                />
               )}
               {polpAccounts.length > 0 ? polpAccounts.map(acc => {
                 const cd = acc.credit_data
@@ -776,7 +792,11 @@ export default function FinanceiroRoom() {
                 </div>
               ))}
               {!polpBillsQ.isLoading && polpBills.length === 0 && approvals.length === 0 && (
-                <div style={{ color: 'var(--mu)', fontSize: 12 }}>Nenhum pagamento pendente.</div>
+                <EmptyState
+                  icon="📄"
+                  title="Nenhum pagamento pendente"
+                  description="Quando houver faturas ou aprovações a pagar, elas aparecerão aqui."
+                />
               )}
               {polpBills.length > 0 ? (() => {
                 const latest = [...polpBills.reduce<Map<number, PolpBill>>((m, b) => {

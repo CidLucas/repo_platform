@@ -5,6 +5,8 @@ import { useKnowledgeBase } from '../../hooks/useKnowledgeBase'
 import { KB_CATEGORIES, isCsvFile, type KBDocument, type KBCategory } from '../../services/knowledgeBaseService'
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
+import EmptyState from '../../components/shared/EmptyState'
+import LoadingState from '../../components/shared/LoadingState'
 
 type ViewMode = 'grid' | 'list'
 type CategoryFilter = 'all' | string
@@ -484,15 +486,15 @@ export default function BibliotecaRoom() {
           {/* Document list */}
           <div className="pb" style={{ flex: 1, overflowY: 'auto' }}>
             {kb.loading ? (
-              <div style={{ fontSize: 11.5, color: 'var(--mu)', padding: '16px 0', textAlign: 'center' }}>
-                Carregando documentos…
-              </div>
+              <LoadingState message="Carregando documentos da base de conhecimento…" />
             ) : sorted.length === 0 ? (
-              <div style={{ fontSize: 11.5, color: 'var(--mu)', padding: '32px 0', textAlign: 'center' }}>
-                {kb.documents.length === 0
-                  ? 'Nenhum documento adicionado ainda. Adicione arquivos para que os agentes possam consultá-los.'
-                  : 'Nenhum documento corresponde aos filtros selecionados.'}
-              </div>
+              <EmptyState
+                icon="📚"
+                title={kb.documents.length === 0 ? 'Nenhum documento adicionado ainda' : 'Nenhum documento corresponde aos filtros'}
+                description={kb.documents.length === 0
+                  ? 'Adicione arquivos para que os agentes possam consultá-los.'
+                  : 'Ajuste os filtros de categoria ou status para ver mais documentos.'}
+              />
             ) : viewMode === 'grid' ? (
               <div style={{
                 display: 'grid',

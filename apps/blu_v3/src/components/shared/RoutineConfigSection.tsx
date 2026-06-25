@@ -1,10 +1,12 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../hooks/useAuth'
 import {
   fetchRoutines,
   fetchCustomRoutines,
   fetchRoutineCatalog,
+  fetchRoutineConfig,
+  upsertRoutineConfig,
   toggleRoutine,
   updateRoutineConfig,
   updateRoutineTrigger,
@@ -1070,6 +1072,160 @@ function isStepValid(s: BuilderStep): boolean {
   return s.fn.length > 0
 }
 
+// ─── Global config panel ──────────────────────────────────────────────────────
+
+const NOTIFICATION_CHANNELS = [
+  { value: 'email', label: 'Email' },
+  { value: 'slack', label: 'Slack' },
+  { value: 'in_app', label: 'In-app' },
+  { value: 'none', label: 'Nenhum' },
+] as const
+
+const HOURS_00_23 = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
+
+function GlobalConfigPanel({ domain }: { domain: string }) {
+  const { clientId } = useAuth()
+  const qc = useQueryClient()
+  const [open, setOpen] = useState(true)
+
+  const { data: serverConfig } = useQuery({
+    queryKey: ['routine-global-config', domain, clientId ?? ''],
+    queryFn: () => fetchRoutineConfig(clientId!, domain),
+    enabled: !!clientId,
+    staleTime: 120_000,
+  })
+
+  const [localConfig, setLocalConfig] = useState<Record<string, unknown>>({})
+  const [hydrated, setHydrated] = useState(false)
+
+  useEffect(() => {
+    if (!hydrated && serverConfig !== undefined) {
+      setLocalConfig(serverConfig)
+      setHydrated(true)
+    }
+  }, [serverConfig, hydrated])
+
+  const saveMut = useMutation({
+    mutationFn: (cfg: Record<string, unknown>) => upsertRoutineConfig(clientId!, domain, cfg),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['routine-global-config', domain, clientId ?? ''] }),
+  })
+
+  const get = (key: string, fallback: unknown) => localConfig[key] ?? fallback
+
+  const update = (key: string, value: unknown) =>
+    setLocalConfig(prev => ({ ...prev, [key]: value }))
+
+  const trackHistory = Boolean(get('track_execution_history', false))
+
+  return (
+    <div style={{ background: 'var(--glass)', border: '1px solid var(--gb)', borderRadius: 'var(--r)', marginBottom: 14 }}>
+      <div
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '9px 12px', cursor: 'pointer',
+          borderBottom: open ? '1px solid var(--gb)' : 'none',
+        }}
+      >
+        <span style={{ fontSize: 10.5, color: 'var(--mu)', width: 10, display: 'inline-block' }}>
+          {open ? '▾' : '▸'}
+        </span>
+        <span style={{ fontSize: 11.5, fontWeight: 600, flex: 1 }}>Configurações globais</span>
+      </div>
+
+      {open && (
+        <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 9 }}>
+          {/* notification_channel */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 11, color: 'var(--mu)', flex: 1 }}>Canal de notificação</span>
+            <select
+              value={String(get('notification_channel', 'email'))}
+              onChange={e => update('notification_channel', e.target.value)}
+              style={inputStyle}
+            >
+              {NOTIFICATION_CHANNELS.map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* execution_window_start */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 11, color: 'var(--mu)', flex: 1 }}>Janela de execução — início</span>
+            <select
+              value={String(get('execution_window_start', '00'))}
+              onChange={e => update('execution_window_start', e.target.value)}
+              style={inputStyle}
+            >
+              {HOURS_00_23.map(h => <option key={h} value={h}>{h}</option>)}
+            </select>
+          </div>
+
+          {/* execution_window_end */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 11, color: 'var(--mu)', flex: 1 }}>Janela de execução — fim</span>
+            <select
+              value={String(get('execution_window_end', '23'))}
+              onChange={e => update('execution_window_end', e.target.value)}
+              style={inputStyle}
+            >
+              {HOURS_00_23.map(h => <option key={h} value={h}>{h}</option>)}
+            </select>
+          </div>
+
+          {/* max_parallel_routines */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 11, color: 'var(--mu)', flex: 1 }}>Máx. rotinas paralelas</span>
+            <input
+              type="number"
+              min={1}
+              value={String(get('max_parallel_routines', 3))}
+              onChange={e => update('max_parallel_routines', Number(e.target.value))}
+              style={{ ...inputStyle, width: 70 }}
+            />
+          </div>
+
+          {/* track_execution_history */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 11, color: 'var(--mu)', flex: 1 }}>Registrar histórico de execução</span>
+            <div
+              onClick={() => update('track_execution_history', !trackHistory)}
+              style={{
+                width: 32, height: 18, borderRadius: 9,
+                background: trackHistory ? 'var(--ok)' : 'var(--gb)',
+                cursor: 'pointer', position: 'relative', transition: 'background .2s',
+              }}
+            >
+              <div style={{
+                position: 'absolute', top: 2, left: trackHistory ? 16 : 2,
+                width: 14, height: 14, borderRadius: 7, background: '#fff',
+                transition: 'left .2s',
+              }} />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
+            <button
+              className="btn bp"
+              style={{ fontSize: 10.5, padding: '4px 10px' }}
+              disabled={saveMut.isPending}
+              onClick={() => saveMut.mutate(localConfig)}
+            >
+              {saveMut.isPending ? 'Salvando...' : 'Salvar'}
+            </button>
+            {saveMut.isError && (
+              <span style={{ fontSize: 10.5, color: 'var(--urg)' }}>Erro ao salvar.</span>
+            )}
+            {saveMut.isSuccess && !saveMut.isPending && (
+              <span style={{ fontSize: 10.5, color: 'var(--ok)' }}>Salvo.</span>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Main RoutineConfigSection ────────────────────────────────────────────────
 
 type CreateMode = 'ai' | 'manual' | null
@@ -1122,6 +1278,8 @@ export default function RoutineConfigSection({ domain }: { domain: string }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+
+      <GlobalConfigPanel domain={domain} />
 
       {/* ── Built-in routines ── */}
       <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--mu)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 9 }}>

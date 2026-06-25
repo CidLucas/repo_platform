@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useQueries, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAppStore } from '../../store/appStore'
 import { useAuth } from '../../hooks/useAuth'
@@ -16,13 +16,24 @@ import {
 } from '../../api/estrategia'
 import { getContextMetrics, type ContextMetricRow } from '../../api/analytics'
 import { fetchContextReports, downloadContextReport, type ContextReport } from '../../api/contextReport'
+import {
+  fetchRecentDocuments,
+  fetchDraftDocuments,
+  fetchDocTemplates,
+  saveDocument,
+  createDocument,
+  publishDocument,
+  archiveDocument,
+} from '../../api/documents'
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
 
+import EmptyState from '../../components/shared/EmptyState'
+import LoadingState from '../../components/shared/LoadingState'
 import { snoozeUntil } from '../../utils/time'
 
-type Tab = 'decisoes' | 'analises' | 'historico' | 'config'
+type Tab = 'decisoes' | 'analises' | 'historico' | 'config' | 'documentos'
 
 // ── Lightweight markdown renderer (no external dependency) ─────────────────────────────────
 function renderMarkdownLine(line: string, key: number): React.ReactNode {
@@ -130,6 +141,24 @@ export default function EstrategiaRoom() {
   const [selectedReport, setSelectedReport] = useState<ContextReport | null>(null)
   const [reportContent, setReportContent] = useState<string | null>(null)
   const [loadingReport, setLoadingReport] = useState(false)
+  const [activeDocId, setActiveDocId] = useState<string | null>(null)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+
+  const handleSave = useCallback((content: string) => {
+    if (!activeDocId) return
+    setSaveStatus('saving')
+    saveDocument(activeDocId, clientId!, content)
+      .then(() => setSaveStatus('saved'))
+      .catch(() => setSaveStatus('error'))
+  }, [activeDocId, clientId])
+
+  // YAGNI: imports reserved for future sub-tab wiring (Ativos/Rascunhos/Modelos)
+  void fetchRecentDocuments
+  void fetchDraftDocuments
+  void fetchDocTemplates
+  void createDocument
+  void publishDocument
+  void archiveDocument
 
   const [approvalsQ, insightsQ, historyQ, contextReportsQ, contextMetricsQ] = useQueries({
     queries: [
@@ -237,13 +266,15 @@ export default function EstrategiaRoom() {
             <span className="ph-ttl">Mesa de Trabalho</span>
           </div>
           <div className="rtabs">
-            {(['decisoes', 'analises', 'historico', 'config'] as Tab[]).map((t) => (
+            {(['decisoes', 'analises', 'historico', 'config', 'documentos'] as Tab[]).map((t) => (
               <div
                 key={t}
                 className={`rtab${tab === t ? ' on' : ''}`}
                 onClick={() => setTab(t)}
               >
-                {t === 'decisoes' ? (
+                {t === 'documentos' ? (
+                  'Documentos'
+                ) : t === 'decisoes' ? (
                   <>
                     Decisões{' '}
                     {!approvalsQ.isLoading && approvals.length > 0 && (
@@ -265,11 +296,13 @@ export default function EstrategiaRoom() {
             {/* DECISÕES */}
             <div className={`tc${tab === 'decisoes' ? ' on' : ''}`}>
               {approvalsQ.isLoading ? (
-                <div className="dc" style={{ opacity: 0.4 }}>Carregando…</div>
+                <LoadingState message="Carregando decisões estratégicas…" />
               ) : approvals.length === 0 ? (
-                <div style={{ fontSize: 12, color: 'var(--mu)', padding: '16px 0', textAlign: 'center' }}>
-                  Nenhuma decisão pendente.
-                </div>
+                <EmptyState
+                  icon="🧭"
+                  title="Nenhuma decisão pendente"
+                  description="Tudo estrategicamente em dia. O Blu avisará quando houver uma decisão a tomar."
+                />
               ) : (
                 <div className="dl">
                   {approvals.map((ap) => (
@@ -288,11 +321,13 @@ export default function EstrategiaRoom() {
             {/* ANÁLISES — context report viewer */}
             <div className={`tc${tab === 'analises' ? ' on' : ''}`}>
               {!selectedReport ? (
-                <div style={{ fontSize: 12, color: 'var(--mu)', padding: '16px 0', textAlign: 'center' }}>
-                  Selecione um relatório na coluna direita para visualizá-lo.
-                </div>
+                <EmptyState
+                  icon="📄"
+                  title="Selecione um relatório"
+                  description="Escolha um relatório na coluna direita para visualizá-lo aqui."
+                />
               ) : loadingReport ? (
-                <div style={{ fontSize: 11, color: 'var(--mu)', padding: '16px 0' }}>Carregando relatório…</div>
+                <LoadingState message="Carregando relatório…" />
               ) : reportContent ? (
                 <div style={{ overflowY: 'auto', maxHeight: 'calc(100% - 8px)', paddingRight: 4 }}>
                   <MarkdownReport content={reportContent} />
@@ -307,11 +342,13 @@ export default function EstrategiaRoom() {
             {/* HISTÓRICO */}
             <div className={`tc${tab === 'historico' ? ' on' : ''}`}>
               {historyQ.isLoading ? (
-                <div style={{ fontSize: 11, color: 'var(--mu)' }}>Carregando…</div>
+                <LoadingState message="Carregando histórico estratégico…" />
               ) : history.length === 0 ? (
-                <div style={{ fontSize: 12, color: 'var(--mu)', padding: '16px 0', textAlign: 'center' }}>
-                  Nenhuma análise no histórico.
-                </div>
+                <EmptyState
+                  icon="🗂"
+                  title="Nenhuma análise no histórico"
+                  description="Quando houver análises aprovadas ou rejeitadas, elas aparecerão aqui."
+                />
               ) : (
                 history.map((item) => (
                   <div key={item.id} className="hi">
@@ -330,6 +367,35 @@ export default function EstrategiaRoom() {
             {/* CONFIG */}
             <div className={`tc${tab === 'config' ? ' on' : ''}`}>
               <RoutineConfigSection domain="estrategia" />
+            </div>
+
+            {/* DOCUMENTOS */}
+            <div className={`tc${tab === 'documentos' ? ' on' : ''}`}>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 8, fontSize: 10.5, color: 'var(--mu)' }}>
+                <span> Ativos </span>
+                <span> Rascunhos </span>
+                <span> Modelos </span>
+                <span> Base de Conhecimento </span>
+                <span> Config </span>
+              </div>
+              <span style={{ fontSize: 10, color: 'var(--mu)' }}> Documentos </span>
+              {activeDocId && (
+                <DocEditor
+                  doc={{ id: activeDocId, title: '', editor_content: '', client_id: clientId ?? '', agent_slug: 'estrategia', created_at: '', updated_at: '' }}
+                  saveStatus={saveStatus}
+                  onSave={handleSave}
+                  onClose={() => setActiveDocId(null)}
+                />
+              )}
+              {approvals.map((ap) => (
+                <ApprovalCard
+                  key={ap.id}
+                  ap={ap}
+                  onApprove={() => approveMut.mutate(ap.id)}
+                  onReject={() => rejectMut.mutate(ap.id)}
+                  onSnooze={() => snoozeMut.mutate(ap.id)}
+                />
+              ))}
             </div>
           </div>
 
@@ -385,12 +451,13 @@ export default function EstrategiaRoom() {
 
           <CollapsiblePanel id="est-analises" icon="📊" title="Análises" badge={contextReports.length > 0 ? <span className="ph-cnt">{contextReports.length}</span> : null}>
               {contextReportsQ.isLoading ? (
-                <div style={{ fontSize: 11, color: 'var(--mu)' }}>…</div>
+                <LoadingState message="Carregando relatórios…" />
               ) : contextReports.length === 0 ? (
-                <div style={{ fontSize: 11, color: 'var(--mu)', padding: '8px 0', textAlign: 'center', lineHeight: 1.5 }}>
-                  Nenhum relatório gerado ainda.<br />
-                  <span style={{ fontSize: 10 }}>Disponível após a primeira sincronização.</span>
-                </div>
+                <EmptyState
+                  icon="📊"
+                  title="Nenhum relatório gerado ainda"
+                  description="Disponível após a primeira sincronização. O Blu gera relatórios automaticamente."
+                />
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   {contextReports.map((report) => {
@@ -430,6 +497,16 @@ export default function EstrategiaRoom() {
                   })}
                 </div>
               )}
+          </CollapsiblePanel>
+
+          <CollapsiblePanel id="est-documentos" icon="📄" title="Documentos">
+            <button
+              className="btn bp"
+              style={{ fontSize: 10.5, width: '100%' }}
+              onClick={() => setTab('documentos')}
+            >
+              Abrir aba Documentos
+            </button>
           </CollapsiblePanel>
         </div>
 
@@ -491,6 +568,64 @@ function ApprovalCard({
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Inline doc editor (ported from DocumentosRoom) ──────────────
+function DocEditor({
+  doc,
+  saveStatus,
+  onSave,
+  onClose,
+}: {
+  doc: any
+  saveStatus: string
+  onSave: (content: string) => void
+  onClose: () => void
+}) {
+  const [text, setText] = useState(
+    typeof doc.editor_content === 'string' ? doc.editor_content : ''
+  )
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (text !== (typeof doc.editor_content === 'string' ? doc.editor_content : '')) {
+        onSave(text)
+      }
+    }, 30_000)
+    return () => clearTimeout(t)
+  }, [text, doc.editor_content, onSave])
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5 }}>
+        <span className="bdg bw"> Documentos </span>
+        <button className="btn bs" style={{ fontSize: 10 }} onClick={onClose}>← Voltar</button>
+        <span style={{ flex: 1, fontWeight: 500, color: 'var(--mu2)' }}>{doc.title}</span>
+        <span style={{ fontSize: 10, color: saveStatus === 'saved' ? 'var(--ok)' : saveStatus === 'error' ? 'var(--urg)' : 'var(--mu)' }}>
+          {saveStatus === 'saving' ? 'Salvando…' : saveStatus === 'saved' ? '✓ Salvo' : saveStatus === 'error' ? 'Erro' : ''}
+        </span>
+        <button className="btn bp" style={{ fontSize: 10 }} onClick={() => onSave(text)}>Salvar</button>
+      </div>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Comece a escrever…"
+        style={{
+          width: '100%',
+          minHeight: 280,
+          background: 'transparent',
+          border: '1px solid var(--gb)',
+          borderRadius: 6,
+          padding: '10px 12px',
+          fontSize: 12.5,
+          color: 'var(--fg)',
+          resize: 'vertical',
+          lineHeight: 1.6,
+        }}
+        autoFocus
+      />
     </div>
   )
 }

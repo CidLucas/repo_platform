@@ -23,10 +23,13 @@ import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
 
+import DecisionCard from '../../components/shared/DecisionCard'
+import EmptyState from '../../components/shared/EmptyState'
+import LoadingState from '../../components/shared/LoadingState'
 import { snoozeUntil } from '../../utils/time'
 import { formatBRL } from '../../utils/formatters'
 
-type Tab = 'followup' | 'ativos' | 'historico' | 'config'
+type Tab = 'decisoes' | 'ativos' | 'historico' | 'config'
 
 function relativeTime(iso: string) {
   const diff = Date.now() - new Date(iso).getTime()
@@ -40,7 +43,7 @@ export default function ClientesRoom() {
   const { go, addToast, openChatWith } = useAppStore()
   const { clientId } = useAuth()
   const qc = useQueryClient()
-  const [tab, setTab] = useState<Tab>('followup')
+  const [tab, setTab] = useState<Tab>('decisoes')
   const [analyticsOpen, setAnalyticsOpen] = useState(false)
   const [analyticsPeriod, setAnalyticsPeriod] = useState<'30d' | '90d' | '1y'>('30d')
 
@@ -158,15 +161,15 @@ export default function ClientesRoom() {
             <span className="ph-ttl">Mesa de Trabalho</span>
           </div>
           <div className="rtabs">
-            {(['followup', 'ativos', 'historico', 'config'] as Tab[]).map((t) => (
+            {(['decisoes', 'ativos', 'historico', 'config'] as Tab[]).map((t) => (
               <div
                 key={t}
                 className={`rtab${tab === t ? ' on' : ''}`}
                 onClick={() => setTab(t)}
               >
-                {t === 'followup' ? (
+                {t === 'decisoes' ? (
                   <>
-                    Follow-up{' '}
+                    Decisões{' '}
                     {!approvalsQ.isLoading && approvals.length > 0 && (
                       <span className="tbdg">{approvals.length}</span>
                     )}
@@ -183,23 +186,25 @@ export default function ClientesRoom() {
           </div>
 
           <div className="pb">
-            {/* FOLLOW-UP */}
-            <div className={`tc${tab === 'followup' ? ' on' : ''}`}>
+            {/* DECISÕES */}
+            <div className={`tc${tab === 'decisoes' ? ' on' : ''}`}>
               {approvalsQ.isLoading ? (
-                <div className="dc" style={{ opacity: 0.4 }}>Carregando…</div>
+                <LoadingState message="Carregando follow-ups de clientes…" />
               ) : approvals.length === 0 ? (
-                <div style={{ fontSize: 12, color: 'var(--mu)', padding: '16px 0', textAlign: 'center' }}>
-                  Nenhum follow-up pendente.
-                </div>
+<EmptyState
+                  icon="👥"
+                  title="Nenhum follow-up pendente"
+                  description="Todos os clientes estão em dia. O Blu avisará quando houver um follow-up a fazer."
+                />
               ) : (
                 <div className="dl">
                   {approvals.map((ap) => (
-                    <ApprovalCard
+                    <DecisionCard
                       key={ap.id}
-                      ap={ap}
-                      onApprove={() => approveMut.mutate(ap.id)}
-                      onReject={() => rejectMut.mutate(ap.id)}
-                      onSnooze={() => snoozeMut.mutate(ap.id)}
+                      approval={ap}
+                      onApprove={function () { approveMut.mutate(ap.id) }}
+                      onReject={function () { rejectMut.mutate(ap.id) }}
+                      onSnooze={function () { snoozeMut.mutate(ap.id) }}
                     />
                   ))}
                 </div>
@@ -211,7 +216,7 @@ export default function ClientesRoom() {
             <div className={`tc${tab === 'ativos' ? ' on' : ''}`}>
               {/* Segment KPI strip */}
               {segmentsQ.isLoading ? (
-                <div style={{ fontSize: 11, color: 'var(--mu)', marginBottom: 12 }}>Carregando segmentos…</div>
+                <LoadingState message="Carregando segmentos…" />
               ) : segments.length > 0 ? (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 7, marginBottom: 12 }}>
                   {segments.map((seg, idx) => (
@@ -228,11 +233,13 @@ export default function ClientesRoom() {
 
               {/* Top customers */}
               {customersQ.isLoading ? (
-                <div style={{ fontSize: 11, color: 'var(--mu)' }}>Carregando clientes…</div>
+                <LoadingState message="Carregando clientes…" />
               ) : customers.length === 0 ? (
-                <div style={{ fontSize: 12, color: 'var(--mu)', padding: '16px 0', textAlign: 'center' }}>
-                  Nenhum cliente encontrado.
-                </div>
+                <EmptyState
+                  icon="👤"
+                  title="Nenhum cliente encontrado"
+                  description="Conecte seu CRM ou ERP para começar a acompanhar os clientes ativos e seus tickets."
+                />
               ) : (
                 <>
                   <div style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--mu)', marginBottom: 8 }}>
@@ -271,11 +278,13 @@ export default function ClientesRoom() {
             {/* HISTÓRICO */}
             <div className={`tc${tab === 'historico' ? ' on' : ''}`}>
               {historyQ.isLoading ? (
-                <div style={{ fontSize: 11, color: 'var(--mu)' }}>Carregando…</div>
+                <LoadingState message="Carregando histórico de clientes…" />
               ) : history.length === 0 ? (
-                <div style={{ fontSize: 12, color: 'var(--mu)', padding: '16px 0', textAlign: 'center' }}>
-                  Nenhuma ação no histórico.
-                </div>
+                <EmptyState
+                  icon="🗂"
+                  title="Nenhuma ação no histórico"
+                  description="Quando houver aprovas ou rejeições de clientes, elas aparecerão aqui."
+                />
               ) : (
                 history.map((item) => (
                   <div key={item.id} className="hi">
@@ -331,7 +340,7 @@ export default function ClientesRoom() {
             </div>
             <div className={`anl-body${analyticsOpen ? ' open' : ''}`}>
               {commercialQ.isLoading ? (
-                <div style={{ fontSize: 11, color: 'var(--mu)', textAlign: 'center', padding: '8px 0' }}>Carregando…</div>
+                <LoadingState message="Carregando indicadores comerciais…" />
               ) : commercialQ.isError ? (
                 <div style={{ fontSize: 11, color: 'var(--urg)', textAlign: 'center', padding: '8px 0' }}>
                   Erro ao carregar.{' '}
@@ -421,11 +430,13 @@ export default function ClientesRoom() {
           <CollapsiblePanel id="clientes-segmentos" icon="📊" title="Segmentos">
             <div className="dr-sec">
                 {segmentsQ.isLoading ? (
-                  <div style={{ fontSize: 11, color: 'var(--mu)' }}>Carregando…</div>
+                  <LoadingState message="Carregando segmentos…" />
                 ) : segments.length === 0 ? (
-                  <div style={{ fontSize: 11, color: 'var(--mu)', textAlign: 'center' }}>
-                    Sem dados de segmento.
-                  </div>
+                  <EmptyState
+                    icon="📊"
+                    title="Sem dados de segmento"
+                    description="Quando houver clientes suficientes, os segmentos (Alto / Médio / Baixo) aparecerão aqui."
+                  />
                 ) : (
                   segments.map((seg, idx) => {
                     const pct = totalCustomers > 0 ? Math.round((seg.count / totalCustomers) * 100) : 0
@@ -463,9 +474,13 @@ export default function ClientesRoom() {
           <CollapsiblePanel id="clientes-acoes" icon="📅" title="Últimas ações">
             <div className="dr-sec">
                 {historyQ.isLoading ? (
-                  <div style={{ fontSize: 11, color: 'var(--mu)' }}>…</div>
+                  <LoadingState message="Carregando últimas ações…" />
                 ) : history.slice(0, 4).length === 0 ? (
-                  <div style={{ fontSize: 11, color: 'var(--mu)', textAlign: 'center' }}>Nenhuma ação recente.</div>
+                  <EmptyState
+                    icon="📅"
+                    title="Nenhuma ação recente"
+                    description="As últimas interações com clientes aparecerão aqui assim que forem registradas."
+                  />
                 ) : (
                   history.slice(0, 4).map((item) => (
                     <div key={item.id} className="hi">
@@ -520,53 +535,6 @@ export default function ClientesRoom() {
           </div>
         </div>
       </div>
-    </div>
-  )
-}
-
-// ── Approval card ──────────────────────────────────────────────
-function ApprovalCard({
-  ap,
-  onApprove,
-  onReject,
-  onSnooze,
-}: {
-  ap: ApprovalRequest
-  onApprove: () => void
-  onReject: () => void
-  onSnooze: () => void
-}) {
-  const [expanded, setExpanded] = useState(false)
-  const isUrgent = ap.priority === 'urgent' || ap.priority === 'high'
-  const priorityColor = ap.priority === 'urgent' ? '#f87171' : ap.priority === 'high' ? '#818cf8' : '#2dd4bf'
-  const badgeLabel = ap.priority === 'urgent' ? 'Risco' : ap.priority === 'high' ? 'Oportunidade' : 'Alerta'
-
-  return (
-    <div className={`dc ${isUrgent ? 'urg' : 'warn'}${expanded ? ' expanded' : ''}`}>
-      <div className="dc-row" onClick={() => setExpanded(!expanded)}>
-        <div className="ag">
-          <div className="agd" style={{ background: priorityColor }} />
-          Clientes
-        </div>
-        <span className={`bdg ${isUrgent ? 'bu' : 'bw'}`}>{badgeLabel}</span>
-        <span className="dc-row-summary">{ap.title}</span>
-        <span className="dt">
-          {new Date(ap.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-        </span>
-        <span className="dc-chev">{expanded ? '▼' : '▶'}</span>
-      </div>
-      {expanded && (
-        <div className="dc-expand">
-          {ap.body && <div className="db">{ap.body}</div>}
-          <div className="dc-act">
-            <button className="btn bp" onClick={onApprove}>
-              {isUrgent ? '📞 Agendar reunião' : '📄 Aprovar'}
-            </button>
-            <button className="btn bg" onClick={onSnooze}>⏰ Depois</button>
-            <button className="btn bs" onClick={onReject}>Ignorar</button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

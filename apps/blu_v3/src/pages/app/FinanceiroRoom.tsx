@@ -18,6 +18,9 @@ import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
 
 import RoutineExecutionFeed from '../../components/shared/RoutineExecutionFeed'
+import DecisionCard from '../../components/shared/DecisionCard'
+import EmptyState from '../../components/shared/EmptyState'
+import LoadingState from '../../components/shared/LoadingState'
 import { snoozeUntil } from '../../utils/time'
 import { formatBRL } from '../../utils/formatters'
 
@@ -30,10 +33,6 @@ function fmtCompact(value: number | null): string {
   if (abs >= 1_000_000) return `R$ ${(value / 1_000_000).toFixed(1)}M`
   if (abs >= 1_000) return `R$ ${(value / 1_000).toFixed(0)}K`
   return formatBRL(value)
-}
-
-function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
 
 function formatDate(iso: string) {
@@ -123,7 +122,7 @@ function getTxFingerprint(tx: PolpTransaction): string {
 }
 
 export default function FinanceiroRoom() {
-  const { go, toggleDc, expandedId, addToast, openChatWith } = useAppStore()
+  const { go, addToast, openChatWith } = useAppStore()
   const { clientId } = useAuth()
   const qc = useQueryClient()
   const [tab, setTab] = useState<Tab>('decisoes')
@@ -275,49 +274,38 @@ export default function FinanceiroRoom() {
             <div className={`tc${tab === 'decisoes' ? ' on' : ''}`} id="f-decisoes">
               <div className="dl">
                 {approvalsQ.isLoading && (
-                  <div style={{ padding: '12px 0', color: 'var(--mu)', fontSize: 12 }}>Carregando…</div>
+                  <LoadingState message="Carregando decisões financeiras…" />
                 )}
                 {!approvalsQ.isLoading && approvals.length === 0 && (
-                  <div style={{ padding: '12px 0', color: 'var(--mu)', fontSize: 12 }}>Nenhuma decisão pendente ✓</div>
+                  <EmptyState
+                    icon="✓"
+                    title="Nenhuma decisão pendente"
+                    description="Tudo em dia. O Blu irá notificá-lo quando houver algo financeiro para resolver."
+                  />
                 )}
-                {approvals.map(approval => {
-                  const isExpanded = expandedId === approval.id
-                  const isUrgent = approval.priority === 'urgent' || approval.priority === 'high'
-                  const cls = ['dc', isUrgent ? 'urg' : 'warn', isExpanded ? 'expanded' : ''].filter(Boolean).join(' ')
-                  return (
-                    <div key={approval.id} className={cls} id={approval.id}>
-                      <div className="dc-row" onClick={() => toggleDc(approval.id)}>
-                        <div className="ag">
-                          <div className="agd" style={{ background: '#34d399' }} />Boleto
-                        </div>
-                        <span className={isUrgent ? 'bdg bu' : 'bdg bw'}>{isUrgent ? 'Urgente' : 'Amanhã'}</span>
-                        <span className="dc-row-summary">{approval.title}</span>
-                        <span className="dt">{formatTime(approval.created_at)}</span>
-                        <span className="dc-chev">▶</span>
-                      </div>
-                      <div className="dc-expand">
-                        <div className="db">{approval.body}</div>
-                        <div className="dc-act">
-                          <button className="btn bp" onClick={() => approveMut.mutate(approval.id)}>👍 Agendar</button>
-                          <button className="btn bg" onClick={() => snoozeMut.mutate(approval.id)}>⏰ Depois</button>
-                          <button className="btn bs" onClick={() => rejectMut.mutate(approval.id)}>✗ Rejeitar</button>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
+                {approvals.map(approval => (
+                  <DecisionCard
+                    key={approval.id}
+                    approval={approval}
+                    onApprove={function () { approveMut.mutate(approval.id) }}
+                    onReject={function () { rejectMut.mutate(approval.id) }}
+                    onSnooze={function () { snoozeMut.mutate(approval.id) }}
+                  />
+                ))}
               </div>
             </div>
 
             {/* COMPROMISSOS */}
             <div className={`tc${tab === 'compromissos' ? ' on' : ''}`} id="f-compromissos">
               {polpBillsQ.isLoading && (
-                <div style={{ padding: '12px 0', color: 'var(--mu)', fontSize: 12 }}>Carregando…</div>
+                <LoadingState message="Carregando faturas de cartão…" />
               )}
               {!polpBillsQ.isLoading && polpBills.length === 0 && (
-                <div style={{ padding: '12px 0', color: 'var(--mu)', fontSize: 12 }}>
-                  Nenhuma fatura encontrada. Conecte suas contas em Integrações.
-                </div>
+                <EmptyState
+                  icon="💳"
+                  title="Nenhuma fatura encontrada"
+                  description="Conecte suas contas em Integrações para acompanhar faturas e vencimentos."
+                />
               )}
               {(() => {
                 // Deduplicate: show only the most recent cycle per card
@@ -470,7 +458,11 @@ export default function FinanceiroRoom() {
                 </div>
               ))}
               {!polpTxQ.isLoading && polpTransactions.length === 0 && (
-                <div style={{ color: 'var(--mu)', fontSize: 12, padding: '12px 0' }}>Nenhuma transação encontrada. Conecte suas contas bancárias em Integrações.</div>
+                <EmptyState
+                  icon="💸"
+                  title="Nenhuma transação encontrada"
+                  description="Conecte suas contas bancárias em Integrações para visualizar movimentações."
+                />
               )}
               {polpTransactions.map(tx => {
                 const isCredit = tx.type === 'CREDIT'
@@ -613,7 +605,7 @@ export default function FinanceiroRoom() {
             </div>
             <div className={`anl-body${analyticsOpen ? ' open' : ''}`} id="anlBody">
               {kpiQ.isLoading ? (
-                <div style={{ fontSize: 11, color: 'var(--mu)', textAlign: 'center', padding: '8px 0' }}>Carregando…</div>
+                <LoadingState message="Carregando indicadores financeiros…" />
               ) : kpiQ.isError ? (
                 <div style={{ fontSize: 11, color: 'var(--urg)', textAlign: 'center', padding: '8px 0' }}>
                   Erro ao carregar.{' '}
@@ -715,7 +707,11 @@ export default function FinanceiroRoom() {
                 </div>
               ))}
               {!polpAccountsQ.isLoading && polpAccounts.length === 0 && accounts.length === 0 && (
-                <div style={{ color: 'var(--mu)', fontSize: 12 }}>Nenhuma conta conectada.</div>
+                <EmptyState
+                  icon="🏦"
+                  title="Nenhuma conta conectada"
+                  description="Conecte contas bancárias e cartões em Integrações para acompanhar saldos e transações."
+                />
               )}
               {polpAccounts.length > 0 ? polpAccounts.map(acc => {
                 const cd = acc.credit_data
@@ -796,7 +792,11 @@ export default function FinanceiroRoom() {
                 </div>
               ))}
               {!polpBillsQ.isLoading && polpBills.length === 0 && approvals.length === 0 && (
-                <div style={{ color: 'var(--mu)', fontSize: 12 }}>Nenhum pagamento pendente.</div>
+                <EmptyState
+                  icon="📄"
+                  title="Nenhum pagamento pendente"
+                  description="Quando houver faturas ou aprovações a pagar, elas aparecerão aqui."
+                />
               )}
               {polpBills.length > 0 ? (() => {
                 const latest = [...polpBills.reduce<Map<number, PolpBill>>((m, b) => {

@@ -131,11 +131,17 @@ export default function EstrategiaRoom() {
   const [reportContent, setReportContent] = useState<string | null>(null)
   const [loadingReport, setLoadingReport] = useState(false)
 
-  const [approvalsQ, insightsQ, historyQ, contextReportsQ, contextMetricsQ] = useQueries({
+  const [approvalsQ, approvalsDocsQ, insightsQ, historyQ, contextReportsQ, contextMetricsQ] = useQueries({
     queries: [
       {
         queryKey: ['approvals', 'estrategia', clientId ?? ''],
         queryFn: () => fetchApprovalsByAgent('estrategia', clientId!),
+        enabled: !!clientId,
+        staleTime: 30_000,
+      },
+      {
+        queryKey: ['approvals', 'documentos', clientId ?? ''],
+        queryFn: () => fetchApprovalsByAgent('documentos', clientId!),
         enabled: !!clientId,
         staleTime: 30_000,
       },
@@ -170,6 +176,7 @@ export default function EstrategiaRoom() {
     mutationFn: (id: string) => approveRequest(id, clientId!),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['approvals', 'estrategia', clientId] })
+      qc.invalidateQueries({ queryKey: ['approvals', 'documentos', clientId] })
       qc.invalidateQueries({ queryKey: ['estrategia-history', clientId] })
       addToast('ok', 'Aprovado', 'Análise aprovada.')
     },
@@ -179,6 +186,7 @@ export default function EstrategiaRoom() {
     mutationFn: (id: string) => rejectRequest(id, clientId!),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['approvals', 'estrategia', clientId] })
+      qc.invalidateQueries({ queryKey: ['approvals', 'documentos', clientId] })
       addToast('no', 'Rejeitado', 'Análise rejeitada.')
     },
   })
@@ -187,11 +195,13 @@ export default function EstrategiaRoom() {
     mutationFn: (id: string) => snoozeApproval(id, clientId!, snoozeUntil()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['approvals', 'estrategia', clientId] })
+      qc.invalidateQueries({ queryKey: ['approvals', 'documentos', clientId] })
       addToast('sn', 'Adiado', 'Lembrete em 2 horas.')
     },
   })
 
   const approvals: ApprovalRequest[] = approvalsQ.data ?? []
+  const allApprovals: ApprovalRequest[] = [...(approvalsDocsQ.data ?? []), ...(approvalsQ.data ?? [])]
   const history: EstrategiaHistoryItem[] = historyQ.data ?? []
   const insights: ClientInsight[] = (insightsQ.data ?? []).filter(
     () => true  // room filter is server-side via p_room='estrategia'
@@ -246,8 +256,8 @@ export default function EstrategiaRoom() {
                 {t === 'decisoes' ? (
                   <>
                     Decisões{' '}
-                    {!approvalsQ.isLoading && approvals.length > 0 && (
-                      <span className="tbdg">{approvals.length}</span>
+                    {!approvalsQ.isLoading && !approvalsDocsQ.isLoading && allApprovals.length > 0 && (
+                      <span className="tbdg">{allApprovals.length}</span>
                     )}
                   </>
                 ) : t === 'analises' ? (
@@ -264,22 +274,26 @@ export default function EstrategiaRoom() {
           <div className="pb">
             {/* DECISÕES */}
             <div className={`tc${tab === 'decisoes' ? ' on' : ''}`}>
-              {approvalsQ.isLoading ? (
+              {approvalsQ.isLoading || approvalsDocsQ.isLoading ? (
                 <div className="dc" style={{ opacity: 0.4 }}>Carregando…</div>
-              ) : approvals.length === 0 ? (
+              ) : allApprovals.length === 0 ? (
                 <div style={{ fontSize: 12, color: 'var(--mu)', padding: '16px 0', textAlign: 'center' }}>
                   Nenhuma decisão pendente.
                 </div>
               ) : (
                 <div className="dl">
-                  {approvals.map((ap) => (
-                    <ApprovalCard
-                      key={ap.id}
-                      ap={ap}
-                      onApprove={() => approveMut.mutate(ap.id)}
-                      onReject={() => rejectMut.mutate(ap.id)}
-                      onSnooze={() => snoozeMut.mutate(ap.id)}
-                    />
+                  {allApprovals.map((ap) => (
+                    ap.agent_slug === 'documentos' ? (
+                      <ApprovalCardDocs key={ap.id} ap={ap} onSign={() => approveMut.mutate(ap.id)} onSnooze={() => snoozeMut.mutate(ap.id)} />
+                    ) : (
+                      <ApprovalCard
+                        key={ap.id}
+                        ap={ap}
+                        onApprove={() => approveMut.mutate(ap.id)}
+                        onReject={() => rejectMut.mutate(ap.id)}
+                        onSnooze={() => snoozeMut.mutate(ap.id)}
+                      />
+                    )
                   ))}
                 </div>
               )}
@@ -488,6 +502,31 @@ function ApprovalCard({
             <button className="btn bp" onClick={onApprove}>👍 Aprovar</button>
             <button className="btn bs" onClick={onSnooze}>⏰ Depois</button>
             <button className="btn bg" onClick={onReject}>Ignorar</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ApprovalCardDocs({ ap, onSign, onSnooze }: { ap: ApprovalRequest; onSign: () => void; onSnooze: () => void }) {
+  const [expanded, setExpanded] = useState(false)
+  const priorityColor = ap.priority === 'urgent' ? '#f87171' : ap.priority === 'high' ? '#fb923c' : '#fbbf24'
+  return (
+    <div className={`dc warn${expanded ? ' expanded' : ''}`}>
+      <div className="dc-row" onClick={() => setExpanded(!expanded)}>
+        <div className="ag"><div className="agd" style={{ background: priorityColor }} />Documentos</div>
+        <span className="bdg bw">{ap.priority === 'urgent' ? 'Urgente' : ap.priority === 'high' ? 'Atencao' : 'Alerta'}</span>
+        <span className="dc-row-summary">{ap.title}</span>
+        <span className="dt">{new Date(ap.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+        <span className="dc-chev">{expanded ? 'v' : '>'}</span>
+      </div>
+      {expanded && (
+        <div className="dc-expand">
+          {ap.body && <div className="db">{ap.body}</div>}
+          <div className="dc-act">
+            <button className="btn bp" onClick={onSign}>Assinar</button>
+            <button className="btn bs" onClick={onSnooze}>Depois</button>
           </div>
         </div>
       )}

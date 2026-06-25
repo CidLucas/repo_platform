@@ -735,3 +735,170 @@ def test_ac8_bootstrap_knowledge_from_onboarding_seeds_documents():
         "NAO tem ON CONFLICT DO NOTHING. Esperado: upsert que "
         "nao duplica documentos se o mesmo document_type_id ja existir."
     )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# AC-BACKEND — handle_new_auth_user() trigger flow in baseline_v2.sql
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def test_backend_handle_new_auth_user_trigger_flow():
+    """AC-BACKEND: o trigger ``handle_new_auth_user()`` na migration
+    ``supabase/migrations/20260523999999_baseline_v2.sql`` (linhas
+    2961-3018) DEVE implementar o seguinte contrato:
+
+      AC-BACKEND#1 — A funcao ``public.handle_new_auth_user()`` existe
+        com o marker ``CREATE OR REPLACE FUNCTION public.handle_new_auth_user()``.
+      AC-BACKEND#2 — Dentro do corpo da funcao, existe um
+        ``INSERT INTO public.clientes_blu`` com
+        ``ON CONFLICT (external_user_id) DO NOTHING`` (comportamento
+        ATUAL do trigger: idempotente por external_user_id).
+      AC-BACKEND#3 — DEPOIS do INSERT (ou do SELECT de fallback para
+        o caso de conflict), existe um ``INSERT INTO public.audit_log``
+        com ``action = 'tenant_auto_created'`` (para observabilidade do
+        provisionamento automatico de tenant).
+      AC-BACKEND#4 — A funcao retorna ``NEW`` no final
+        (``RETURN NEW``) para que o trigger AFTER INSERT nao
+        quebre o fluxo de auth.
+
+    Estrategia: source-inspection (le o .sql como texto, sem DB/mocks).
+    O teste falha RED se QUALQUER um dos ACs acima for violado:
+      - trigger ausente
+      - INSERT sem DO NOTHING
+      - audit_log ausente
+      - RETURN NEW ausente
+    """
+    source = _read_source(BASELINE_MIGRATION_PATH)
+
+    # ── AC-BACKEND#1: funcao existe com marker ─────────────────────────
+    func_marker = "CREATE OR REPLACE FUNCTION public.handle_new_auth_user()"
+    assert func_marker in source, (
+        f"AC-BACKEND#1 violated (RED): a funcao `{func_marker}` NAO foi "
+        "encontrada na migration baseline_v2.sql. O trigger "
+        "handle_new_auth_user() deve existir para provisionar "
+        "automaticamente o tenant (clientes_blu) quando um novo usuario "
+        "e criado em auth.users.\n\n"
+        "Esperado (linhas ~2961-3018 do baseline_v2.sql):\n"
+        "  CREATE OR REPLACE FUNCTION public.handle_new_auth_user()\n"
+        "  RETURNS trigger\n"
+        "  LANGUAGE plpgsql\n"
+        "  AS $function$\n"
+        "    ...\n"
+        "  $function$;\n"
+    )
+
+    # Extrair o corpo da funcao: do marker ate o proximo "$function$;"
+    # (delimitador padrao de PL/pgSQL usado na migration).
+    marker_idx = source.find(func_marker)
+    body_start = source.find("$function$", marker_idx)
+    assert body_start != -1, (
+        "AC-BACKEND#1 violated (RED): marker `CREATE OR REPLACE FUNCTION "
+        "public.handle_new_auth_user()` encontrado, mas o delimitador "
+        "inicial `$function$` nao foi localizado logo apos. Estrutura "
+        "invalida da funcao PL/pgSQL."
+    )
+    # avancar para depois do "$function$" + "\n" do header
+    body_start = source.find("\n", body_start) + 1
+    body_end = source.find("$function$;", body_start)
+    assert body_end != -1, (
+        "AC-BACKEND#1 violated (RED): `$function$;` (fechamento) nao "
+        "encontrado apos o marker handle_new_auth_user(). Funcao "
+        "provavelmente truncada ou malformada."
+    )
+    func_body = source[body_start:body_end]
+
+    # ── AC-BACKEND#2: INSERT INTO public.clientes_blu + ON CONFLICT DO NOTHING ──
+    has_insert_clientes = "INSERT INTO public.clientes_blu" in func_body
+    assert has_insert_clientes, (
+        "AC-BACKEND#2 violated (RED): o corpo de `handle_new_auth_user()` "
+        "NAO contem `INSERT INTO public.clientes_blu`. O trigger precisa "
+        "criar a linha inicial do tenant quando o usuario e criado em "
+        "auth.users.\n\n"
+        "Esperado (dentro de $function$ ... $function$):\n"
+        "  INSERT INTO public.clientes_blu (\n"
+        "    external_user_id, api_key, nome_empresa,\n"
+        "    created_at, updated_at\n"
+        "  ) VALUES (...)\n"
+        "  ON CONFLICT (external_user_id) DO NOTHING\n"
+        "  RETURNING client_id INTO v_client_id;\n"
+    )
+
+    has_on_conflict_do_nothing = (
+        "ON CONFLICT (external_user_id) DO NOTHING" in func_body
+    )
+    assert has_on_conflict_do_nothing, (
+        "AC-BACKEND#2 violated (RED): o INSERT em public.clientes_blu "
+        "dentro de `handle_new_auth_user()` NAO usa "
+        "`ON CONFLICT (external_user_id) DO NOTHING`. Sem essa clausula, "
+        "o trigger pode duplicar linhas de tenant em re-signups do mesmo "
+        "external_user_id, quebrando o UNIQUE constraint e/ou o fluxo "
+        "de provisioning.\n\n"
+        "Esperado: comportamento idempotente por external_user_id.\n"
+        "  ON CONFLICT (external_user_id) DO NOTHING\n\n"
+        f"Trecho atual do corpo da funcao:\n```\n{func_body.strip()}\n```"
+    )
+
+    # ── AC-BACKEND#3: INSERT INTO public.audit_log com action = 'tenant_auto_created'
+    # DEVE estar DEPOIS do INSERT (ou do SELECT de fallback).
+    has_insert_audit = "INSERT INTO public.audit_log" in func_body
+    assert has_insert_audit, (
+        "AC-BACKEND#3 violated (RED): o corpo de `handle_new_auth_user()` "
+        "NAO contem `INSERT INTO public.audit_log`. O trigger precisa "
+        "registrar no audit_log que um tenant foi auto-criado, com "
+        "action='tenant_auto_created', para observabilidade e rastreio "
+        "do provisioning automatico.\n\n"
+        "Esperado (depois do INSERT em clientes_blu ou do SELECT de "
+        "fallback):\n"
+        "  INSERT INTO public.audit_log (\n"
+        "    client_id, actor_id, action, entity_type, payload\n"
+        "  ) VALUES (\n"
+        "    v_client_id, NEW.id::text, 'tenant_auto_created',\n"
+        "    'clientes_blu', jsonb_build_object(...)\n"
+        "  );\n"
+    )
+
+    has_tenant_auto_created = "'tenant_auto_created'" in func_body
+    assert has_tenant_auto_created, (
+        "AC-BACKEND#3 violated (RED): o INSERT em public.audit_log "
+        "existe, mas NAO usa `action = 'tenant_auto_created'`. O action "
+        "padrao do trigger de auto-provisionamento de tenant DEVE ser "
+        "'tenant_auto_created' para que metricas, alertas e o dashboard "
+        "de observabilidade consigam distinguir esse caminho dos demais.\n\n"
+        "Esperado:\n"
+        "  INSERT INTO public.audit_log (...)\n"
+        "  VALUES (..., 'tenant_auto_created', 'clientes_blu', ...);\n"
+    )
+
+    # Verificar ordem: audit_log DEVE aparecer apos o INSERT clientes_blu
+    # (ou apos o SELECT de fallback que recupera o client_id em caso de conflict).
+    insert_clientes_idx = func_body.find("INSERT INTO public.clientes_blu")
+    insert_audit_idx = func_body.find("INSERT INTO public.audit_log")
+    assert insert_clientes_idx < insert_audit_idx, (
+        "AC-BACKEND#3 violated (RED): o INSERT em public.audit_log "
+        "DEVE aparecer DEPOIS do INSERT em public.clientes_blu (ou do "
+        "SELECT de fallback), pois o audit_log precisa do v_client_id "
+        "computado. Ordem atual no corpo da funcao:\n"
+        f"  INSERT clientes_blu em posicao: {insert_clientes_idx}\n"
+        f"  INSERT audit_log em posicao:   {insert_audit_idx}\n"
+    )
+
+    # ── AC-BACKEND#4: RETURN NEW no final ─────────────────────────────
+    has_return_new = "RETURN NEW" in func_body
+    assert has_return_new, (
+        "AC-BACKEND#4 violated (RED): a funcao `handle_new_auth_user()` "
+        "NAO termina com `RETURN NEW`. Em triggers AFTER INSERT a funcao "
+        "DEVE retornar NEW para que o fluxo de auth continue normalmente. "
+        "Sem `RETURN NEW`, o trigger nao compila/executa corretamente e "
+        "o signup do usuario quebra.\n\n"
+        "Esperado (ultima linha do corpo antes de $function$;):\n"
+        "  RETURN NEW;\n"
+    )
+
+    # Verificar que RETURN NEW aparece DEPOIS do INSERT no audit_log
+    return_new_idx = func_body.find("RETURN NEW")
+    assert insert_audit_idx < return_new_idx, (
+        "AC-BACKEND#4 violated (RED): `RETURN NEW` DEVE ser a ultima "
+        "operacao do trigger (apos o INSERT no audit_log). Ordem atual:\n"
+        f"  INSERT audit_log em posicao: {insert_audit_idx}\n"
+        f"  RETURN NEW em posicao:      {return_new_idx}\n"
+    )

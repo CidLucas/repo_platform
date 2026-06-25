@@ -15,7 +15,6 @@ import HomePage from '../../pages/app/HomePage'
 import ComprasRoom from '../../pages/app/ComprasRoom'
 import FinanceiroRoom from '../../pages/app/FinanceiroRoom'
 import AgendaRoom from '../../pages/app/AgendaRoom'
-import DocumentosRoom from '../../pages/app/DocumentosRoom'
 import EstrategiaRoom from '../../pages/app/EstrategiaRoom'
 import ClientesRoom from '../../pages/app/ClientesRoom'
 import AtividadeScreen from '../../pages/app/AtividadeScreen'
@@ -154,13 +153,6 @@ export default function AppShell() {
           {show('agenda') && (
             <ErrorBoundary fallback={<ErrorFallback />}>
               <AgendaRoom />
-            </ErrorBoundary>
-          )}
-        </div>
-        <div className={`screen${on('documentos')}`} id="s-documentos">
-          {show('documentos') && (
-            <ErrorBoundary fallback={<ErrorFallback />}>
-              <DocumentosRoom openEditor={openEditor} />
             </ErrorBoundary>
           )}
         </div>

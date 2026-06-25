@@ -29,6 +29,8 @@ import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
 
+import EmptyState from '../../components/shared/EmptyState'
+import LoadingState from '../../components/shared/LoadingState'
 import { snoozeUntil } from '../../utils/time'
 
 type Tab = 'decisoes' | 'analises' | 'historico' | 'config' | 'documentos'
@@ -294,11 +296,13 @@ export default function EstrategiaRoom() {
             {/* DECISÕES */}
             <div className={`tc${tab === 'decisoes' ? ' on' : ''}`}>
               {approvalsQ.isLoading ? (
-                <div className="dc" style={{ opacity: 0.4 }}>Carregando…</div>
+                <LoadingState message="Carregando decisões estratégicas…" />
               ) : approvals.length === 0 ? (
-                <div style={{ fontSize: 12, color: 'var(--mu)', padding: '16px 0', textAlign: 'center' }}>
-                  Nenhuma decisão pendente.
-                </div>
+                <EmptyState
+                  icon="🧭"
+                  title="Nenhuma decisão pendente"
+                  description="Tudo estrategicamente em dia. O Blu avisará quando houver uma decisão a tomar."
+                />
               ) : (
                 <div className="dl">
                   {approvals.map((ap) => (
@@ -317,11 +321,13 @@ export default function EstrategiaRoom() {
             {/* ANÁLISES — context report viewer */}
             <div className={`tc${tab === 'analises' ? ' on' : ''}`}>
               {!selectedReport ? (
-                <div style={{ fontSize: 12, color: 'var(--mu)', padding: '16px 0', textAlign: 'center' }}>
-                  Selecione um relatório na coluna direita para visualizá-lo.
-                </div>
+                <EmptyState
+                  icon="📄"
+                  title="Selecione um relatório"
+                  description="Escolha um relatório na coluna direita para visualizá-lo aqui."
+                />
               ) : loadingReport ? (
-                <div style={{ fontSize: 11, color: 'var(--mu)', padding: '16px 0' }}>Carregando relatório…</div>
+                <LoadingState message="Carregando relatório…" />
               ) : reportContent ? (
                 <div style={{ overflowY: 'auto', maxHeight: 'calc(100% - 8px)', paddingRight: 4 }}>
                   <MarkdownReport content={reportContent} />
@@ -336,11 +342,13 @@ export default function EstrategiaRoom() {
             {/* HISTÓRICO */}
             <div className={`tc${tab === 'historico' ? ' on' : ''}`}>
               {historyQ.isLoading ? (
-                <div style={{ fontSize: 11, color: 'var(--mu)' }}>Carregando…</div>
+                <LoadingState message="Carregando histórico estratégico…" />
               ) : history.length === 0 ? (
-                <div style={{ fontSize: 12, color: 'var(--mu)', padding: '16px 0', textAlign: 'center' }}>
-                  Nenhuma análise no histórico.
-                </div>
+                <EmptyState
+                  icon="🗂"
+                  title="Nenhuma análise no histórico"
+                  description="Quando houver análises aprovadas ou rejeitadas, elas aparecerão aqui."
+                />
               ) : (
                 history.map((item) => (
                   <div key={item.id} className="hi">
@@ -443,12 +451,13 @@ export default function EstrategiaRoom() {
 
           <CollapsiblePanel id="est-analises" icon="📊" title="Análises" badge={contextReports.length > 0 ? <span className="ph-cnt">{contextReports.length}</span> : null}>
               {contextReportsQ.isLoading ? (
-                <div style={{ fontSize: 11, color: 'var(--mu)' }}>…</div>
+                <LoadingState message="Carregando relatórios…" />
               ) : contextReports.length === 0 ? (
-                <div style={{ fontSize: 11, color: 'var(--mu)', padding: '8px 0', textAlign: 'center', lineHeight: 1.5 }}>
-                  Nenhum relatório gerado ainda.<br />
-                  <span style={{ fontSize: 10 }}>Disponível após a primeira sincronização.</span>
-                </div>
+                <EmptyState
+                  icon="📊"
+                  title="Nenhum relatório gerado ainda"
+                  description="Disponível após a primeira sincronização. O Blu gera relatórios automaticamente."
+                />
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   {contextReports.map((report) => {

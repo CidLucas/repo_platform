@@ -81,13 +81,20 @@ export function getAcceptedExtensions(): string {
 
 // ── Service functions ──────────────────────────────────────────
 
-export async function listDocuments(clientId: string): Promise<KBDocument[]> {
+export async function listDocuments(
+  clientId: string,
+  sortBy?: string,
+  sortDir?: string,
+): Promise<KBDocument[]> {
+  const sortColumn =
+    sortBy === 'file_name' ? 'file_name' : sortBy === 'status' ? 'status' : 'created_at'
+
   const { data, error } = await supabase
     .schema('vector_db')
     .from('documents')
     .select('*')
     .eq('client_id', clientId)
-    .order('created_at', { ascending: false })
+    .order(sortColumn, { ascending: sortDir === 'asc' })
 
   if (error) throw new Error(`Erro ao listar documentos: ${error.message}`)
   return (data ?? []) as KBDocument[]

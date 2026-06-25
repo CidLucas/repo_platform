@@ -432,7 +432,7 @@ def test_ac4_validate_cnpj_check_digits_via_canary():
 
     BEHAVIOR:
         * Válido: 11.222.333/0001-81  → ``true``
-        * Válido: 04.337.168/0001-48  → ``true``
+        * Válido: 04.337.168/0001-58  → ``true``
         * Inválido: 11.222.333/0001-82 → ``false``  (DV1 errado)
         * Inválido: 00.000.000/0000-00 → ``false``  (todos zeros)
 
@@ -479,7 +479,7 @@ def test_ac4_validate_cnpj_check_digits_via_canary():
 
     valid_cnpjs = (
         "11222333000181",
-        "04337168000148",
+        "04337168000158",
         "11444777000161",
     )
     invalid_cnpjs = (

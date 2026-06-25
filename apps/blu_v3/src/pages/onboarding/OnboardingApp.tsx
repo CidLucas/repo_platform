@@ -621,10 +621,7 @@ function StepInfo({
 
               {/* Contextual questions — feed saveDraft via produtoServico */}
               <div style={{ borderTop: '1px solid var(--gb)', paddingTop: 14, marginTop: 4 }}>
-                <div style={{ fontSize: 11.5, color: 'var(--muted)', marginBottom: 10 }}>
-                  Uma pergunta para calibrar seus agentes:
-                </div>
-                <div className="field" style={{ marginBottom: 10 }}>
+                <div className="field" style={{ marginBottom: 0 }}>
                   <label style={{ fontSize: 12 }}>Principal produto ou serviço</label>
                   <input
                     type="text"
@@ -1802,6 +1799,7 @@ export default function OnboardingApp() {
 
   // When user is authenticated at the auth step, route based on profile state.
   // Handles: (a) existing session on /onboarding?mode=login, (b) return from Google OAuth.
+  // Uses centralized RPC is_onboarded_client() (multi-signal check).
   const clientIdChecked = useRef(false)
   useEffect(() => {
     if (loading || !user || step !== 'auth') return
@@ -1809,40 +1807,59 @@ export default function OnboardingApp() {
     if (clientIdChecked.current) return
     clientIdChecked.current = true
     let cancelled = false
-    supabase.rpc('get_my_client_id').then(
-      async ({ data: clientId }) => {
-        if (cancelled) return
-        if (clientId) {
-          // Profile exists — but it may be a provisional row (ensure_tenant_row)
-          // created mid-onboarding. Only redirect to /app when onboarding is done.
-          const { data: row } = await supabase
-            .from('clientes_blu')
-            .select('onboarding_completed_at')
-            .eq('client_id', clientId)
-            .maybeSingle()
 
-          if (row?.onboarding_completed_at) {
-            navigate('/app', { replace: true })
-          } else if (localStorage.getItem('onboarding_returning_to_data') === '1') {
-            // User came back from Drive OAuth during the data step — restore it.
-            localStorage.removeItem('onboarding_returning_to_data')
-            if (!cancelled) setStep('data')
-          } else {
-            // Provisional profile without completed onboarding — resume from info.
-            if (!cancelled) setStep('info')
-          }
+    // Use the centralized RPC that checks multiple "is this a real client" signals
+    supabase.rpc('is_onboarded_client').then(
+      ({ data: onboarded }) => {
+        if (cancelled) return
+
+        if (onboarded) {
+          // Client is onboarded by any signal — go to app
+          navigate('/app', { replace: true })
+        } else if (localStorage.getItem('onboarding_returning_to_data') === '1') {
+          // User came back from Drive OAuth during the data step — restore it.
+          localStorage.removeItem('onboarding_returning_to_data')
+          if (!cancelled) setStep('data')
         } else {
-          // New user — provision the clientes_blu row immediately so that Drive
-          // OAuth token capture (which happens during the data step) finds a valid
-          // tenant. onboarding_bootstrap_tx will update it later with full info.
-          try { await supabase.rpc('ensure_tenant_row') } catch { /* best-effort */ }
-          if (!cancelled) setStep('info')
+          // New or provisional client — ensure tenant row and show onboarding
+          supabase.rpc('get_my_client_id').then(
+            ({ data: clientId }) => {
+              if (cancelled) return
+              if (!clientId) {
+                supabase.rpc('ensure_tenant_row').then(() => {}, () => {})
+              }
+              if (!cancelled) setStep('info')
+            },
+            () => { if (!cancelled) setStep('info') }
+          )
         }
       },
       () => {
-        if (!cancelled) setStep('info')
-      },
+        // RPC failed gracefully — fall back to original behavior
+        supabase.rpc('get_my_client_id').then(
+          async ({ data: clientId }) => {
+            if (cancelled) return
+            if (clientId) {
+              const { data: row } = await supabase
+                .from('clientes_blu')
+                .select('onboarding_completed_at')
+                .eq('client_id', clientId)
+                .maybeSingle()
+              if (row?.onboarding_completed_at) {
+                navigate('/app', { replace: true })
+              } else if (!cancelled) {
+                setStep('info')
+              }
+            } else {
+              try { await supabase.rpc('ensure_tenant_row') } catch { /* best-effort */ }
+              if (!cancelled) setStep('info')
+            }
+          },
+          () => { if (!cancelled) setStep('info') }
+        )
+      }
     )
+
     return () => { cancelled = true }
   }, [user?.id, loading, step, navigate])
 

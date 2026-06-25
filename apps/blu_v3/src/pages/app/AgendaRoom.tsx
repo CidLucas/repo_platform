@@ -24,9 +24,11 @@ import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
 
+import EmptyState from '../../components/shared/EmptyState'
+import LoadingState from '../../components/shared/LoadingState'
 import { snoozeUntil } from '../../utils/time'
 
-type Tab = 'gantt' | 'hoje' | 'pendentes' | 'config'
+type Tab = 'decisoes' | 'gantt' | 'hoje' | 'pendentes' | 'historico' | 'config'
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
@@ -148,9 +150,11 @@ export default function AgendaRoom() {
             <span className="ph-cnt">{todayEvents.length} eventos hoje</span>
           </div>
           <div className="rtabs" id="agTabs">
-            {([['gantt', 'Visão Mensal'], ['hoje', 'Hoje'], ['pendentes', 'Pendentes'], ['config', 'Config']] as [Tab, string][]).map(([t, label]) => (
+            {([['decisoes', 'Decisões'], ['gantt', 'Visão Mensal'], ['hoje', 'Hoje'], ['pendentes', 'Pendentes'], ['historico', 'Histórico'], ['config', 'Config']] as [Tab, string][]).map(([t, label]) => (
               <div key={t} className={`rtab${tab === t ? ' on' : ''}`} onClick={() => setTab(t)}>
-                {t === 'pendentes' && pendingCount > 0
+                {t === 'decisoes' && pendingCount > 0
+                  ? <>{label} <span className="tbdg">{pendingCount}</span></>
+                  : t === 'pendentes' && pendingCount > 0
                   ? <>{label} <span className="tbdg">{pendingCount}</span></>
                   : label}
               </div>
@@ -171,10 +175,14 @@ export default function AgendaRoom() {
             <div className={`tc${tab === 'hoje' ? ' on' : ''}`} id="ag-hoje">
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 {scheduleQ.isLoading && (
-                  <div style={{ padding: '12px 0', color: 'var(--mu)', fontSize: 12 }}>Carregando…</div>
+                  <LoadingState message="Carregando agenda de hoje…" />
                 )}
                 {!scheduleQ.isLoading && todayEvents.length === 0 && (
-                  <div style={{ padding: '12px 0', color: 'var(--mu)', fontSize: 12 }}>Nenhum evento hoje ✓</div>
+                  <EmptyState
+                    icon="✓"
+                    title="Nenhum evento hoje"
+                    description="Sua agenda está livre. O Blu avisará quando houver compromissos marcados."
+                  />
                 )}
                 {todayEvents.map(ev => (
                   <div key={ev.id} className="ev-row">
@@ -195,10 +203,14 @@ export default function AgendaRoom() {
             {/* PENDENTES */}
             <div className={`tc${tab === 'pendentes' ? ' on' : ''}`} id="ag-pendentes">
               {approvalsQ.isLoading && (
-                <div style={{ padding: '12px 0', color: 'var(--mu)', fontSize: 12 }}>Carregando…</div>
+                <LoadingState message="Carregando decisões pendentes…" />
               )}
               {!approvalsQ.isLoading && approvals.length === 0 && (
-                <div style={{ padding: '12px 0', color: 'var(--mu)', fontSize: 12 }}>Nenhuma decisão pendente ✓</div>
+                <EmptyState
+                  icon="✓"
+                  title="Nenhuma decisão pendente"
+                  description="Tudo em dia na agenda. O Blu avisará quando houver decisões a tomar."
+                />
               )}
               {approvals.map(approval => {
                 const isExpanded = expandedId === approval.id
@@ -223,6 +235,27 @@ export default function AgendaRoom() {
               })}
             </div>
 
+            {/* HISTÓRICO */}
+            <div className={`tc${tab === 'historico' ? ' on' : ''}`} id="ag-historico">
+              {historyQ.isLoading && (
+                <div style={{ padding: '12px 0', color: 'var(--mu)', fontSize: 12 }}>Carregando…</div>
+              )}
+              {!historyQ.isLoading && agendaHistory.length === 0 && (
+                <div style={{ padding: '12px 0', color: 'var(--mu)', fontSize: 12 }}>Nenhuma ação no histórico.</div>
+              )}
+              {agendaHistory.map(h => (
+                <div key={h.id} className="hi">
+                  <div className="hi-n">{h.title}</div>
+                  <div className="hi-m">
+                    <span>{formatDate(h.created_at)}</span>
+                    <span style={{ color: h.action === 'approved' ? 'var(--ok)' : 'var(--att)' }}>
+                      {h.action === 'approved' ? 'Aprovado' : 'Rejeitado'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
             {/* CONFIG */}
             <div className={`tc${tab === 'config' ? ' on' : ''}`} id="ag-config">
               <RoutineConfigSection domain="agenda" />
@@ -238,7 +271,7 @@ export default function AgendaRoom() {
             <div className="dr-sec">
                 <div className="dr-ttl">Hoje</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 6 }}>
-                  {scheduleQ.isLoading && <div style={{ color: 'var(--mu)', fontSize: 12 }}>Carregando…</div>}
+                  {scheduleQ.isLoading && <LoadingState message="Carregando agenda…" />}
                   {todayEvents.map(ev => (
                     <div key={ev.id} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '5px 5px', borderRadius: 5 }}>
                       <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--mu)', width: 34, flexShrink: 0 }}>
@@ -251,7 +284,11 @@ export default function AgendaRoom() {
                     </div>
                   ))}
                   {!scheduleQ.isLoading && todayEvents.length === 0 && (
-                    <div style={{ fontSize: 11, color: 'var(--mu)' }}>Sem eventos hoje</div>
+                    <EmptyState
+                      icon="📆"
+                      title="Sem eventos hoje"
+                      description="Aproveite o dia — não há compromissos marcados."
+                    />
                   )}
                 </div>
               </div>
@@ -326,7 +363,11 @@ export default function AgendaRoom() {
                     if (allSources.length === 0) {
                       return (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                          <div style={{ fontSize: 11, color: 'var(--mu)' }}>Nenhuma fonte conectada.</div>
+                          <EmptyState
+                            icon="🔌"
+                            title="Nenhuma fonte conectada"
+                            description="Conecte um calendário (Google, Outlook, etc.) para sincronizar seus compromissos."
+                          />
                           <button className="btn bs" style={{ fontSize: 11 }} onClick={() => connectGoogleCalendar()}>
                             Conectar Google Calendar
                           </button>
@@ -361,9 +402,13 @@ export default function AgendaRoom() {
           </CollapsiblePanel>
           <CollapsiblePanel id="agenda-historico" icon="🕐" title="Histórico">
             <div className="dr-sec">
-                {historyQ.isLoading && <div style={{ color: 'var(--mu)', fontSize: 12 }}>Carregando…</div>}
+                {historyQ.isLoading && <LoadingState message="Carregando histórico…" />}
                 {!historyQ.isLoading && agendaHistory.length === 0 && (
-                  <div style={{ fontSize: 12, color: 'var(--mu)' }}>Nenhum histórico ainda.</div>
+                  <EmptyState
+                    icon="🕐"
+                    title="Nenhum histórico ainda"
+                    description="Quando houver aprovações ou rejeições de agenda, elas aparecerão aqui."
+                  />
                 )}
                 {agendaHistory.slice(0, 5).map(h => (
                   <div key={h.id} className="hi">

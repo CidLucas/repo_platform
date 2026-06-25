@@ -238,6 +238,7 @@ Deno.serve(async (req: Request) => {
         storage_type: "csv_file",
         storage_location: storagePath,
         source_columns: columns,
+        schema_type: schemaType,
         sync_status: "columns_discovered",
         credential_id: null,
         drive_file_id: driveFileId,

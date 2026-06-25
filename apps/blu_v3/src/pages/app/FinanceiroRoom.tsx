@@ -18,6 +18,7 @@ import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
 
 import RoutineExecutionFeed from '../../components/shared/RoutineExecutionFeed'
+import AnalyticsPanel from '../../components/shared/AnalyticsPanel'
 import { snoozeUntil } from '../../utils/time'
 import { formatBRL } from '../../utils/formatters'
 
@@ -127,7 +128,6 @@ export default function FinanceiroRoom() {
   const { clientId } = useAuth()
   const qc = useQueryClient()
   const [tab, setTab] = useState<Tab>('decisoes')
-  const [analyticsOpen, setAnalyticsOpen] = useState(false)
   const [analyticsPeriod, setAnalyticsPeriod] = useState<'30d' | '90d' | '1y'>('30d')
   const [queuedBillIds, setQueuedBillIds] = useState<Set<string>>(new Set())
   const [editingTxId, setEditingTxId] = useState<string | null>(null)
@@ -573,45 +573,17 @@ export default function FinanceiroRoom() {
             <div className={`tc${tab === 'config' ? ' on' : ''}`} id="f-config">
               <RoutineConfigSection domain="financeiro" />
             </div>
-            <div className="anl-hd" onClick={() => setAnalyticsOpen(o => !o)}>
-              <span className="anl-ttl">📊 Analytics</span>
-              <div className="anl-nums">
-                <div className="anl-kpi">
-                  <span className="anl-l">Faturamento</span>
-                  <span className="anl-v">{fmtCompact(fin?.receita_liquida ?? null)}</span>
-                </div>
-                <div className="anl-kpi">
-                  <span className="anl-l">Margem</span>
-                  <span className="anl-v" style={{ color: 'var(--ok)' }}>
-                    {fin?.margem_bruta_perc != null ? `${fin.margem_bruta_perc.toFixed(1)}%` : '—'}
-                  </span>
-                </div>
-                <div className="anl-kpi">
-                  <span className="anl-l">Despesas</span>
-                  <span className="anl-v" style={{ color: 'var(--urg)' }}>{fmtCompact(fin?.custo_total ?? null)}</span>
-                </div>
-                <div className="anl-kpi">
-                  <span className="anl-l">Fluxo 30d</span>
-                  <span className="anl-v" style={{ color: fin?.cash_flow_30d != null ? (fin.cash_flow_30d >= 0 ? 'var(--ok)' : 'var(--urg)') : undefined }}>
-                    {fmtCompact(fin?.cash_flow_30d ?? null)}
-                  </span>
-                </div>
-              </div>
-              <span className={`anl-chev${analyticsOpen ? ' open' : ''}`} id="anlChev">▶</span>
-            </div>
-            <div style={{ display: 'flex', gap: 4, padding: '0 12px 8px' }}>
-              {(['30d', '90d', '1y'] as const).map(p => (
-                <span
-                  key={p}
-                  className={`pill${analyticsPeriod === p ? ' on' : ''}`}
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => setAnalyticsPeriod(p)}
-                >
-                  {p === '30d' ? '30d' : p === '90d' ? '90d' : '1 ano'}
-                </span>
-              ))}
-            </div>
-            <div className={`anl-body${analyticsOpen ? ' open' : ''}`} id="anlBody">
+            <AnalyticsPanel
+              title="📊 Analytics"
+              kpis={[
+                { label: 'Faturamento', value: fmtCompact(fin?.receita_liquida ?? null) },
+                { label: 'Margem', value: fin?.margem_bruta_perc != null ? `${fin.margem_bruta_perc.toFixed(1)}%` : '—', color: 'var(--ok)' },
+                { label: 'Despesas', value: fmtCompact(fin?.custo_total ?? null), color: 'var(--urg)' },
+                { label: 'Fluxo 30d', value: fmtCompact(fin?.cash_flow_30d ?? null), color: fin?.cash_flow_30d != null ? (fin.cash_flow_30d >= 0 ? 'var(--ok)' : 'var(--urg)') : undefined },
+              ]}
+              period={analyticsPeriod}
+              onPeriodChange={(p) => setAnalyticsPeriod(p as '30d' | '90d' | '1y')}
+            >
               {kpiQ.isLoading ? (
                 <div style={{ fontSize: 11, color: 'var(--mu)', textAlign: 'center', padding: '8px 0' }}>Carregando…</div>
               ) : kpiQ.isError ? (
@@ -697,7 +669,7 @@ export default function FinanceiroRoom() {
                   ))}
                 </div>
               )}
-            </div>
+            </AnalyticsPanel>
           </div>
         </div>
 

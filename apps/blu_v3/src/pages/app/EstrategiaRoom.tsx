@@ -344,6 +344,7 @@ export default function EstrategiaRoom() {
             {/* CONFIG */}
             <div className={`tc${tab === 'config' ? ' on' : ''}`}>
               <RoutineConfigSection domain="estrategia" />
+              <RoutineConfigSection domain="documentos" />
             </div>
           </div>
 

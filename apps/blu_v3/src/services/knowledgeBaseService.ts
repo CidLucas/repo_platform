@@ -264,11 +264,12 @@ export interface CsvUploadResult {
 export async function uploadCsvDataSource(
   file: File,
   clientId: string,
+  schemaType?: string,
 ): Promise<CsvUploadResult> {
   const form = new FormData()
   form.append('file', file)
   form.append('client_id', clientId)
-  form.append('schema_type', 'invoices')
+  form.append('schema_type', schemaType || 'invoices')
 
   const { data, error } = await supabase.functions.invoke('upload-csv-source', {
     body: form,

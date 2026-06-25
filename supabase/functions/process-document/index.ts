@@ -19,8 +19,10 @@ import JSZip from "npm:jszip@3.10.1";
 import { corsHeaders, json } from "../_shared/cors.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+if (!SUPABASE_SERVICE_ROLE_KEY) throw new Error("SUPABASE_SERVICE_ROLE_KEY nao configurada");
 const DB_URL = Deno.env.get("SUPABASE_DB_URL")!;
+if (!SUPABASE_URL) throw new Error("SUPABASE_URL nao configurada");
 
 // ── Knowledge Document Category Mapping ────────────────────────────────────
 // Maps vector_db.documents.category values → knowledge_document_types.id.
@@ -72,6 +74,7 @@ const OVERLAP_SENTENCES = 2; // number of trailing sentences to overlap
 
 // ── Embedding (Cohere) ──────────────────────────────────────
 const CO_API_KEY = Deno.env.get("CO_API_KEY")!;
+if (!CO_API_KEY) throw new Error("CO_API_KEY nao configurada");
 const COHERE_EMBEDDING_MODEL = "embed-multilingual-light-v3.0"; // 384 dims, matches halfvec(384), supports Portuguese
 const EMBEDDING_DIMENSIONS = 384; // matches halfvec(384) column
 
@@ -445,7 +448,7 @@ async function processDocument(
     skipMetadataEnrichment: boolean = false,
     preExtractedText: string | null = null
 ) {
-    const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
         auth: { autoRefreshToken: false, persistSession: false },
     });
     const sql = postgres(DB_URL, { prepare: false });

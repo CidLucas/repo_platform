@@ -591,14 +591,14 @@ function QuickBuilder({
 
 // ─── Main panel ───────────────────────────────────────────────────────────────
 
-export default function RoutinesPanel({ domain, platform }: { domain: string; platform?: string }) {
+export default function RoutinesPanel({ domain }: { domain: string }) {
   const { clientId } = useAuth()
   const qc = useQueryClient()
   const [showBuilder, setShowBuilder] = useState(false)
 
   const { data: catalogRoutines = [], isLoading: catalogLoading } = useQuery({
-    queryKey: ['routines', domain, platform ?? '', clientId ?? ''],
-    queryFn: () => fetchRoutines(clientId!, domain, platform),
+    queryKey: ['routines', domain, clientId ?? ''],
+    queryFn: () => fetchRoutines(clientId!, domain),
     enabled: !!clientId,
     staleTime: 120_000,
   })
@@ -639,7 +639,7 @@ export default function RoutinesPanel({ domain, platform }: { domain: string; pl
         <div style={{ color: 'var(--mu)', fontSize: 12 }}>Carregando…</div>
       )}
       {!isLoading && catalogRoutines.length === 0 && (
-        <div style={{ fontSize: 11.5, color: 'var(--mu)' }}>Nenhuma rotina de catálogo disponível para esta plataforma.</div>
+        <div style={{ fontSize: 11.5, color: 'var(--mu)' }}>Nenhuma rotina de catálogo disponível para este domínio.</div>
       )}
       {catalogRoutines.map(r => (
         <CatalogRoutineRow

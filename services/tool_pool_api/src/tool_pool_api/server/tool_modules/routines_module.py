@@ -329,62 +329,6 @@ async def _enviar_rotina_para_aprovacao_logic(
         raise ToolError(f"Erro ao enviar rotina para aprovação: {e}")
 
 
-async def _renomear_rotina_personalizada_logic(
-    routine_id: str,
-    new_name: str,
-    ctx: Context,
-    client_id: str | None = None,
-) -> dict:
-    """
-    Rename a custom routine owned by the client.
-
-    Args:
-        routine_id: The UUID of the client_routines row to rename (must be source='custom')
-        new_name: The new name to apply (will be stripped)
-
-    Updates the `name` column of the matching client_routines row. Catalog
-    routines (source='catalog') cannot be renamed via this tool.
-    """
-    if not client_id:
-        raise ToolError("client_id não encontrado. Certifique-se de estar autenticado.")
-
-    if not routine_id or not routine_id.strip():
-        raise ToolError("routine_id é obrigatório.")
-
-    if not new_name or not new_name.strip():
-        raise ToolError("O novo nome da rotina é obrigatório.")
-
-    try:
-        db = get_supabase_client()
-
-        routine_result = await db.table("client_routines").select(
-            "id, source"
-        ).eq("id", routine_id).eq("client_id", client_id).maybe_single().execute()
-
-        if not routine_result.data:
-            raise ToolError(f"Rotina não encontrada ou sem permissão: {routine_id}")
-
-        if routine_result.data.get("source") != "custom":
-            raise ToolError("Apenas rotinas personalizadas (source='custom') podem ser renomeadas.")
-
-        await db.table("client_routines").update(
-            {"name": new_name.strip()}
-        ).eq("id", routine_id).eq("client_id", client_id).execute()
-
-        logger.info(f"[Rotinas] Rotina {routine_id} renomeada para '{new_name.strip()}' por {client_id}")
-        return {
-            "routine_id": routine_id,
-            "new_name": new_name.strip(),
-            "message": f"Rotina renomeada para '{new_name.strip()}' com sucesso.",
-        }
-
-    except ToolError:
-        raise
-    except Exception as e:
-        logger.exception(f"[Rotinas] Erro ao renomear rotina personalizada: {e}")
-        raise ToolError(f"Erro ao renomear rotina personalizada: {e}")
-
-
 # =============================================================================
 # REGISTRO DO MÓDULO
 # =============================================================================
@@ -443,23 +387,12 @@ def register_tools(mcp: FastMCP) -> list[str]:
         ),
     )(mcp_inject_client_id(get_context_service)(_enviar_rotina_para_aprovacao_logic))
 
-    mcp.tool(
-        name="renomear_rotina_personalizada",
-        description=(
-            "Rename a custom routine owned by the client. "
-            "Parameters: routine_id (string, required — UUID from criar_rotina_personalizada), "
-            "new_name (string, required — the new name for the routine). "
-            "Only custom routines (source='custom') can be renamed; catalog routines are immutable."
-        ),
-    )(mcp_inject_client_id(get_context_service)(_renomear_rotina_personalizada_logic))
-
     registered = [
         "listar_rotinas_catalogo",
         "listar_rotinas_personalizadas",
         "criar_rotina_personalizada",
         "ativar_rotina_catalogo",
         "enviar_rotina_para_aprovacao",
-        "renomear_rotina_personalizada",
     ]
     logger.info(f"[Routines Module] Tools registered: {registered}")
     return registered

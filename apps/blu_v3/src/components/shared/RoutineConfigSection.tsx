@@ -1295,7 +1295,7 @@ export default function RoutineConfigSection({ domain }: { domain: string }) {
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-        {catalogRoutines.filter(r => r.source !== 'system').map(r => (
+        {catalogRoutines.map(r => (
           <BuiltInRoutineRow
             key={r.id}
             routine={r}

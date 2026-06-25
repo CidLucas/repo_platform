@@ -480,12 +480,13 @@ function StepInfo({
   const [error, setError] = useState<string | null>(null)
   const [detecting, setDetecting] = useState(false)
   const [siteContext, setSiteContext] = useState<SiteContext | null>(null)
+  const clearSiteCtx = () => setSiteContext(null)
 
   async function handleWebsiteBlur() {
     const url = website.trim()
     if (!url) return
     setDetecting(true)
-    setSiteContext(null)
+    clearSiteCtx()
     try {
       const { data, error } = await supabase.functions.invoke('onboarding-website-intel', {
         body: { website_url: url },
@@ -975,145 +976,6 @@ function StepData({
   const [csvClassification, setCsvClassification] = useState<CsvClassification | null>(null)
   const [showClassificationModal, setShowClassificationModal] = useState(false)
   const [showSchemaTypeRadios, setShowSchemaTypeRadios] = useState(false)
-  const csvRef = useRef<HTMLInputElement>(null)
-  const csvFileRef = useRef<File | null>(null)
-  const [driveOpen, setDriveOpen] = useState(false)
-  const [driveUrl, setDriveUrl] = useState('')
-  const [driveConnected, setDriveConnected] = useState(false)
-  const [driveFileLabel, setDriveFileLabel] = useState('')
-  const [driveError, setDriveError] = useState<string | null>(null)
-  const [pickerLoading, setPickerLoading] = useState(false)
-
-  function extractDriveFileId(urlOrId: string): string | null {
-    const dMatch = urlOrId.match(/\/d\/([a-zA-Z0-9_-]{25,})/)
-    if (dMatch) return dMatch[1]
-    const idMatch = urlOrId.match(/[?&]id=([a-zA-Z0-9_-]{25,})/)
-    if (idMatch) return idMatch[1]
-    if (/^[a-zA-Z0-9_-]{25,44}$/.test(urlOrId.trim())) return urlOrId.trim()
-    return null
-  }
-
-  function handleDriveUrlSubmit() {
-    const fileId = extractDriveFileId(driveUrl.trim())
-    if (!fileId) {
-      setDriveError('URL inválida. Cole o link de compartilhamento do Google Sheets ou Drive.')
-      return
-    }
-    setDriveError(null)
-    setDriveConnected(true)
-    setDriveFileLabel(driveUrl.includes('docs.google.com') ? 'Planilha do Google Drive' : `Drive: ${fileId.slice(0, 16)}…`)
-    setDriveOpen(false)
-    onDriveFileReady(fileId)
-  }
-
-  async function handleOpenPicker() {
-    setPickerLoading(true)
-    setDriveError(null)
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const accessToken = session?.provider_token
-
-      if (!accessToken) {
-        setDriveError('Sessão Google não encontrada. Cole o link do arquivo abaixo ou conecte o Google Drive na página Admin → Integrações.')
-        setPickerLoading(false)
-        return
-      }
-
-      // Test if the token actually has Drive scope before opening Picker.
-      // Regular Google sign-in only grants openid+email+profile — no Drive scope → Picker 403.
-      const scopeTest = await fetch('https://www.googleapis.com/drive/v3/about?fields=user', {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      })
-      if (!scopeTest.ok) {
-        // Token lacks Drive scope — redirect to OAuth with drive.readonly.
-        // The auth step will detect onboarding_returning_to_data on return
-        // and route back to this step instead of navigating to /app.
-        localStorage.setItem('onboarding_returning_to_data', '1')
-        await connectGoogleDrive(window.location.href)
-        return
-      }
-
-      await loadGapiScript()
-
-      await new Promise<void>((resolve) => window.gapi.load('picker', resolve))
-
-      const apiKey = import.meta.env.VITE_GOOGLE_PICKER_API_KEY ?? ''
-
-      await new Promise<void>((resolve) => {
-        const view = new window.google.picker.DocsView()
-          .setIncludeFolders(false)
-          .setMimeTypes(DRIVE_PICKER_MIME_TYPES)
-
-        const picker = new window.google.picker.PickerBuilder()
-          .addView(view)
-          .setOAuthToken(accessToken)
-          .setDeveloperKey(apiKey)
-          .setCallback((data) => {
-            if (data.action === window.google.picker.Action.PICKED && data.docs?.[0]) {
-              const { id, name } = data.docs[0]
-              setDriveConnected(true)
-              setDriveFileLabel(name)
-              setDriveOpen(false)
-              setDriveError(null)
-              onDriveFileReady(id)
-              resolve()
-            } else if (data.action === window.google.picker.Action.CANCEL) {
-              resolve()
-            }
-          })
-          .build()
-
-        picker.setVisible(true)
-      })
-    } catch (e) {
-      console.warn('[drive-picker]', e)
-      setDriveError('Falha ao abrir o Drive. Tente colar o link manualmente.')
-    } finally {
-      setPickerLoading(false)
-    }
-  }
-
-  function handleTileClick(system: SystemConfig) {
-    if (connected[system.id]) return
-    if (system.comingSoon) {
-      setInterested(prev => ({ ...prev, [system.id]: !prev[system.id] }))
-      return
-    }
-    setOpenForm(prev => prev === system.id ? null : system.id)
-  }
-
-  function handleConnectSuccess(systemId: string, platform: ConnectorPlatform, nomServico: string, credentials: CredentialPayload) {
-    setConnected(prev => ({ ...prev, [systemId]: true }))
-    setOpenForm(null)
-    onCredentialCollected(platform, nomServico, credentials)
-  }
-
-  async function handleCsvChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    // Only set file info, not csvUploaded — modal will confirm
-    setCsvFileName(file.name)
-    const { headers, sheetName } = await parseSpreadsheetHeaders(file)
-    setCsvHeaders(headers)
-    // Store file ref for later use
-    csvFileRef.current = file
-
-    // AC#1 — auto_detect: call match-columns for all 4 schema types and pick
-    // the one with the highest average confidence (invoices on tie).
-    const SCHEMA_TYPES = ['invoices', 'fato_transacoes', 'dim_clientes', 'dim_inventory'] as const
-    let bestType: typeof SCHEMA_TYPES[number] = 'invoices'
-    let bestConfidence = -1
-    for (const t of SCHEMA_TYPES) {
-      const res = await callMatchColumns(headers, t)
-      const scores = res ? Object.values(res.confidence_scores) : []
-      const avg = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0
-      if (avg > bestConfidence) {
-        bestConfidence = avg
-        bestType = t
-      }
-    }
-    setCsvClassification({ confirmed: false, schemaType: bestType, canceled: false })
-
     setShowClassificationModal(true)
   }
 
@@ -1290,10 +1152,6 @@ function StepData({
                   setCsvClassification(null)
                   setShowClassificationModal(false)
                   setShowSchemaTypeRadios(false)
-                  csvFileRef.current = null
-                  onCsvFileReady(null)
-                }}>Cancelar</button>
-              </div>
             </div>
           )}
           <input
@@ -1912,6 +1770,7 @@ export default function OnboardingApp() {
 
   // When user is authenticated at the auth step, route based on profile state.
   // Handles: (a) existing session on /onboarding?mode=login, (b) return from Google OAuth.
+  // Uses centralized RPC is_onboarded_client() (multi-signal check).
   const clientIdChecked = useRef(false)
   useEffect(() => {
     if (loading || !user || step !== 'auth') return
@@ -1919,40 +1778,59 @@ export default function OnboardingApp() {
     if (clientIdChecked.current) return
     clientIdChecked.current = true
     let cancelled = false
-    supabase.rpc('get_my_client_id').then(
-      async ({ data: clientId }) => {
-        if (cancelled) return
-        if (clientId) {
-          // Profile exists — but it may be a provisional row (ensure_tenant_row)
-          // created mid-onboarding. Only redirect to /app when onboarding is done.
-          const { data: row } = await supabase
-            .from('clientes_blu')
-            .select('onboarding_completed_at')
-            .eq('client_id', clientId)
-            .maybeSingle()
 
-          if (row?.onboarding_completed_at) {
-            navigate('/app', { replace: true })
-          } else if (localStorage.getItem('onboarding_returning_to_data') === '1') {
-            // User came back from Drive OAuth during the data step — restore it.
-            localStorage.removeItem('onboarding_returning_to_data')
-            if (!cancelled) setStep('data')
-          } else {
-            // Provisional profile without completed onboarding — resume from info.
-            if (!cancelled) setStep('info')
-          }
+    // Use the centralized RPC that checks multiple "is this a real client" signals
+    supabase.rpc('is_onboarded_client').then(
+      ({ data: onboarded }) => {
+        if (cancelled) return
+
+        if (onboarded) {
+          // Client is onboarded by any signal — go to app
+          navigate('/app', { replace: true })
+        } else if (localStorage.getItem('onboarding_returning_to_data') === '1') {
+          // User came back from Drive OAuth during the data step — restore it.
+          localStorage.removeItem('onboarding_returning_to_data')
+          if (!cancelled) setStep('data')
         } else {
-          // New user — provision the clientes_blu row immediately so that Drive
-          // OAuth token capture (which happens during the data step) finds a valid
-          // tenant. onboarding_bootstrap_tx will update it later with full info.
-          try { await supabase.rpc('ensure_tenant_row') } catch { /* best-effort */ }
-          if (!cancelled) setStep('info')
+          // New or provisional client — ensure tenant row and show onboarding
+          supabase.rpc('get_my_client_id').then(
+            ({ data: clientId }) => {
+              if (cancelled) return
+              if (!clientId) {
+                supabase.rpc('ensure_tenant_row').then(() => {}, () => {})
+              }
+              if (!cancelled) setStep('info')
+            },
+            () => { if (!cancelled) setStep('info') }
+          )
         }
       },
       () => {
-        if (!cancelled) setStep('info')
-      },
+        // RPC failed gracefully — fall back to original behavior
+        supabase.rpc('get_my_client_id').then(
+          async ({ data: clientId }) => {
+            if (cancelled) return
+            if (clientId) {
+              const { data: row } = await supabase
+                .from('clientes_blu')
+                .select('onboarding_completed_at')
+                .eq('client_id', clientId)
+                .maybeSingle()
+              if (row?.onboarding_completed_at) {
+                navigate('/app', { replace: true })
+              } else if (!cancelled) {
+                setStep('info')
+              }
+            } else {
+              try { await supabase.rpc('ensure_tenant_row') } catch { /* best-effort */ }
+              if (!cancelled) setStep('info')
+            }
+          },
+          () => { if (!cancelled) setStep('info') }
+        )
+      }
     )
+
     return () => { cancelled = true }
   }, [user?.id, loading, step, navigate])
 

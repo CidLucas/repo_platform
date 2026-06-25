@@ -975,7 +975,128 @@ function StepData({
   const [csvFileName, setCsvFileName] = useState<string>('')
   const [csvClassification, setCsvClassification] = useState<CsvClassification | null>(null)
   const [showClassificationModal, setShowClassificationModal] = useState(false)
-  const [showSchemaTypeRadios, setShowSchemaTypeRadios] = useState(false)
+  const csvRef = useRef<HTMLInputElement>(null)
+  const csvFileRef = useRef<File | null>(null)
+  const [driveOpen, setDriveOpen] = useState(false)
+  const [driveUrl, setDriveUrl] = useState('')
+  const [driveConnected, setDriveConnected] = useState(false)
+  const [driveFileLabel, setDriveFileLabel] = useState('')
+  const [driveError, setDriveError] = useState<string | null>(null)
+  const [pickerLoading, setPickerLoading] = useState(false)
+
+  function extractDriveFileId(urlOrId: string): string | null {
+    const dMatch = urlOrId.match(/\/d\/([a-zA-Z0-9_-]{25,})/)
+    if (dMatch) return dMatch[1]
+    const idMatch = urlOrId.match(/[?&]id=([a-zA-Z0-9_-]{25,})/)
+    if (idMatch) return idMatch[1]
+    if (/^[a-zA-Z0-9_-]{25,44}$/.test(urlOrId.trim())) return urlOrId.trim()
+    return null
+  }
+
+  function handleDriveUrlSubmit() {
+    const fileId = extractDriveFileId(driveUrl.trim())
+    if (!fileId) {
+      setDriveError('URL inválida. Cole o link de compartilhamento do Google Sheets ou Drive.')
+      return
+    }
+    setDriveError(null)
+    setDriveConnected(true)
+    setDriveFileLabel(driveUrl.includes('docs.google.com') ? 'Planilha do Google Drive' : `Drive: ${fileId.slice(0, 16)}…`)
+    setDriveOpen(false)
+    onDriveFileReady(fileId)
+  }
+
+  async function handleOpenPicker() {
+    setPickerLoading(true)
+    setDriveError(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const accessToken = session?.provider_token
+
+      if (!accessToken) {
+        setDriveError('Sessão Google não encontrada. Cole o link do arquivo abaixo ou conecte o Google Drive na página Admin → Integrações.')
+        setPickerLoading(false)
+        return
+      }
+
+      // Test if the token actually has Drive scope before opening Picker.
+      // Regular Google sign-in only grants openid+email+profile — no Drive scope → Picker 403.
+      const scopeTest = await fetch('https://www.googleapis.com/drive/v3/about?fields=user', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
+      if (!scopeTest.ok) {
+        // Token lacks Drive scope — redirect to OAuth with drive.readonly.
+        // The auth step will detect onboarding_returning_to_data on return
+        // and route back to this step instead of navigating to /app.
+        localStorage.setItem('onboarding_returning_to_data', '1')
+        await connectGoogleDrive(window.location.href)
+        return
+      }
+
+      await loadGapiScript()
+
+      await new Promise<void>((resolve) => window.gapi.load('picker', resolve))
+
+      const apiKey = import.meta.env.VITE_GOOGLE_PICKER_API_KEY ?? ''
+
+      await new Promise<void>((resolve) => {
+        const view = new window.google.picker.DocsView()
+          .setIncludeFolders(false)
+          .setMimeTypes(DRIVE_PICKER_MIME_TYPES)
+
+        const picker = new window.google.picker.PickerBuilder()
+          .addView(view)
+          .setOAuthToken(accessToken)
+          .setDeveloperKey(apiKey)
+          .setCallback((data) => {
+            if (data.action === window.google.picker.Action.PICKED && data.docs?.[0]) {
+              const { id, name } = data.docs[0]
+              setDriveConnected(true)
+              setDriveFileLabel(name)
+              setDriveOpen(false)
+              setDriveError(null)
+              onDriveFileReady(id)
+              resolve()
+            } else if (data.action === window.google.picker.Action.CANCEL) {
+              resolve()
+            }
+          })
+          .build()
+
+        picker.setVisible(true)
+      })
+    } catch (e) {
+      console.warn('[drive-picker]', e)
+      setDriveError('Falha ao abrir o Drive. Tente colar o link manualmente.')
+    } finally {
+      setPickerLoading(false)
+    }
+  }
+
+  function handleTileClick(system: SystemConfig) {
+    if (connected[system.id]) return
+    if (system.comingSoon) {
+      setInterested(prev => ({ ...prev, [system.id]: !prev[system.id] }))
+      return
+    }
+    setOpenForm(prev => prev === system.id ? null : system.id)
+  }
+
+  function handleConnectSuccess(systemId: string, platform: ConnectorPlatform, nomServico: string, credentials: CredentialPayload) {
+    setConnected(prev => ({ ...prev, [systemId]: true }))
+    setOpenForm(null)
+    onCredentialCollected(platform, nomServico, credentials)
+  }
+
+  async function handleCsvChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    // Only set file info, not csvUploaded — modal will confirm
+    setCsvFileName(file.name)
+    const { headers, sheetName } = await parseSpreadsheetHeaders(file)
+    setCsvHeaders(headers)
+    // Store file ref for later use
+    csvFileRef.current = file
     setShowClassificationModal(true)
   }
 
@@ -1151,7 +1272,32 @@ function StepData({
                   setCsvUploaded(false)
                   setCsvClassification(null)
                   setShowClassificationModal(false)
-                  setShowSchemaTypeRadios(false)
+                  csvFileRef.current = null
+                  onCsvFileReady(null)
+                }}>Cancelar</button>
+              </div>
+              {csvClassification && !csvClassification.confirmed && (
+                <div className="field">
+                  <label>schemaType:</label>
+                  <select value={csvClassification.schemaType} onChange={e => {
+                    setCsvClassification(prev => prev ? { ...prev, schemaType: e.target.value } : { confirmed: false, schemaType: e.target.value, canceled: false })
+                    if (e.target.value !== '') {
+                      setCsvUploaded(true)
+                      setCsvClassification({ confirmed: true, schemaType: e.target.value, canceled: false })
+                      setShowClassificationModal(false)
+                      const file = csvFileRef.current
+                      if (file) onCsvFileReady(file, undefined, e.target.value)
+                    }
+                  }}>
+                    <option value="">Selecione…</option>
+                    <option value="invoices">invoices</option>
+                    <option value="receipts">receipts</option>
+                    <option value="bank_statements">bank_statements</option>
+                    <option value="outros">outros</option>
+                    <option value="Nao sei">Nao sei (sugere via LLM)</option>
+                  </select>
+                </div>
+              )}
             </div>
           )}
           <input
@@ -1632,7 +1778,7 @@ function StepLaunch({ bootstrap, pendingCredentials, onDone, website, csvFile, c
           }
           try {
             const { data: driveData, error: driveErr } = await supabase.functions.invoke('upload-drive-source', {
-              body: { client_id: result.client_id, drive_file_id: driveFileId, 'schema_type': csvSchemaType || 'invoices' },
+              body: { client_id: result.client_id, drive_file_id: driveFileId, schema_type: csvSchemaType || 'invoices' },
             })
             if (!driveErr && driveData?.source_id) {
               if (!cancelledRef.current) {

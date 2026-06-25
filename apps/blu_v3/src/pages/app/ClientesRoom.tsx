@@ -22,6 +22,7 @@ import { getCommercialIndicators, getContextMetrics, type ContextMetricRow } fro
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
+import AnalyticsPanel from '../../components/shared/AnalyticsPanel'
 
 import { snoozeUntil } from '../../utils/time'
 import { formatBRL } from '../../utils/formatters'
@@ -41,7 +42,6 @@ export default function ClientesRoom() {
   const { clientId } = useAuth()
   const qc = useQueryClient()
   const [tab, setTab] = useState<Tab>('followup')
-  const [analyticsOpen, setAnalyticsOpen] = useState(false)
   const [analyticsPeriod, setAnalyticsPeriod] = useState<'30d' | '90d' | '1y'>('30d')
 
   const [approvalsQ, insightsQ, segmentsQ, customersQ, historyQ, commercialQ, contextMetricsQ] = useQueries({
@@ -298,120 +298,97 @@ export default function ClientesRoom() {
           </div>
 
           {/* ANALYTICS CARD — pinned at panel bottom */}
-          <div className="anl-card">
-            <div className="anl-hd" onClick={() => setAnalyticsOpen(o => !o)}>
-              <span className="anl-ttl">📊 Analytics Comercial</span>
-              <div className="anl-nums">
-                <div className="anl-kpi">
-                  <span className="anl-v">{totalCustomers > 0 ? totalCustomers : '—'}</span>
-                  <span className="anl-l">Total clientes</span>
-                </div>
-                <div className="anl-kpi">
-                  <span className="anl-v">{ativosNoPeriodo != null ? ativosNoPeriodo : '—'}</span>
-                  <span className="anl-l">Ativos {analyticsPeriod}</span>
-                </div>
-                <div className="anl-kpi">
-                  <span className="anl-v">{commercial?.clientes_novos != null ? `+${commercial.clientes_novos}` : '—'}</span>
-                  <span className="anl-l">Novos {analyticsPeriod}</span>
+          <AnalyticsPanel
+            title="📊 Analytics Comercial"
+            kpis={[
+              { label: 'Total clientes', value: totalCustomers > 0 ? totalCustomers : '—' },
+              { label: `Ativos ${analyticsPeriod}`, value: ativosNoPeriodo != null ? ativosNoPeriodo : '—' },
+              { label: `Novos ${analyticsPeriod}`, value: commercial?.clientes_novos != null ? `+${commercial.clientes_novos}` : '—' },
+            ]}
+            period={analyticsPeriod}
+            onPeriodChange={(p) => setAnalyticsPeriod(p as '30d' | '90d' | '1y')}
+          >
+            {commercialQ.isLoading ? (
+              <div style={{ fontSize: 11, color: 'var(--mu)', textAlign: 'center', padding: '8px 0' }}>Carregando…</div>
+            ) : commercialQ.isError ? (
+              <div style={{ fontSize: 11, color: 'var(--urg)', textAlign: 'center', padding: '8px 0' }}>
+                Erro ao carregar.{' '}
+                <span style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={() => void commercialQ.refetch()}>Tentar novamente</span>
+              </div>
+            ) : null}
+            <div className="anl-kpi-grid">
+              <div className="anl-kc">
+                <div className="anl-kl">Clientes únicos</div>
+                <div className="anl-kv">{commercial != null ? commercial.clientes_unicos : '—'}</div>
+              </div>
+              <div className="anl-kc">
+                <div className="anl-kl">Recorrentes</div>
+                <div className="anl-kv">{commercial != null ? commercial.clientes_recorrentes : '—'}</div>
+              </div>
+              <div className="anl-kc">
+                <div className="anl-kl">Novos</div>
+                <div className="anl-kv">{commercial != null ? commercial.clientes_novos : '—'}</div>
+              </div>
+              <div className="anl-kc">
+                <div className="anl-kl">Ticket médio</div>
+                <div className="anl-kv">{formatBRL(commercial?.ticket_medio ?? null)}</div>
+              </div>
+              <div className="anl-kc">
+                <div className="anl-kl">Churn 60d</div>
+                <div className="anl-kv" style={{ color: commercial?.churn_60d_perc != null ? 'var(--urg)' : undefined }}>
+                  {commercial?.churn_60d_perc != null ? `${commercial.churn_60d_perc.toFixed(1)}%` : '—'}
                 </div>
               </div>
-              <span className={`anl-chev${analyticsOpen ? ' open' : ''}`}>▶</span>
-            </div>
-            <div style={{ display: 'flex', gap: 4, padding: '0 12px 8px' }}>
-              {(['30d', '90d', '1y'] as const).map(p => (
-                <span
-                  key={p}
-                  className={`pill${analyticsPeriod === p ? ' on' : ''}`}
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => setAnalyticsPeriod(p)}
-                >
-                  {p === '30d' ? '30d' : p === '90d' ? '90d' : '1 ano'}
-                </span>
-              ))}
-            </div>
-            <div className={`anl-body${analyticsOpen ? ' open' : ''}`}>
-              {commercialQ.isLoading ? (
-                <div style={{ fontSize: 11, color: 'var(--mu)', textAlign: 'center', padding: '8px 0' }}>Carregando…</div>
-              ) : commercialQ.isError ? (
-                <div style={{ fontSize: 11, color: 'var(--urg)', textAlign: 'center', padding: '8px 0' }}>
-                  Erro ao carregar.{' '}
-                  <span style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={() => void commercialQ.refetch()}>Tentar novamente</span>
-                </div>
-              ) : null}
-              <div className="anl-kpi-grid">
-                <div className="anl-kc">
-                  <div className="anl-kl">Clientes únicos</div>
-                  <div className="anl-kv">{commercial != null ? commercial.clientes_unicos : '—'}</div>
-                </div>
-                <div className="anl-kc">
-                  <div className="anl-kl">Recorrentes</div>
-                  <div className="anl-kv">{commercial != null ? commercial.clientes_recorrentes : '—'}</div>
-                </div>
-                <div className="anl-kc">
-                  <div className="anl-kl">Novos</div>
-                  <div className="anl-kv">{commercial != null ? commercial.clientes_novos : '—'}</div>
-                </div>
-                <div className="anl-kc">
-                  <div className="anl-kl">Ticket médio</div>
-                  <div className="anl-kv">{formatBRL(commercial?.ticket_medio ?? null)}</div>
-                </div>
-                <div className="anl-kc">
-                  <div className="anl-kl">Churn 60d</div>
-                  <div className="anl-kv" style={{ color: commercial?.churn_60d_perc != null ? 'var(--urg)' : undefined }}>
-                    {commercial?.churn_60d_perc != null ? `${commercial.churn_60d_perc.toFixed(1)}%` : '—'}
+              <div className="anl-kc">
+                <div className="anl-kl">Receita período</div>
+                <div className="anl-kv">{formatBRL(commercial?.receita_periodo ?? null)}</div>
+                {commercial?.crescimento_receita_perc != null && (
+                  <div className={`anl-kd ${commercial.crescimento_receita_perc >= 0 ? 'up' : 'dn'}`}>
+                    {commercial.crescimento_receita_perc >= 0 ? '↑' : '↓'} {Math.abs(commercial.crescimento_receita_perc).toFixed(1)}% vs. período anterior
                   </div>
-                </div>
-                <div className="anl-kc">
-                  <div className="anl-kl">Receita período</div>
-                  <div className="anl-kv">{formatBRL(commercial?.receita_periodo ?? null)}</div>
-                  {commercial?.crescimento_receita_perc != null && (
-                    <div className={`anl-kd ${commercial.crescimento_receita_perc >= 0 ? 'up' : 'dn'}`}>
-                      {commercial.crescimento_receita_perc >= 0 ? '↑' : '↓'} {Math.abs(commercial.crescimento_receita_perc).toFixed(1)}% vs. período anterior
-                    </div>
+                )}
+              </div>
+            </div>
+            <div style={{ borderTop: '1px solid var(--gb)', marginTop: 10, paddingTop: 8, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+              {([
+                { label: 'Win rate', value: commercial?.win_rate_perc ?? null, fmt: 'perc', src: 'Pipeline CRM' },
+                { label: 'Ciclo venda', value: commercial?.ciclo_venda_dias ?? null, fmt: 'days', src: 'CRM' },
+                { label: 'NRR', value: commercial?.nrr_perc ?? null, fmt: 'perc', src: 'Contratos CRM' },
+                { label: 'Conv. checkout', value: commercial?.checkout_conversion_perc ?? null, fmt: 'perc', src: 'E-commerce' },
+                { label: 'NPS', value: commercial?.nps ?? null, fmt: 'num', src: 'Pesquisa NPS' },
+              ] as { label: string; value: number | null; fmt: 'perc' | 'days' | 'num'; src: string }[]).map(({ label, value, fmt, src }) => (
+                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5, background: 'color-mix(in srgb,var(--fg) 5%,transparent)', border: '1px solid color-mix(in srgb,var(--fg) 10%,transparent)', borderRadius: 4, padding: '3px 6px', overflow: 'hidden' }}>
+                  <span style={{ color: 'var(--mu)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flexShrink: 1 }}>{label}</span>
+                  {value != null ? (
+                    <span style={{ fontFamily: 'var(--mono)', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                      {fmt === 'perc' ? `${value.toFixed(1)}%` : fmt === 'days' ? `${value.toFixed(0)}d` : value.toFixed(0)}
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: 9, color: 'var(--mu)', opacity: .5, fontStyle: 'italic', whiteSpace: 'nowrap', flexShrink: 0 }}>↳ {src}</span>
                   )}
                 </div>
-              </div>
+              ))}
+            </div>
+            {clientesContextMetrics.length > 0 && (
               <div style={{ borderTop: '1px solid var(--gb)', marginTop: 10, paddingTop: 8, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
-                {([
-                  { label: 'Win rate', value: commercial?.win_rate_perc ?? null, fmt: 'perc', src: 'Pipeline CRM' },
-                  { label: 'Ciclo venda', value: commercial?.ciclo_venda_dias ?? null, fmt: 'days', src: 'CRM' },
-                  { label: 'NRR', value: commercial?.nrr_perc ?? null, fmt: 'perc', src: 'Contratos CRM' },
-                  { label: 'Conv. checkout', value: commercial?.checkout_conversion_perc ?? null, fmt: 'perc', src: 'E-commerce' },
-                  { label: 'NPS', value: commercial?.nps ?? null, fmt: 'num', src: 'Pesquisa NPS' },
-                ] as { label: string; value: number | null; fmt: 'perc' | 'days' | 'num'; src: string }[]).map(({ label, value, fmt, src }) => (
-                  <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5, background: 'color-mix(in srgb,var(--fg) 5%,transparent)', border: '1px solid color-mix(in srgb,var(--fg) 10%,transparent)', borderRadius: 4, padding: '3px 6px', overflow: 'hidden' }}>
-                    <span style={{ color: 'var(--mu)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flexShrink: 1 }}>{label}</span>
-                    {value != null ? (
-                      <span style={{ fontFamily: 'var(--mono)', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                        {fmt === 'perc' ? `${value.toFixed(1)}%` : fmt === 'days' ? `${value.toFixed(0)}d` : value.toFixed(0)}
+                {clientesContextMetrics.map((m) => (
+                  <div key={m.kpi} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5, background: 'color-mix(in srgb,var(--fg) 5%,transparent)', border: '1px solid color-mix(in srgb,var(--fg) 10%,transparent)', borderRadius: 4, padding: '3px 6px', overflow: 'hidden' }}>
+                    <span style={{ color: 'var(--mu)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flexShrink: 1 }}>{m.label}</span>
+                    {m.current_value != null && (
+                      <span style={{ fontFamily: 'var(--mono)', color: 'var(--fg)', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                        {m.unit === 'R$' ? formatBRL(m.current_value) : m.unit === '%' ? `${m.current_value.toFixed(1)}%` : m.current_value.toLocaleString('pt-BR')}
                       </span>
-                    ) : (
-                      <span style={{ fontSize: 9, color: 'var(--mu)', opacity: .5, fontStyle: 'italic', whiteSpace: 'nowrap', flexShrink: 0 }}>↳ {src}</span>
+                    )}
+                    {m.mom_pct != null && (
+                      <span style={{ fontSize: 9, fontFamily: 'var(--mono)', color: m.mom_pct >= 0 ? 'var(--ok)' : 'var(--urg)', background: m.mom_pct >= 0 ? 'color-mix(in srgb,var(--ok) 12%,transparent)' : 'color-mix(in srgb,var(--urg) 12%,transparent)', padding: '1px 3px', borderRadius: 3, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                        {m.mom_pct >= 0 ? '↑' : '↓'}{Math.abs(m.mom_pct).toFixed(1)}%
+                      </span>
                     )}
                   </div>
                 ))}
               </div>
-              {clientesContextMetrics.length > 0 && (
-                <div style={{ borderTop: '1px solid var(--gb)', marginTop: 10, paddingTop: 8, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
-                  {clientesContextMetrics.map((m) => (
-                    <div key={m.kpi} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5, background: 'color-mix(in srgb,var(--fg) 5%,transparent)', border: '1px solid color-mix(in srgb,var(--fg) 10%,transparent)', borderRadius: 4, padding: '3px 6px', overflow: 'hidden' }}>
-                      <span style={{ color: 'var(--mu)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flexShrink: 1 }}>{m.label}</span>
-                      {m.current_value != null && (
-                        <span style={{ fontFamily: 'var(--mono)', color: 'var(--fg)', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                          {m.unit === 'R$' ? formatBRL(m.current_value) : m.unit === '%' ? `${m.current_value.toFixed(1)}%` : m.current_value.toLocaleString('pt-BR')}
-                        </span>
-                      )}
-                      {m.mom_pct != null && (
-                        <span style={{ fontSize: 9, fontFamily: 'var(--mono)', color: m.mom_pct >= 0 ? 'var(--ok)' : 'var(--urg)', background: m.mom_pct >= 0 ? 'color-mix(in srgb,var(--ok) 12%,transparent)' : 'color-mix(in srgb,var(--urg) 12%,transparent)', padding: '1px 3px', borderRadius: 3, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                          {m.mom_pct >= 0 ? '↑' : '↓'}{Math.abs(m.mom_pct).toFixed(1)}%
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+            )}
+          </AnalyticsPanel>
         </div>
 
         {/* RIGHT COLUMN */}

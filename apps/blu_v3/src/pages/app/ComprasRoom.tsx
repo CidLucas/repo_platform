@@ -18,6 +18,7 @@ import RoutineExecutionFeed from '../../components/shared/RoutineExecutionFeed'
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 import DecisionCard from '../../components/shared/DecisionCard'
+import AnalyticsPanel from '../../components/shared/AnalyticsPanel'
 import { snoozeUntil } from '../../utils/time'
 import { formatBRL } from '../../utils/formatters'
 
@@ -37,7 +38,6 @@ export default function ComprasRoom() {
   const { clientId } = useAuth()
   const qc = useQueryClient()
   const [tab, setTab] = useState<Tab>('decisoes')
-  const [analyticsOpen, setAnalyticsOpen] = useState(false)
   const [analyticsPeriod, setAnalyticsPeriod] = useState<'30d' | '90d' | '1y'>('30d')
 
   // Navigate to the tab requested via goWithTab() from another screen
@@ -210,118 +210,95 @@ export default function ComprasRoom() {
           </div>
 
           {/* ANALYTICS CARD — pinned at panel bottom */}
-          <div className="anl-card">
-            <div className="anl-hd" onClick={() => setAnalyticsOpen(o => !o)}>
-              <span className="anl-ttl">📊 Analytics de Compras</span>
-              <div className="anl-nums">
-                <div className="anl-kpi">
-                  <span className="anl-v">{supply ? supply.rfqs_abertas : '—'}</span>
-                  <span className="anl-l">RFQs abertas</span>
-                </div>
-                <div className="anl-kpi">
-                  <span className="anl-v">{supply ? supply.fornecedores_ativos : '—'}</span>
-                  <span className="anl-l">Fornecedores</span>
-                </div>
-                <div className="anl-kpi">
-                  <span className="anl-v">{supply?.taxa_resposta_perc != null ? `${supply.taxa_resposta_perc.toFixed(0)}%` : '—'}</span>
-                  <span className="anl-l">Taxa resposta</span>
+          <AnalyticsPanel
+            title="📊 Analytics de Compras"
+            kpis={[
+              { label: 'RFQs abertas', value: supply ? supply.rfqs_abertas : '—' },
+              { label: 'Fornecedores', value: supply ? supply.fornecedores_ativos : '—' },
+              { label: 'Taxa resposta', value: supply?.taxa_resposta_perc != null ? `${supply.taxa_resposta_perc.toFixed(0)}%` : '—' },
+            ]}
+            period={analyticsPeriod}
+            onPeriodChange={(p) => setAnalyticsPeriod(p as '30d' | '90d' | '1y')}
+          >
+            {supplyQ.isLoading ? (
+              <div style={{ fontSize: 11, color: 'var(--mu)', textAlign: 'center', padding: '8px 0' }}>Carregando…</div>
+            ) : supplyQ.isError ? (
+              <div style={{ fontSize: 11, color: 'var(--urg)', textAlign: 'center', padding: '8px 0' }}>
+                Erro ao carregar.{' '}
+                <span style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={() => void supplyQ.refetch()}>Tentar novamente</span>
+              </div>
+            ) : null}
+            <div className="anl-kpi-grid">
+              <div className="anl-kc">
+                <div className="anl-kl">Spend no período</div>
+                <div className="anl-kv">{supply ? formatBRL(supply.spend_periodo) : '—'}</div>
+              </div>
+              <div className="anl-kc">
+                <div className="anl-kl">POs aprovadas</div>
+                <div className="anl-kv">{supply?.pos_aprovadas ?? '—'}</div>
+              </div>
+              <div className="anl-kc">
+                <div className="anl-kl">POs pendentes</div>
+                <div className="anl-kv">{supply?.pos_pendentes_aprovacao ?? '—'}</div>
+              </div>
+              <div className="anl-kc">
+                <div className="anl-kl">Lead time médio</div>
+                <div className="anl-kv">{supply?.lead_time_medio_dias != null ? `${supply.lead_time_medio_dias.toFixed(1)}d` : '—'}</div>
+              </div>
+              <div className="anl-kc">
+                <div className="anl-kl">OTIF</div>
+                <div className="anl-kv" style={{ color: 'var(--ok)' }}>{supply?.otif_perc != null ? `${supply.otif_perc.toFixed(1)}%` : '—'}</div>
+              </div>
+              <div className="anl-kc">
+                <div className="anl-kl">Decisões (total)</div>
+                <div className="anl-kv">{totalDecisions > 0 ? totalDecisions : '—'}</div>
+              </div>
+              <div className="anl-kc">
+                <div className="anl-kl">Concentração top forn.</div>
+                <div className="anl-kv" style={{ color: supply?.concentracao_top_perc != null && supply.concentracao_top_perc > 50 ? 'var(--att)' : undefined }}>
+                  {supply?.concentracao_top_perc != null ? `${supply.concentracao_top_perc.toFixed(0)}%` : '—'}
                 </div>
               </div>
-              <span className={`anl-chev${analyticsOpen ? ' open' : ''}`}>▶</span>
             </div>
-            <div style={{ display: 'flex', gap: 4, padding: '0 12px 8px' }}>
-              {(['30d', '90d', '1y'] as const).map(p => (
-                <span
-                  key={p}
-                  className={`pill${analyticsPeriod === p ? ' on' : ''}`}
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => setAnalyticsPeriod(p)}
-                >
-                  {p === '30d' ? '30d' : p === '90d' ? '90d' : '1 ano'}
-                </span>
+            <div style={{ borderTop: '1px solid var(--gb)', marginTop: 10, paddingTop: 8, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+              {([
+                { label: 'Cost savings', value: supply?.cost_savings_perc ?? null, fmt: 'perc', src: 'Catálogo preços ref.' },
+                { label: 'PPV', value: supply?.ppv ?? null, fmt: 'brl', src: 'Catálogo preços ref.' },
+                { label: 'Maverick spend', value: supply?.maverick_spend_perc ?? null, fmt: 'perc', src: 'Fornecedores aprovados' },
+                { label: 'Spend gerido', value: supply?.spend_under_management_perc ?? null, fmt: 'perc', src: 'Cobertura contratual' },
+              ] as { label: string; value: number | null; fmt: 'perc' | 'brl'; src: string }[]).map(({ label, value, fmt, src }) => (
+                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5, background: 'color-mix(in srgb,var(--fg) 5%,transparent)', border: '1px solid color-mix(in srgb,var(--fg) 10%,transparent)', borderRadius: 4, padding: '3px 6px', overflow: 'hidden' }}>
+                  <span style={{ color: 'var(--mu)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flexShrink: 1 }}>{label}</span>
+                  {value != null ? (
+                    <span style={{ fontFamily: 'var(--mono)', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                      {fmt === 'perc' ? `${value.toFixed(1)}%` : formatBRL(value)}
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: 9, color: 'var(--mu)', opacity: .5, fontStyle: 'italic', whiteSpace: 'nowrap', flexShrink: 0 }}>↳ {src}</span>
+                  )}
+                </div>
               ))}
             </div>
-            <div className={`anl-body${analyticsOpen ? ' open' : ''}`}>
-              {supplyQ.isLoading ? (
-                <div style={{ fontSize: 11, color: 'var(--mu)', textAlign: 'center', padding: '8px 0' }}>Carregando…</div>
-              ) : supplyQ.isError ? (
-                <div style={{ fontSize: 11, color: 'var(--urg)', textAlign: 'center', padding: '8px 0' }}>
-                  Erro ao carregar.{' '}
-                  <span style={{ cursor: 'pointer', textDecoration: 'underline' }} onClick={() => void supplyQ.refetch()}>Tentar novamente</span>
-                </div>
-              ) : null}
-              <div className="anl-kpi-grid">
-                <div className="anl-kc">
-                  <div className="anl-kl">Spend no período</div>
-                  <div className="anl-kv">{supply ? formatBRL(supply.spend_periodo) : '—'}</div>
-                </div>
-                <div className="anl-kc">
-                  <div className="anl-kl">POs aprovadas</div>
-                  <div className="anl-kv">{supply?.pos_aprovadas ?? '—'}</div>
-                </div>
-                <div className="anl-kc">
-                  <div className="anl-kl">POs pendentes</div>
-                  <div className="anl-kv">{supply?.pos_pendentes_aprovacao ?? '—'}</div>
-                </div>
-                <div className="anl-kc">
-                  <div className="anl-kl">Lead time médio</div>
-                  <div className="anl-kv">{supply?.lead_time_medio_dias != null ? `${supply.lead_time_medio_dias.toFixed(1)}d` : '—'}</div>
-                </div>
-                <div className="anl-kc">
-                  <div className="anl-kl">OTIF</div>
-                  <div className="anl-kv" style={{ color: 'var(--ok)' }}>{supply?.otif_perc != null ? `${supply.otif_perc.toFixed(1)}%` : '—'}</div>
-                </div>
-                <div className="anl-kc">
-                  <div className="anl-kl">Decisões (total)</div>
-                  <div className="anl-kv">{totalDecisions > 0 ? totalDecisions : '—'}</div>
-                </div>
-                <div className="anl-kc">
-                  <div className="anl-kl">Concentração top forn.</div>
-                  <div className="anl-kv" style={{ color: supply?.concentracao_top_perc != null && supply.concentracao_top_perc > 50 ? 'var(--att)' : undefined }}>
-                    {supply?.concentracao_top_perc != null ? `${supply.concentracao_top_perc.toFixed(0)}%` : '—'}
-                  </div>
-                </div>
-              </div>
+            {comprasContextMetrics.length > 0 && (
               <div style={{ borderTop: '1px solid var(--gb)', marginTop: 10, paddingTop: 8, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
-                {([
-                  { label: 'Cost savings', value: supply?.cost_savings_perc ?? null, fmt: 'perc', src: 'Catálogo preços ref.' },
-                  { label: 'PPV', value: supply?.ppv ?? null, fmt: 'brl', src: 'Catálogo preços ref.' },
-                  { label: 'Maverick spend', value: supply?.maverick_spend_perc ?? null, fmt: 'perc', src: 'Fornecedores aprovados' },
-                  { label: 'Spend gerido', value: supply?.spend_under_management_perc ?? null, fmt: 'perc', src: 'Cobertura contratual' },
-                ] as { label: string; value: number | null; fmt: 'perc' | 'brl'; src: string }[]).map(({ label, value, fmt, src }) => (
-                  <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5, background: 'color-mix(in srgb,var(--fg) 5%,transparent)', border: '1px solid color-mix(in srgb,var(--fg) 10%,transparent)', borderRadius: 4, padding: '3px 6px', overflow: 'hidden' }}>
-                    <span style={{ color: 'var(--mu)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flexShrink: 1 }}>{label}</span>
-                    {value != null ? (
-                      <span style={{ fontFamily: 'var(--mono)', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                        {fmt === 'perc' ? `${value.toFixed(1)}%` : formatBRL(value)}
+                {comprasContextMetrics.map((m) => (
+                  <div key={m.kpi} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5, background: 'color-mix(in srgb,var(--fg) 5%,transparent)', border: '1px solid color-mix(in srgb,var(--fg) 10%,transparent)', borderRadius: 4, padding: '3px 6px', overflow: 'hidden' }}>
+                    <span style={{ color: 'var(--mu)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flexShrink: 1 }}>{m.label}</span>
+                    {m.current_value != null && (
+                      <span style={{ fontFamily: 'var(--mono)', color: 'var(--fg)', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                        {m.unit === 'R$' ? formatBRL(m.current_value) : m.unit === '%' ? `${m.current_value.toFixed(1)}%` : m.current_value.toLocaleString('pt-BR')}
                       </span>
-                    ) : (
-                      <span style={{ fontSize: 9, color: 'var(--mu)', opacity: .5, fontStyle: 'italic', whiteSpace: 'nowrap', flexShrink: 0 }}>↳ {src}</span>
+                    )}
+                    {m.mom_pct != null && (
+                      <span style={{ fontSize: 9, fontFamily: 'var(--mono)', color: m.mom_pct >= 0 ? 'var(--ok)' : 'var(--urg)', background: m.mom_pct >= 0 ? 'color-mix(in srgb,var(--ok) 12%,transparent)' : 'color-mix(in srgb,var(--urg) 12%,transparent)', padding: '1px 3px', borderRadius: 3, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                        {m.mom_pct >= 0 ? '↑' : '↓'}{Math.abs(m.mom_pct).toFixed(1)}%
+                      </span>
                     )}
                   </div>
                 ))}
               </div>
-              {comprasContextMetrics.length > 0 && (
-                <div style={{ borderTop: '1px solid var(--gb)', marginTop: 10, paddingTop: 8, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
-                  {comprasContextMetrics.map((m) => (
-                    <div key={m.kpi} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5, background: 'color-mix(in srgb,var(--fg) 5%,transparent)', border: '1px solid color-mix(in srgb,var(--fg) 10%,transparent)', borderRadius: 4, padding: '3px 6px', overflow: 'hidden' }}>
-                      <span style={{ color: 'var(--mu)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flexShrink: 1 }}>{m.label}</span>
-                      {m.current_value != null && (
-                        <span style={{ fontFamily: 'var(--mono)', color: 'var(--fg)', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                          {m.unit === 'R$' ? formatBRL(m.current_value) : m.unit === '%' ? `${m.current_value.toFixed(1)}%` : m.current_value.toLocaleString('pt-BR')}
-                        </span>
-                      )}
-                      {m.mom_pct != null && (
-                        <span style={{ fontSize: 9, fontFamily: 'var(--mono)', color: m.mom_pct >= 0 ? 'var(--ok)' : 'var(--urg)', background: m.mom_pct >= 0 ? 'color-mix(in srgb,var(--ok) 12%,transparent)' : 'color-mix(in srgb,var(--urg) 12%,transparent)', padding: '1px 3px', borderRadius: 3, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                          {m.mom_pct >= 0 ? '↑' : '↓'}{Math.abs(m.mom_pct).toFixed(1)}%
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+            )}
+          </AnalyticsPanel>
         </div>
 
         <div className="rcol">

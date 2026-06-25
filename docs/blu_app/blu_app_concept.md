@@ -32,8 +32,7 @@ O app (`apps/blu_v3/`) é organizado em salas — cada sala é o espaço de trab
 | Compras | `/app/compras` | `compras` | Fornecedores, RFQ, lista de compras, ordens de compra |
 | Financeiro | `/app/financeiro` | `financeiro` | Caixa, conciliação, alertas de anomalia, relatórios |
 | Agenda | `/app/agenda` | `agenda` | Google Calendar, briefs de reunião, Monday.com |
-| Estratégia | `/app/estrategia` | `strategy` + `data-analyst` | Padrões ocultos, análise competitiva, síntese cross-domain |
-| Biblioteca | `/app/biblioteca` | `doc-writer` + `context-gatherer` | Base de conhecimento + criação de documentos |
+| Estratégia | `/app/estrategia` | `strategy` + `data-analyst` + `doc-writer` + `context-gatherer` (Documentos) | Padrões ocultos, análise competitiva, síntese cross-domain + aba de Documentos (criação e curadoria) |
 
 > **Agentes sem sala própria:** `frontdesk` (roteador global), `data-entry` (gateway de escrita), `platform` (criação de rotinas/metas), `fiscal-agent` (chamado por outros agentes), `context-gatherer` (onboarding e curadoria). São infraestrutura — operam em background.
 

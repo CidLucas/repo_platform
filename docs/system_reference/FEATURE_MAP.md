@@ -34,7 +34,6 @@ Revisado em: 2026-06-02 | Fonte da verdade: AGENT_SYSTEM.md + SKILLS_SYSTEM.md
 | compras_basico | — | — | ✓ | ✓ | ✓ | ✓ |
 | financeiro | — | — | ✓ | ✓ | ✓ | ✓ |
 | agenda_basico | — | — | ✓ | ✓ | ✓ | ✓ |
-| documentos | — | — | ✓ | ✓ | ✓ | ✓ |
 | ocr_extraction | — | — | ✓ | ✓ | ✓ | ✓ |
 | notion | — | — | ✓ | ✓ | ✓ | ✓ |
 | monday | — | — | ✓ | ✓ | ✓ | ✓ |
@@ -142,14 +141,6 @@ Revisado em: 2026-06-02 | Fonte da verdade: AGENT_SYSTEM.md + SKILLS_SYSTEM.md
 - skills: `sql_analytics`, `data_access`, `meeting_brief`
 - tools: `executar_rag_cliente`, `execute_sql`
 
-#### documentos
-> Busca e digestão de documentos na base de conhecimento. OCR e extração estruturada.
-- agents: `context-gatherer`, `doc-writer`
-- skills: `document_curation`, `knowledge_base_write`, `data_access`
-- tools: `executar_rag_cliente`, `execute_sql`, `write_summary_to_kb`,
-         `extract_document_with_ocr`, `summarize_document_sections`,
-         `extract_structured_data`, `compile_time_series`
-
 #### ocr_extraction
 > Extração de texto e dados estruturados de PDFs e documentos escaneados.
 - agents: `context-gatherer`, `doc-writer`
@@ -208,10 +199,10 @@ Revisado em: 2026-06-02 | Fonte da verdade: AGENT_SYSTEM.md + SKILLS_SYSTEM.md
          `google_docs_create`, `google_docs_read`, `google_docs_write`, `google_docs_list`
 
 #### estrategia
-> Planejamento estratégico, análise de KPIs, briefs estratégicos, oportunidades de crescimento.
-- agents: `strategy`, `data-analyst`
-- skills: `insights_synthesis`, `hidden_patterns`, `strategy_analysis`, `competitor_analysis`
-- tools: `executar_rag_cliente`, `execute_sql`
+> Planejamento estratégico, análise de KPIs, briefs estratégicos, oportunidades de crescimento. Inclui aba de Documentos (curadoria e criação de documentos).
+- agents: `strategy`, `data-analyst`, `context-gatherer`, `doc-writer`
+- skills: `insights_synthesis`, `hidden_patterns`, `strategy_analysis`, `competitor_analysis`, `document_curation`, `knowledge_base_write`, `data_access`
+- tools: `executar_rag_cliente`, `execute_sql`, `write_summary_to_kb`, `extract_document_with_ocr`, `summarize_document_sections`, `extract_structured_data`, `compile_time_series`
 
 #### slack
 > Leitura e envio de mensagens no Slack: canais, threads, sumários.
@@ -254,7 +245,7 @@ Revisado em: 2026-06-02 | Fonte da verdade: AGENT_SYSTEM.md + SKILLS_SYSTEM.md
 | Agente | Features |
 |--------|---------|
 | `frontdesk` | chat_basico, diagnostico, rag, monitoramento_web, sql_analytics |
-| `context-gatherer` | onboarding, rag, documentos, ocr_extraction |
+| `context-gatherer` | onboarding, rag, documentos, ocr_extraction, estrategia |
 | `data-entry` | sql_analytics (read para verificação antes de escrever) |
 | `platform` | platform_ops |
 | `financeiro` | financeiro, sql_analytics |
@@ -263,7 +254,7 @@ Revisado em: 2026-06-02 | Fonte da verdade: AGENT_SYSTEM.md + SKILLS_SYSTEM.md
 | `agenda` | agenda_basico, monday, google_integrations (PREMIUM) |
 | `data-analyst` | sql_analytics, synthesis, financeiro, crm_avancado, estrategia, google_integrations |
 | `strategy` | synthesis, estrategia, slack (PREMIUM) |
-| `doc-writer` | documentos, ocr_extraction, notion, google_integrations (PREMIUM) |
+| `doc-writer` | documentos, ocr_extraction, notion, estrategia, google_integrations (PREMIUM) |
 | `fiscal-agent` | fiscal (ENTERPRISE) |
 
 ---

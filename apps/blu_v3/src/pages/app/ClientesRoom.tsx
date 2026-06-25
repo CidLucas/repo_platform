@@ -26,7 +26,7 @@ import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
 import { snoozeUntil } from '../../utils/time'
 import { formatBRL } from '../../utils/formatters'
 
-type Tab = 'followup' | 'ativos' | 'historico' | 'config'
+type Tab = 'decisoes' | 'ativos' | 'historico' | 'config'
 
 function relativeTime(iso: string) {
   const diff = Date.now() - new Date(iso).getTime()
@@ -40,7 +40,7 @@ export default function ClientesRoom() {
   const { go, addToast, openChatWith } = useAppStore()
   const { clientId } = useAuth()
   const qc = useQueryClient()
-  const [tab, setTab] = useState<Tab>('followup')
+  const [tab, setTab] = useState<Tab>('decisoes')
   const [analyticsOpen, setAnalyticsOpen] = useState(false)
   const [analyticsPeriod, setAnalyticsPeriod] = useState<'30d' | '90d' | '1y'>('30d')
 
@@ -158,15 +158,15 @@ export default function ClientesRoom() {
             <span className="ph-ttl">Mesa de Trabalho</span>
           </div>
           <div className="rtabs">
-            {(['followup', 'ativos', 'historico', 'config'] as Tab[]).map((t) => (
+            {(['decisoes', 'ativos', 'historico', 'config'] as Tab[]).map((t) => (
               <div
                 key={t}
                 className={`rtab${tab === t ? ' on' : ''}`}
                 onClick={() => setTab(t)}
               >
-                {t === 'followup' ? (
+                {t === 'decisoes' ? (
                   <>
-                    Follow-up{' '}
+                    Decisões{' '}
                     {!approvalsQ.isLoading && approvals.length > 0 && (
                       <span className="tbdg">{approvals.length}</span>
                     )}
@@ -183,13 +183,13 @@ export default function ClientesRoom() {
           </div>
 
           <div className="pb">
-            {/* FOLLOW-UP */}
-            <div className={`tc${tab === 'followup' ? ' on' : ''}`}>
+            {/* DECISÕES */}
+            <div className={`tc${tab === 'decisoes' ? ' on' : ''}`}>
               {approvalsQ.isLoading ? (
                 <div className="dc" style={{ opacity: 0.4 }}>Carregando…</div>
               ) : approvals.length === 0 ? (
                 <div style={{ fontSize: 12, color: 'var(--mu)', padding: '16px 0', textAlign: 'center' }}>
-                  Nenhum follow-up pendente.
+                  Nenhuma decisão pendente.
                 </div>
               ) : (
                 <div className="dl">

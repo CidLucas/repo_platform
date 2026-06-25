@@ -31,7 +31,7 @@ import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
 
 import { snoozeUntil } from '../../utils/time'
 
-type Tab = 'decisoes' | 'analises' | 'historico' | 'config' | 'documentos'
+type Tab = 'decisoes' | 'painel' | 'historico' | 'config' | 'documentos'
 
 // ── Lightweight markdown renderer (no external dependency) ─────────────────────────────────
 function renderMarkdownLine(line: string, key: number): React.ReactNode {
@@ -264,7 +264,7 @@ export default function EstrategiaRoom() {
             <span className="ph-ttl">Mesa de Trabalho</span>
           </div>
           <div className="rtabs">
-            {(['decisoes', 'analises', 'historico', 'config', 'documentos'] as Tab[]).map((t) => (
+            {(['decisoes', 'painel', 'historico', 'config', 'documentos'] as Tab[]).map((t) => (
               <div
                 key={t}
                 className={`rtab${tab === t ? ' on' : ''}`}
@@ -279,8 +279,8 @@ export default function EstrategiaRoom() {
                       <span className="tbdg">{approvals.length}</span>
                     )}
                   </>
-                ) : t === 'analises' ? (
-                  'Análises'
+                ) : t === 'painel' ? (
+                  'Painel'
                 ) : t === 'historico' ? (
                   'Histórico'
                 ) : (
@@ -314,8 +314,8 @@ export default function EstrategiaRoom() {
               )}
             </div>
 
-            {/* ANÁLISES — context report viewer */}
-            <div className={`tc${tab === 'analises' ? ' on' : ''}`}>
+            {/* PAINEL — context report viewer */}
+            <div className={`tc${tab === 'painel' ? ' on' : ''}`}>
               {!selectedReport ? (
                 <div style={{ fontSize: 12, color: 'var(--mu)', padding: '16px 0', textAlign: 'center' }}>
                   Selecione um relatório na coluna direita para visualizá-lo.
@@ -459,7 +459,7 @@ export default function EstrategiaRoom() {
                         key={report.id}
                         onClick={() => {
                           setSelectedReport(report)
-                          setTab('analises')
+                          setTab('painel')
                         }}
                         style={{
                           display: 'flex',

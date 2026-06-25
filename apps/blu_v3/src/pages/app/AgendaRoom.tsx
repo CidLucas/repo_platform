@@ -26,7 +26,7 @@ import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
 
 import { snoozeUntil } from '../../utils/time'
 
-type Tab = 'gantt' | 'hoje' | 'pendentes' | 'config'
+type Tab = 'decisoes' | 'gantt' | 'hoje' | 'pendentes' | 'historico' | 'config'
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
@@ -148,9 +148,11 @@ export default function AgendaRoom() {
             <span className="ph-cnt">{todayEvents.length} eventos hoje</span>
           </div>
           <div className="rtabs" id="agTabs">
-            {([['gantt', 'Visão Mensal'], ['hoje', 'Hoje'], ['pendentes', 'Pendentes'], ['config', 'Config']] as [Tab, string][]).map(([t, label]) => (
+            {([['decisoes', 'Decisões'], ['gantt', 'Visão Mensal'], ['hoje', 'Hoje'], ['pendentes', 'Pendentes'], ['historico', 'Histórico'], ['config', 'Config']] as [Tab, string][]).map(([t, label]) => (
               <div key={t} className={`rtab${tab === t ? ' on' : ''}`} onClick={() => setTab(t)}>
-                {t === 'pendentes' && pendingCount > 0
+                {t === 'decisoes' && pendingCount > 0
+                  ? <>{label} <span className="tbdg">{pendingCount}</span></>
+                  : t === 'pendentes' && pendingCount > 0
                   ? <>{label} <span className="tbdg">{pendingCount}</span></>
                   : label}
               </div>
@@ -221,6 +223,27 @@ export default function AgendaRoom() {
                   </div>
                 )
               })}
+            </div>
+
+            {/* HISTÓRICO */}
+            <div className={`tc${tab === 'historico' ? ' on' : ''}`} id="ag-historico">
+              {historyQ.isLoading && (
+                <div style={{ padding: '12px 0', color: 'var(--mu)', fontSize: 12 }}>Carregando…</div>
+              )}
+              {!historyQ.isLoading && agendaHistory.length === 0 && (
+                <div style={{ padding: '12px 0', color: 'var(--mu)', fontSize: 12 }}>Nenhuma ação no histórico.</div>
+              )}
+              {agendaHistory.map(h => (
+                <div key={h.id} className="hi">
+                  <div className="hi-n">{h.title}</div>
+                  <div className="hi-m">
+                    <span>{formatDate(h.created_at)}</span>
+                    <span style={{ color: h.action === 'approved' ? 'var(--ok)' : 'var(--att)' }}>
+                      {h.action === 'approved' ? 'Aprovado' : 'Rejeitado'}
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
 
             {/* CONFIG */}

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from "react-router-dom"
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../hooks/useAuth'
 import {
@@ -595,9 +596,11 @@ export default function RoutinesPanel({ domain, platform }: { domain: string; pl
   const { clientId } = useAuth()
   const qc = useQueryClient()
   const [showBuilder, setShowBuilder] = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activePlatform = searchParams.get("platform") ?? platform ?? "";
 
   const { data: catalogRoutines = [], isLoading: catalogLoading } = useQuery({
-    queryKey: ['routines', domain, platform ?? '', clientId ?? ''],
+    queryKey: ['routines', domain, activePlatform, clientId ?? ''],
     queryFn: () => fetchRoutines(clientId!, domain, platform),
     enabled: !!clientId,
     staleTime: 120_000,
@@ -629,8 +632,55 @@ export default function RoutinesPanel({ domain, platform }: { domain: string; pl
 
   const isLoading = catalogLoading || customLoading
 
+  const KNOWN_ROOMS = [
+    { slug: "compras", label: "Compras" },
+    { slug: "financeiro", label: "Financeiro" },
+    { slug: "clientes", label: "Clientes" },
+    { slug: "documentos", label: "Documentos" },
+    { slug: "estrategia", label: "Estratégia" },
+    { slug: "agenda", label: "Agenda" },
+    { slug: "biblioteca", label: "Biblioteca" },
+  ];
+
+  function PlatformFilter() {
+    return (
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+        <span
+          className={`pill${activePlatform === "" ? " on" : ""}`}
+          style={{ cursor: "pointer", fontSize: 10.5 }}
+          onClick={() => {
+            setSearchParams(prev => {
+              const next = new URLSearchParams(prev);
+              next.delete("platform");
+              return next;
+            });
+          }}
+        >
+          Todas
+        </span>
+        {KNOWN_ROOMS.map(room => (
+          <span
+            key={room.slug}
+            className={`pill${activePlatform === room.slug ? " on" : ""}`}
+            style={{ cursor: "pointer", fontSize: 10.5 }}
+            onClick={() => {
+              setSearchParams(prev => {
+                const next = new URLSearchParams(prev);
+                next.set("platform", room.slug);
+                return next;
+              });
+            }}
+          >
+            {room.label}
+          </span>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+      <PlatformFilter />
       {/* Catalog routines */}
       <div style={{ fontSize: 11, color: 'var(--mu)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
         Rotinas do Catálogo

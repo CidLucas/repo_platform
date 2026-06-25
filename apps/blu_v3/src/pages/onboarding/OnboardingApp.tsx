@@ -974,6 +974,7 @@ function StepData({
   const [csvFileName, setCsvFileName] = useState<string>('')
   const [csvClassification, setCsvClassification] = useState<CsvClassification | null>(null)
   const [showClassificationModal, setShowClassificationModal] = useState(false)
+  const [showSchemaTypeRadios, setShowSchemaTypeRadios] = useState(false)
   const csvRef = useRef<HTMLInputElement>(null)
   const csvFileRef = useRef<File | null>(null)
   const [driveOpen, setDriveOpen] = useState(false)
@@ -1096,6 +1097,23 @@ function StepData({
     setCsvHeaders(headers)
     // Store file ref for later use
     csvFileRef.current = file
+
+    // AC#1 — auto_detect: call match-columns for all 4 schema types and pick
+    // the one with the highest average confidence (invoices on tie).
+    const SCHEMA_TYPES = ['invoices', 'fato_transacoes', 'dim_clientes', 'dim_inventory'] as const
+    let bestType: typeof SCHEMA_TYPES[number] = 'invoices'
+    let bestConfidence = -1
+    for (const t of SCHEMA_TYPES) {
+      const res = await callMatchColumns(headers, t)
+      const scores = res ? Object.values(res.confidence_scores) : []
+      const avg = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0
+      if (avg > bestConfidence) {
+        bestConfidence = avg
+        bestType = t
+      }
+    }
+    setCsvClassification({ confirmed: false, schemaType: bestType, canceled: false })
+
     setShowClassificationModal(true)
   }
 
@@ -1224,54 +1242,58 @@ function StepData({
               </div>
             </div>
           )}
-          {showClassificationModal && (
+          {csvHeaders.length > 0 && showClassificationModal && (
             <div style={{ marginTop: 16, padding: 16, background: 'var(--surface)', border: '1px solid var(--gb)', borderRadius: 'var(--rl)' }}>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
-                Detectamos {csvHeaders.length} colunas que parecem ser de notas fiscais. Confirma?
+              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>
+                Qual o tipo de dados desta planilha?
               </div>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
+                Detectamos {csvHeaders.length} colunas. Selecione o tipo que melhor descreve esta planilha.
+              </div>
+              {(showSchemaTypeRadios || !csvClassification?.schemaType) && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer', fontSize: 13 }}>
+                    <input type="radio" name="csvSchemaType" value="invoices" checked={(csvClassification?.schemaType ?? 'invoices') === 'invoices'} onChange={() => setCsvClassification({ confirmed: false, schemaType: 'invoices', canceled: false })} />
+                    <span><strong>Notas Fiscais / Faturamento</strong> — invoices, NF-e, NFC-e, recibos de venda.</span>
+                  </label>
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer', fontSize: 13 }}>
+                    <input type="radio" name="csvSchemaType" value="fato_transacoes" checked={csvClassification?.schemaType === 'fato_transacoes'} onChange={() => setCsvClassification({ confirmed: false, schemaType: 'fato_transacoes', canceled: false })} />
+                    <span><strong>Transacoes Financeiras</strong> — fato_transacoes, lancamentos, receitas, despesas.</span>
+                  </label>
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer', fontSize: 13 }}>
+                    <input type="radio" name="csvSchemaType" value="dim_clientes" checked={csvClassification?.schemaType === 'dim_clientes'} onChange={() => setCsvClassification({ confirmed: false, schemaType: 'dim_clientes', canceled: false })} />
+                    <span><strong>Clientes</strong> — dim_clientes, cadastro de clientes.</span>
+                  </label>
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer', fontSize: 13 }}>
+                    <input type="radio" name="csvSchemaType" value="dim_inventory" checked={csvClassification?.schemaType === 'dim_inventory'} onChange={() => setCsvClassification({ confirmed: false, schemaType: 'dim_inventory', canceled: false })} />
+                    <span><strong>Estoque / Produtos</strong> — dim_inventory, SKU, produtos, catalogo.</span>
+                  </label>
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 8 }}>
                 <button className="btn btn-primary" onClick={() => {
+                  const schemaType = csvClassification?.schemaType || 'invoices'
                   setCsvUploaded(true)
-                  setCsvClassification({ confirmed: true, schemaType: 'invoices', canceled: false })
+                  setCsvClassification({ confirmed: true, schemaType, canceled: false })
                   setShowClassificationModal(false)
+                  setShowSchemaTypeRadios(false)
                   const file = csvFileRef.current
-                  if (file) onCsvFileReady(file, undefined, 'invoices')
-                }}>Sim, sao notas</button>
-                <button className="btn btn-ghost" onClick={() => {
-                  setCsvClassification(prev => prev ? { ...prev, schemaType: '' } : { confirmed: false, schemaType: '', canceled: false })
-                }}>Nao, e outro tipo</button>
+                  if (file) onCsvFileReady(file, undefined, schemaType)
+                }}>Confirmar</button>
+                {!showSchemaTypeRadios && (
+                  <button className="btn btn-ghost" onClick={() => setShowSchemaTypeRadios(true)}>Alterar tipo</button>
+                )}
                 <button className="btn btn-ghost" onClick={() => {
                   setCsvFileName('')
                   setCsvHeaders([])
                   setCsvUploaded(false)
                   setCsvClassification(null)
                   setShowClassificationModal(false)
+                  setShowSchemaTypeRadios(false)
                   csvFileRef.current = null
                   onCsvFileReady(null)
                 }}>Cancelar</button>
               </div>
-              {csvClassification && !csvClassification.confirmed && (
-                <div className="field">
-                  <label>schemaType:</label>
-                  <select value={csvClassification.schemaType} onChange={e => {
-                    setCsvClassification(prev => prev ? { ...prev, schemaType: e.target.value } : { confirmed: false, schemaType: e.target.value, canceled: false })
-                    if (e.target.value !== '') {
-                      setCsvUploaded(true)
-                      setCsvClassification({ confirmed: true, schemaType: e.target.value, canceled: false })
-                      setShowClassificationModal(false)
-                      const file = csvFileRef.current
-                      if (file) onCsvFileReady(file, undefined, e.target.value)
-                    }
-                  }}>
-                    <option value="">Selecione…</option>
-                    <option value="invoices">invoices</option>
-                    <option value="receipts">receipts</option>
-                    <option value="bank_statements">bank_statements</option>
-                    <option value="outros">outros</option>
-                    <option value="Nao sei">Nao sei (sugere via LLM)</option>
-                  </select>
-                </div>
-              )}
             </div>
           )}
           <input
@@ -1752,7 +1774,7 @@ function StepLaunch({ bootstrap, pendingCredentials, onDone, website, csvFile, c
           }
           try {
             const { data: driveData, error: driveErr } = await supabase.functions.invoke('upload-drive-source', {
-              body: { client_id: result.client_id, drive_file_id: driveFileId, schema_type: 'invoices' },
+              body: { client_id: result.client_id, drive_file_id: driveFileId, 'schema_type': csvSchemaType || 'invoices' },
             })
             if (!driveErr && driveData?.source_id) {
               if (!cancelledRef.current) {

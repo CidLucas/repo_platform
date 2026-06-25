@@ -3,6 +3,19 @@ import type { AuthError, Session, User } from '@supabase/supabase-js'
 import { supabase } from './client'
 import { resolveClientId } from './auth'
 
+/**
+ * Lifecycle hook — invoked after a successful signUp.
+ *
+ * Consumers can subscribe to this hook to reset external state
+ * (analytics, cache, telemetry) once a new account is created.
+ * Today the implementation is a structured log; consumers that need
+ * stronger guarantees (e.g. transactional telemetry flush) can wrap
+ * their own logic on top.
+ */
+export const onSignUp = async (email: string, userId: string) => {
+  console.info('[onSignUp] new user signed up', { email, userId })
+}
+
 interface AuthState {
   session: Session | null
   user: User | null
@@ -231,6 +244,13 @@ export function AuthProvider({
   }
 
   const signUp = async (email: string, password: string, metadata?: Record<string, unknown>) => {
+    // AC#1: clear any existing session before signing up a new user.
+    // Without this, the singleton `session`/`user`/`clientId`/`tier` state
+    // from a previous sign-in leaks into the new signUp call, causing
+    // onboarding to bootstrap with the previous tenant's data.
+    await supabase.auth.signOut()
+    setState({ session: null, user: null, clientId: null, tier: null, loading: false })
+
     const { error } = await supabase.auth.signUp({
       email,
       password,

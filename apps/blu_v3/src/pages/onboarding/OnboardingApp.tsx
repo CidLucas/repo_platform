@@ -293,7 +293,7 @@ function FlowTop({ step, onBack }: { step: Step; onBack?: () => void }) {
 // ─── StepAuth ─────────────────────────────────────────────────────────────────
 
 function StepAuth({ onNext, mode }: { onNext: () => void; mode: 'login' | 'signup' }) {
-  const { signInWithEmail, signUp } = useAuth()
+  const { signInWithEmail, signUp, signOut } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')
@@ -313,6 +313,13 @@ function StepAuth({ onNext, mode }: { onNext: () => void; mode: 'login' | 'signu
 
   async function handleSubmit() {
     setError(null)
+    // AC#2: defence in depth — if a session is already active, force
+    // signOut before processing the new submit. The signUp() path inside
+    // AuthContext does its own signOut + state reset (AC#1), but for the
+    // signIn path we also need to ensure a clean slate.
+    if (mode === 'signup') {
+      await signOut()
+    }
     if (mode !== 'login' && password !== passwordConfirm) {
       setError('As senhas não coincidem.')
       return

@@ -1,5 +1,6 @@
 export { supabase } from './client'
 export { resolveClientId, getAuthToken, buildAuthHeaders } from './auth'
+export { onSignUp } from './AuthContext'
 export { AuthContext, AuthProvider } from './AuthContext'
 export type { AuthContextValue, AuthProviderProps } from './AuthContext'
 export { useAuth } from './useAuth'

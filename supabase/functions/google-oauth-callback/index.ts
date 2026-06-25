@@ -8,6 +8,7 @@
 // After saving, redirects back to the app.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { fernetEncrypt } from "../_shared/fernet.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -15,50 +16,6 @@ const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const CREDENTIALS_ENCRYPTION_KEY = Deno.env.get("CREDENTIALS_ENCRYPTION_KEY")!;
 
 const REDIRECT_URI = `${SUPABASE_URL}/functions/v1/google-oauth-callback`;
-
-// ── Fernet encryption (compatible with Python cryptography.fernet.Fernet) ─────
-function base64urlDecode(str: string): Uint8Array {
-  const base64 = str.replace(/-/g, "+").replace(/_/g, "/");
-  const padded = base64 + "==".slice(0, (4 - (base64.length % 4)) % 4);
-  const binary = atob(padded);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes;
-}
-
-function base64urlEncode(bytes: Uint8Array): string {
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++) binary = binary + String.fromCharCode(bytes[i]);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_");
-}
-
-function concatBytes(...arrays: Uint8Array[]): Uint8Array {
-  const total = arrays.reduce((s, a) => s + a.length, 0);
-  const out = new Uint8Array(total);
-  let offset = 0;
-  for (const arr of arrays) { out.set(arr, offset); offset = offset + arr.length; }
-  return out;
-}
-
-async function fernetEncrypt(keyBase64url: string, plaintext: string): Promise<string> {
-  const keyBytes = base64urlDecode(keyBase64url);
-  const signingKey = keyBytes.slice(0, 16);
-  const encryptionKey = keyBytes.slice(16, 32);
-  const ts = Math.floor(Date.now() / 1000);
-  const timeBytes = new Uint8Array(8);
-  const view = new DataView(timeBytes.buffer);
-  view.setUint32(0, Math.floor(ts / 0x100000000), false);
-  view.setUint32(4, ts >>> 0, false);
-  const iv = crypto.getRandomValues(new Uint8Array(16));
-  const aesKey = await crypto.subtle.importKey("raw", encryptionKey, { name: "AES-CBC" }, false, ["encrypt"]);
-  const ciphertextBuf = await crypto.subtle.encrypt({ name: "AES-CBC", iv }, aesKey, new TextEncoder().encode(plaintext));
-  const ciphertext = new Uint8Array(ciphertextBuf);
-  const version = new Uint8Array([0x80]);
-  const toSign = concatBytes(version, timeBytes, iv, ciphertext);
-  const hmacKey = await crypto.subtle.importKey("raw", signingKey, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const hmac = new Uint8Array(await crypto.subtle.sign("HMAC", hmacKey, toSign));
-  return base64urlEncode(concatBytes(version, timeBytes, iv, ciphertext, hmac));
-}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

@@ -8,27 +8,18 @@
 // Body (optional): { "rangeDays": number } — default 28 for Gantt window.
 // Response: { events: AgendaEvent[], fetched_at: string, sources: { google, monday, notion } }
 
-import Fernet from "npm:fernet@0.4.0";
 import {
   requireAuth,
   createServiceClient,
   AuthError,
 } from "../_shared/blu_auth.ts";
 import { corsHeaders, json } from "../_shared/cors.ts";
+import { fernetDecrypt } from "../_shared/fernet.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
-const CREDENTIALS_ENCRYPTION_KEY = Deno.env.get("CREDENTIALS_ENCRYPTION_KEY");
-
-function decryptFernet(ciphertext: string): string {
-  if (!CREDENTIALS_ENCRYPTION_KEY) {
-    throw new Error("CREDENTIALS_ENCRYPTION_KEY not set");
-  }
-  const secret = new Fernet.Secret(CREDENTIALS_ENCRYPTION_KEY);
-  const token = new Fernet.Token({ secret, token: ciphertext, ttl: 0 });
-  return token.decode();
-}
+const CREDENTIALS_ENCRYPTION_KEY = Deno.env.get("CREDENTIALS_ENCRYPTION_KEY")!;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -89,7 +80,7 @@ async function fetchGoogleCalendarEvents(
 ): Promise<AgendaEvent[]> {
   if (!tokenRow?.refresh_token_encrypted) return [];
 
-  const refreshToken = decryptFernet(tokenRow.refresh_token_encrypted);
+  const refreshToken = await fernetDecrypt(CREDENTIALS_ENCRYPTION_KEY, tokenRow.refresh_token_encrypted);
 
   const { data: oauthConfig, error: oauthErr } = await supabase.rpc("get_platform_google_oauth_config");
   if (oauthErr || !oauthConfig?.client_id || !oauthConfig?.client_secret) {
@@ -286,7 +277,7 @@ async function fetchMondayHierarchy(
 ): Promise<AgendaEvent[]> {
   if (!tokenRow?.access_token_encrypted) return [];
 
-  const apiToken = decryptFernet(tokenRow.access_token_encrypted);
+  const apiToken = await fernetDecrypt(CREDENTIALS_ENCRYPTION_KEY, tokenRow.access_token_encrypted);
 
   // Full hierarchy query: boards → groups → items with all column types
   // Complexity budget: Monday limit is 5_000_000.
@@ -760,7 +751,7 @@ async function fetchNotionEvents(
 ): Promise<AgendaEvent[]> {
   if (!tokenRow?.access_token_encrypted) return [];
 
-  const apiToken = decryptFernet(tokenRow.access_token_encrypted);
+  const apiToken = await fernetDecrypt(CREDENTIALS_ENCRYPTION_KEY, tokenRow.access_token_encrypted);
   const today = new Date().toISOString().slice(0, 10);
   const events: AgendaEvent[] = [];
 

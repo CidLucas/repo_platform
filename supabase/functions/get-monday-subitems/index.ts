@@ -7,7 +7,6 @@
 // Body: { "item_id": string } — Monday item ID (numeric string)
 // Response: { subitems: AgendaExternalEvent[], complexity?: number }
 
-import Fernet from "npm:fernet@0.4.0";
 import {
   requireAuth,
   resolveClientId,
@@ -15,18 +14,12 @@ import {
   AuthError,
 } from "../_shared/blu_auth.ts";
 import { corsHeaders, json } from "../_shared/cors.ts";
+import { fernetDecrypt } from "../_shared/fernet.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
-const CREDENTIALS_ENCRYPTION_KEY = Deno.env.get("CREDENTIALS_ENCRYPTION_KEY");
-
-function decryptFernet(ciphertext: string): string {
-  if (!CREDENTIALS_ENCRYPTION_KEY) throw new Error("CREDENTIALS_ENCRYPTION_KEY not set");
-  const secret = new Fernet.Secret(CREDENTIALS_ENCRYPTION_KEY);
-  const token = new Fernet.Token({ secret, token: ciphertext, ttl: 0 });
-  return token.decode();
-}
+const CREDENTIALS_ENCRYPTION_KEY = Deno.env.get("CREDENTIALS_ENCRYPTION_KEY")!;
 
 // ─── Column value extractors (same logic as get-agenda-events) ────────────────
 
@@ -114,7 +107,7 @@ Deno.serve(async (req) => {
       return json({ subitems: [], reason: "monday_token_missing" }, 200);
     }
 
-    const mondayToken = decryptFernet(tokenRow.access_token_encrypted);
+    const mondayToken = await fernetDecrypt(CREDENTIALS_ENCRYPTION_KEY, tokenRow.access_token_encrypted);
 
     // Query Monday API
     const mondayResp = await fetch("https://api.monday.com/v2", {

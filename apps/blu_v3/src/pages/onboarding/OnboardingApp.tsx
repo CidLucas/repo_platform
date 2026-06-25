@@ -64,14 +64,6 @@ const STEP_LABELS = ['Conta', 'Empresa', 'Dados', 'Mapeamento']
 const VERTICALS = ['Comércio', 'Serviços', 'Indústria', 'Saúde', 'Educação', 'Agronegócio', 'Financeiro', 'Outro']
 const TEAM_SIZES = ['Só eu', '2–10 pessoas', '10–50 pessoas', '50+ pessoas']
 
-const PRIMARY_FOCUS = [
-  { id: 'vendas',      label: 'Vendas' },
-  { id: 'operacao',   label: 'Operação' },
-  { id: 'atendimento', label: 'Atendimento' },
-  { id: 'estoque',    label: 'Estoque' },
-  { id: 'outro',      label: 'Outro' },
-]
-
 // Canonical field names for manual mapping — must match CANONICAL_SCHEMAS.invoices in match-columns
 const CANONICAL_FIELDS = [
   'documento', 'data_competencia_id', 'quantidade', 'valor_unitario', 'valor', 'status',
@@ -433,6 +425,8 @@ function StepAuth({ onNext, mode }: { onNext: () => void; mode: 'login' | 'signu
 interface SiteContext {
   company_name?: string
   vertical?: string
+  cnpj?: string
+  telefone?: string
   confidence: number
   suggested_agents?: string[]
 }
@@ -455,7 +449,7 @@ function formatCnpj(raw: string): string {
 function StepInfo({
   onNext, onBack, saveDraft,
   initialNome, initialEmpresa, initialWebsite, initialVertical, initialPorte,
-  initialPrimaryFocus, initialProdutoServico, initialCnpj,
+  initialProdutoServico, initialCnpj, initialTelefone,
 }: {
   onNext: () => void
   onBack?: () => void
@@ -465,17 +459,17 @@ function StepInfo({
   initialWebsite: string
   initialVertical: string
   initialPorte: string
-  initialPrimaryFocus: string
   initialProdutoServico: string
   initialCnpj: string
+  initialTelefone: string
 }) {
   const [nome, setNome] = useState(initialNome)
   const [empresa, setEmpresa] = useState(initialEmpresa)
   const [cnpj, setCnpj] = useState(initialCnpj)
+  const [telefone, setTelefone] = useState(initialTelefone)
   const [website, setWebsite] = useState(initialWebsite)
   const [vertical, setVertical] = useState(initialVertical || '')
   const [teamSize, setTeamSize] = useState(initialPorte || '')
-  const [primaryFocus, setPrimaryFocus] = useState(initialPrimaryFocus || '')
   const [produtoServico, setProdutoServico] = useState(initialProdutoServico || '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -495,12 +489,14 @@ function StepInfo({
       const ctx = data as SiteContext
       // Auto-fill vertical and company name if confidence is high enough
       const detected = VERTICAL_DISPLAY[ctx.vertical as string]
-      if (detected && ctx.confidence >= 0.5) {
+      if (detected && ctx.confidence >= 0.3) {
         setVertical(detected)
         if (ctx.company_name && !empresa.trim()) setEmpresa(ctx.company_name)
+        if (ctx.cnpj && !cnpj.trim()) setCnpj(ctx.cnpj)
+        if (ctx.telefone && !telefone.trim()) setTelefone(ctx.telefone)
       }
       // Show context card for any confidence level to let user confirm/adjust
-      if (ctx.vertical || ctx.company_name) setSiteContext(ctx)
+      if (ctx.vertical || ctx.company_name || ctx.cnpj || ctx.telefone) setSiteContext(ctx)
     } catch {
       // best-effort, silent
     } finally {
@@ -522,7 +518,6 @@ function StepInfo({
         website: website.trim(),
         vertical: VERTICAL_MAP[vertical] ?? null,
         porte: PORTE_MAP[teamSize] ?? teamSize,
-        primaryFocus: (primaryFocus as OnboardingDraft['primaryFocus']) || null,
         produtoServico: produtoServico.trim(),
       })
       onNext()
@@ -547,9 +542,25 @@ function StepInfo({
               <input type="text" placeholder="Carlos Lima" value={nome} onChange={e => setNome(e.target.value)} />
             </div>
             <div className="field">
-              <label>Nome da empresa *</label>
-              <input type="text" placeholder="Distribuidora Alvo" value={empresa} onChange={e => setEmpresa(e.target.value)} />
+              <label>Website <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(opcional)</span></label>
+              <input
+                type="url"
+                placeholder="https://suaempresa.com.br"
+                value={website}
+                onChange={e => { setWebsite(e.target.value); setSiteContext(null) }}
+                onBlur={handleWebsiteBlur}
+              />
+              {detecting && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 8, fontSize: 12.5, color: 'var(--muted2)' }}>
+                  <div className="spin-sm" />
+                  Seu agente está olhando seu site…
+                </div>
+              )}
             </div>
+          </div>
+          <div className="field">
+            <label>Nome da empresa *</label>
+            <input type="text" placeholder="Distribuidora Alvo" value={empresa} onChange={e => setEmpresa(e.target.value)} />
           </div>
           <div className="field">
             <label>
@@ -564,22 +575,6 @@ function StepInfo({
               inputMode="numeric"
               maxLength={18}
             />
-          </div>
-          <div className="field">
-            <label>Website <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(opcional)</span></label>
-            <input
-              type="url"
-              placeholder="https://suaempresa.com.br"
-              value={website}
-              onChange={e => { setWebsite(e.target.value); setSiteContext(null) }}
-              onBlur={handleWebsiteBlur}
-            />
-            {detecting && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 8, fontSize: 12.5, color: 'var(--muted2)' }}>
-                <div className="spin-sm" />
-                Seu agente está olhando seu site…
-              </div>
-            )}
           </div>
 
           {/* Scrape panel: shown after website-intel returns results */}
@@ -612,6 +607,26 @@ function StepInfo({
                     delay={250}
                   />
                 )}
+                {siteContext.cnpj && (
+                  <div key="cnpj" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <ScrapeField label="CNPJ" value={formatCnpj(siteContext.cnpj)} delay={250} />
+                    {siteContext.confidence >= 0.7 ? (
+                      <span style={{ color: '#16a34a', background: '#dcfce7', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança alta</span>
+                    ) : siteContext.confidence >= 0.3 ? (
+                      <span style={{ color: '#ca8a04', background: '#fef9c3', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança média</span>
+                    ) : null}
+                  </div>
+                )}
+                {siteContext.telefone && (
+                  <div key="telefone" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <ScrapeField label="Telefone" value={siteContext.telefone} delay={500} />
+                    {siteContext.confidence >= 0.7 ? (
+                      <span style={{ color: '#16a34a', background: '#dcfce7', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança alta</span>
+                    ) : siteContext.confidence >= 0.3 ? (
+                      <span style={{ color: '#ca8a04', background: '#fef9c3', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança média</span>
+                    ) : null}
+                  </div>
+                )}
                 {siteContext.suggested_agents && siteContext.suggested_agents.length > 0 && (
                   <ScrapeField
                     label="Agentes sugeridos"
@@ -621,12 +636,12 @@ function StepInfo({
                 )}
               </div>
 
-              {/* Contextual questions — feed saveDraft via produtoServico + primaryFocus */}
+              {/* Contextual questions — feed saveDraft via produtoServico */}
               <div style={{ borderTop: '1px solid var(--gb)', paddingTop: 14, marginTop: 4 }}>
                 <div style={{ fontSize: 11.5, color: 'var(--muted)', marginBottom: 10 }}>
-                  Duas perguntas para calibrar seus agentes:
+                  Uma pergunta para calibrar seus agentes:
                 </div>
-                <div className="field" style={{ marginBottom: 10 }}>
+                <div className="field" style={{ marginBottom: 0 }}>
                   <label style={{ fontSize: 12 }}>Principal produto ou serviço</label>
                   <input
                     type="text"
@@ -635,16 +650,6 @@ function StepInfo({
                     onChange={e => setProdutoServico(e.target.value)}
                     style={{ marginTop: 4 }}
                   />
-                </div>
-                <div className="field" style={{ marginBottom: 0 }}>
-                  <label style={{ fontSize: 12 }}>Foco atual do negócio</label>
-                  <div className="radio-pills" style={{ marginTop: 4 }}>
-                    {PRIMARY_FOCUS.map(f => (
-                      <div key={f.id} className={`rp${primaryFocus === f.id ? ' on' : ''}`} onClick={() => setPrimaryFocus(f.id)}>
-                        {f.label}
-                      </div>
-                    ))}
-                  </div>
                 </div>
               </div>
             </div>
@@ -1884,10 +1889,10 @@ export default function OnboardingApp() {
         initialNome={draft.nome}
         initialEmpresa={draft.empresa}
         initialCnpj={draft.cnpj ?? ''}
+        initialTelefone={''}
         initialWebsite={draft.website}
         initialVertical={initialVertical}
         initialPorte={initialPorte}
-        initialPrimaryFocus={draft.primaryFocus ?? ''}
         initialProdutoServico={draft.produtoServico ?? ''}
       />
     )

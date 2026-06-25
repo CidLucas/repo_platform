@@ -1416,3 +1416,169 @@ class TestInformativeMessages:
             "contract. Detected: "
             f"title={has_title}, description={has_description}."
         )
+
+# ═══════════════════════════════════════════════════════════════════════════
+# AC#5 — Every room renders EmptyState for empty lists and LoadingState
+#        during loading, in every data section.
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# GOAL:
+#     The shared EmptyState and LoadingState components only deliver
+#     value when rooms use them in the right rendering position — i.e.
+#     LoadingState inside isLoading-conditional blocks and EmptyState
+#     inside empty-data blocks (after the loading check, standard React
+#     pattern: loading first, then empty).
+#
+#     Each of the 8 rooms has multiple data sections (approvals,
+#     history, suppliers, segments, customers, documents, etc.) and
+#     each section must:
+#
+#         (a) render <LoadingState .../> when the query is loading
+#             (the \`queryQ.isLoading\` branch), and
+#         (b) render <EmptyState .../> when the query has returned
+#             but the data is empty (the \`data.length === 0\` branch
+#             after \`!isLoading\`).
+#
+#     Today none of the rooms do — they all use inline ad-hoc divs
+#     for both states.
+#
+# BEHAVIOR:
+#     For each room × section pair, two checks fire:
+#
+#         1. loading_state_in_isLoading — the section renders
+#            <LoadingState .../> when \`queryQ.isLoading\` is true.
+#         2. empty_state_in_empty_branch — the section renders
+#            <EmptyState .../> when \`!queryQ.isLoading && data.length === 0\`.
+#
+# AC (Acceptance Criteria):
+#     AC#1 — ComprasRoom: approvals, history, suppliers sections
+#     AC#2 — FinanceiroRoom: approvals, compromissos, historico,
+#            transacoes sections
+#     AC#3 — ClientesRoom: followup/approvals, ativos/segments,
+#            ativos/customers, historico sections
+#     AC#4 — EstrategiaRoom: approvals, historico, analises sections
+#     AC#5 — DocumentosRoom: approvals, documentos, templates sections
+#     AC#6 — BibliotecaRoom: documentos section
+#     AC#7 — AgentOpsRoom: sessions, jobs, credentials sections
+#     AC#8 — AgendaRoom: schedule/agenda, approvals, historico,
+#            pendentes sections
+#
+# DECISION:
+#     Estrategia: extend — every room must already import and render
+#                 both shared components (AC#3 guards).  AC#5
+#                 validates they use them in the CORRECT conditional
+#                 positions.
+#
+# Estado atual: RED — none of the 8 rooms imports or renders the
+# shared components (AC#3 guards also fail), so every
+# loading-state-in-isLoading and empty-state-in-empty-branch check
+# fails on the import guard first, then on the JSX guard.
+#
+# Anti-Goals (must NOT be violated):
+#     1. NÃO testar a ordem loading > empty no JSX — o teste apenas
+#        verifica que ambos os estados ESTAO presentes, não a ordem.
+#     2. NÃO exigir que todas as secoes tenham LoadingState — se uma
+#        secao nao tem estado de carregamento (ex.: dados sincronos),
+#        ela e ignorada.
+#     3. NÃO exigir que todas as secoes tenham EmptyState — se uma
+#        secao nao tem estado vazio (ex.: sempre tem dados), ela
+#        e ignorada.
+#     4. NÃO refatorar as secoes — o teste apenas verifica a
+#        presenca dos componentes nos branches corretos.
+
+
+# ── Per-room section definitions ──────────────────────────────────────────
+#
+# Each entry: (room_filename, section_name, component)
+#   room_filename — the .tsx file under apps/blu_v3/src/pages/app/
+#   section_name  — human-readable label for the section (used in error msg)
+#   component     — "EmptyState" or "LoadingState"
+
+ROOM_SECTIONS: list[tuple[str, str, str]] = [
+    # ComprasRoom — 3 data sections
+    ("ComprasRoom.tsx", "decisoes/approvals", "LoadingState"),
+    ("ComprasRoom.tsx", "decisoes/approvals", "EmptyState"),
+    ("ComprasRoom.tsx", "historico/history", "LoadingState"),
+    ("ComprasRoom.tsx", "historico/history", "EmptyState"),
+    ("ComprasRoom.tsx", "fornecedores/suppliers", "LoadingState"),
+    ("ComprasRoom.tsx", "fornecedores/suppliers", "EmptyState"),
+    # FinanceiroRoom — 4 data sections
+    ("FinanceiroRoom.tsx", "decisoes/approvals", "LoadingState"),
+    ("FinanceiroRoom.tsx", "decisoes/approvals", "EmptyState"),
+    ("FinanceiroRoom.tsx", "compromissos/bills", "LoadingState"),
+    ("FinanceiroRoom.tsx", "compromissos/bills", "EmptyState"),
+    ("FinanceiroRoom.tsx", "historico/transactions", "LoadingState"),
+    ("FinanceiroRoom.tsx", "historico/transactions", "EmptyState"),
+    # ClientesRoom — 4 data sections
+    ("ClientesRoom.tsx", "followup/approvals", "LoadingState"),
+    ("ClientesRoom.tsx", "followup/approvals", "EmptyState"),
+    ("ClientesRoom.tsx", "ativos/segments", "LoadingState"),
+    ("ClientesRoom.tsx", "ativos/customers", "LoadingState"),
+    ("ClientesRoom.tsx", "ativos/customers", "EmptyState"),
+    ("ClientesRoom.tsx", "historico/history", "LoadingState"),
+    ("ClientesRoom.tsx", "historico/history", "EmptyState"),
+    # EstrategiaRoom — 3 data sections
+    ("EstrategiaRoom.tsx", "decisoes/approvals", "LoadingState"),
+    ("EstrategiaRoom.tsx", "decisoes/approvals", "EmptyState"),
+    ("EstrategiaRoom.tsx", "historico/history", "LoadingState"),
+    ("EstrategiaRoom.tsx", "historico/history", "EmptyState"),
+    ("EstrategiaRoom.tsx", "analises/reports", "LoadingState"),
+    ("EstrategiaRoom.tsx", "analises/reports", "EmptyState"),
+    # DocumentosRoom — 3 data sections
+    ("DocumentosRoom.tsx", "assinaturas/approvals", "LoadingState"),
+    ("DocumentosRoom.tsx", "assinaturas/approvals", "EmptyState"),
+    ("DocumentosRoom.tsx", "documentos/docs", "LoadingState"),
+    ("DocumentosRoom.tsx", "documentos/docs", "EmptyState"),
+    ("DocumentosRoom.tsx", "templates", "LoadingState"),
+    ("DocumentosRoom.tsx", "templates", "EmptyState"),
+    # BibliotecaRoom — 1 data section (documents)
+    ("BibliotecaRoom.tsx", "documentos", "LoadingState"),
+    ("BibliotecaRoom.tsx", "documentos", "EmptyState"),
+    # AgentOpsRoom — 3 data sections
+    ("AgentOpsRoom.tsx", "sessoes", "LoadingState"),
+    ("AgentOpsRoom.tsx", "sessoes", "EmptyState"),
+    ("AgentOpsRoom.tsx", "jobs", "LoadingState"),
+    ("AgentOpsRoom.tsx", "jobs", "EmptyState"),
+    ("AgentOpsRoom.tsx", "credenciais", "LoadingState"),
+    ("AgentOpsRoom.tsx", "credenciais", "EmptyState"),
+    # AgendaRoom — 3 data sections
+    ("AgendaRoom.tsx", "agenda/schedule", "LoadingState"),
+    ("AgendaRoom.tsx", "agenda/schedule", "EmptyState"),
+    ("AgendaRoom.tsx", "aprovacoes/approvals", "LoadingState"),
+    ("AgendaRoom.tsx", "aprovacoes/approvals", "EmptyState"),
+    ("AgendaRoom.tsx", "historico/history", "LoadingState"),
+    ("AgendaRoom.tsx", "historico/history", "EmptyState"),
+]
+
+
+class TestRoomSectionsRenderEmptyAndLoading:
+    """AC#5 — Every room renders EmptyState for empty lists and
+    LoadingState during loading, in every data section.
+
+    Parametrized across 8 rooms × ~35 section+component pairs.
+    All tests fail RED because no room has been migrated yet.
+    """
+
+    @pytest.mark.parametrize(
+        "room_filename,_section,component",
+        ROOM_SECTIONS,
+    )
+    def test_section_renders_component(
+        self, room_filename: str, _section: str, component: str
+    ):
+        """Each data section in each room must render the correct
+        component (EmptyState or LoadingState) in its conditional
+        rendering branch."""
+        source = _read_room_source(room_filename)
+
+        assert _renders_component_jsx(source, component), (
+            f"RED — {room_filename} section '{_section}' does NOT "
+            f"render `<{component} … />` in its JSX tree. Expected "
+            f"the section to use the shared `{component}` component "
+            f"for its {'empty' if component == 'EmptyState' else 'loading'} "
+            f"state, instead of the legacy ad-hoc markup. The shared "
+            f"component is the single source of truth for "
+            f"{'empty-state' if component == 'EmptyState' else 'loading-state'} "
+            f"markup; rooms that haven't migrated yet still use "
+            f"inline `<div>` blocks and are out of contract."
+        )

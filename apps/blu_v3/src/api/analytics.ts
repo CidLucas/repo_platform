@@ -454,25 +454,47 @@ export const getFinanceIndicators = async (period: string = '30d'): Promise<Fina
 }
 
 export const getCommercialIndicators = async (period: string = '30d'): Promise<CommercialIndicators> => {
-  const r = await callDimensionRpc<Record<string, unknown>>('get_commercial_indicators', period)
-  return {
-    pedidos_periodo: num(r?.pedidos_periodo),
-    receita_periodo: num(r?.receita_periodo),
-    ticket_medio: num(r?.ticket_medio),
-    clientes_unicos: num(r?.clientes_unicos),
-    clientes_novos: num(r?.clientes_novos),
-    clientes_recorrentes: num(r?.clientes_recorrentes),
-    recencia_media_dias: num(r?.recencia_media_dias),
-    frequencia_media_mensal: num(r?.frequencia_media_mensal),
-    churn_60d_perc: numOrNull(r?.churn_60d_perc),
-    crescimento_receita_perc: numOrNull(r?.crescimento_receita_perc),
-    win_rate_perc: numOrNull(r?.win_rate_perc),
-    ciclo_venda_dias: numOrNull(r?.ciclo_venda_dias),
-    nrr_perc: numOrNull(r?.nrr_perc),
-    clv: numOrNull(r?.clv),
-    checkout_conversion_perc: numOrNull(r?.checkout_conversion_perc),
-    nps: numOrNull(r?.nps),
-    period: String(r?.period ?? period),
+  try {
+    const r = await callDimensionRpc<Record<string, unknown>>('get_commercial_indicators', period)
+    return {
+      pedidos_periodo: num(r?.pedidos_periodo),
+      receita_periodo: num(r?.receita_periodo),
+      ticket_medio: num(r?.ticket_medio),
+      clientes_unicos: num(r?.clientes_unicos),
+      clientes_novos: num(r?.clientes_novos),
+      clientes_recorrentes: num(r?.clientes_recorrentes),
+      recencia_media_dias: num(r?.recencia_media_dias),
+      frequencia_media_mensal: num(r?.frequencia_media_mensal),
+      churn_60d_perc: numOrNull(r?.churn_60d_perc),
+      crescimento_receita_perc: numOrNull(r?.crescimento_receita_perc),
+      win_rate_perc: numOrNull(r?.win_rate_perc),
+      ciclo_venda_dias: numOrNull(r?.ciclo_venda_dias),
+      nrr_perc: numOrNull(r?.nrr_perc),
+      clv: numOrNull(r?.clv),
+      checkout_conversion_perc: numOrNull(r?.checkout_conversion_perc),
+      nps: numOrNull(r?.nps),
+      period: String(r?.period ?? period),
+    }
+  } catch {
+    return {
+      pedidos_periodo: 0,
+      receita_periodo: 0,
+      ticket_medio: 0,
+      clientes_unicos: 0,
+      clientes_novos: 0,
+      clientes_recorrentes: 0,
+      recencia_media_dias: 0,
+      frequencia_media_mensal: 0,
+      churn_60d_perc: null,
+      crescimento_receita_perc: null,
+      win_rate_perc: null,
+      ciclo_venda_dias: null,
+      nrr_perc: null,
+      clv: null,
+      checkout_conversion_perc: null,
+      nps: null,
+      period,
+    }
   }
 }
 

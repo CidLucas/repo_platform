@@ -46,7 +46,7 @@ function detectVertical(text: string): string | null {
   return null;
 }
 
-function extractCNPJ(html: string): string | null {
+export function extractCNPJ(html: string): string | null {
   // CNPJ format: \d{2}\d{3}\d{3}\d{4}\d{2} (14 digits) or \d{2}\.\d{3}\.\d{3}/\d{4}-\d{2} (formatted)
   const cnpjRegex = new RegExp("\\d{2}\\.\\d{3}\\.\\d{3}/\\d{4}-\\d{2}");
   const cnpjPlainRegex = /\d{2}\d{3}\d{3}\d{4}\d{2}/;
@@ -92,7 +92,7 @@ function extractPhone(html: string): string | null {
   return plainMatch ? plainMatch[0] : null;
 }
 
-function validateCNPJ(cnpj) {
+function validateCNPJ(cnpj: string) {
   const cleaned = cnpj.replace(/\D/g, "");
   if (cleaned.length !== 14) return false;
   if (/^(\d)\1+$/.test(cleaned)) return false;

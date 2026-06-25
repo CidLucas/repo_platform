@@ -480,12 +480,13 @@ function StepInfo({
   const [error, setError] = useState<string | null>(null)
   const [detecting, setDetecting] = useState(false)
   const [siteContext, setSiteContext] = useState<SiteContext | null>(null)
+  const clearSiteCtx = () => setSiteContext(null)
 
   async function handleWebsiteBlur() {
     const url = website.trim()
     if (!url) return
     setDetecting(true)
-    setSiteContext(null)
+    clearSiteCtx()
     try {
       const { data, error } = await supabase.functions.invoke('onboarding-website-intel', {
         body: { website_url: url },
@@ -628,24 +629,24 @@ function StepInfo({
                   />
                 )}
                 {siteContext.cnpj && (
-                  <div key="cnpj" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <ScrapeField label="CNPJ" value={formatCnpj(siteContext.cnpj)} delay={250} />
                     {siteContext.confidence >= 0.7 ? (
                       <span style={{ color: '#16a34a', background: '#dcfce7', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança alta</span>
                     ) : siteContext.confidence >= 0.3 ? (
                       <span style={{ color: '#ca8a04', background: '#fef9c3', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança média</span>
                     ) : null}
-                  </div>
+                  </span>
                 )}
                 {siteContext.telefone && (
-                  <div key="telefone" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <ScrapeField label="Telefone" value={siteContext.telefone} delay={500} />
                     {siteContext.confidence >= 0.7 ? (
                       <span style={{ color: '#16a34a', background: '#dcfce7', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança alta</span>
                     ) : siteContext.confidence >= 0.3 ? (
                       <span style={{ color: '#ca8a04', background: '#fef9c3', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança média</span>
                     ) : null}
-                  </div>
+                  </span>
                 )}
               </div>
 

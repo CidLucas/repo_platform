@@ -20,15 +20,24 @@ in config.toml → no user JWT). Public callers (frontend) MUST go through
 
 ⚠️ CRITICAL — Function signature drift
 ---------------------------------------
-The Deno EF calls ``vector_db.hybrid_match_documents`` with **12 params**
-(scope, categories, themes, fusion_strategy, weights, …). The function
-in ``archive/20260430000000_baseline.sql:2692`` has **5 params** and the
-active baseline ``20260523999999_baseline_v2.sql`` doesn't define the
-function at all. This means the EF has been returning 500 in production
-silently, and so will this port — until the function is re-applied with
-the 12-param signature. The port is intentionally a drop-in replacement
-of the EF (callers are unchanged) so re-applying the function in a future
-migration makes the whole stack come back to life.
+The Deno EF (and this port) call ``vector_db.hybrid_match_documents`` with
+**12 params** (scope, categories, themes, fusion_strategy, weights, …).
+The function does NOT exist in the active baseline
+``20260523999999_baseline_v2.sql`` — only the 5-param version lives in
+``archive/20260430000000_baseline.sql:2692``. Lucas confirmed (2026-06-25)
+that the live Supabase has the ``vector_db.documents`` and
+``vector_db.document_chunks`` TABLES but NOT the search functions. RAG
+was dead at the SQL layer.
+
+A migration that recreates the 2 functions with the correct signatures
+lives in ``supabase/migrations/proposed/20260625000000_hybrid_match_documents_12param.sql``
+— Lucas needs to review and apply it. Once applied, this port will work
+end-to-end (the Cohere call + the RPC call are both correct; the missing
+piece is the function in the DB).
+
+The port is intentionally a drop-in replacement of the EF (caller payloads
+unchanged) so re-applying the function makes the whole RAG stack come
+back to life without further code changes.
 """
 from __future__ import annotations
 

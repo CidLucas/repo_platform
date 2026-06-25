@@ -361,20 +361,35 @@ A racionalização original propôs ~3.580 LOC de redução em 5 ondas. **~30% j
 1. A EF `search-documents` chama `vector_db.hybrid_match_documents` com **12 parâmetros** (incluindo `scope`, `categories`, `themes`, `fusion_strategy`, `keyword_weight`, `vector_weight`).
 2. A única definição no repo está em `archive/20260430000000_baseline.sql:2692` e tem apenas **5 parâmetros**: `(p_client_id, p_query_embed, p_query_text, p_match_count, p_theme_filter)`.
 3. O baseline ativo `20260523999999_baseline_v2.sql` **NÃO DEFINE** nenhuma das duas funções (`hybrid_match_documents` nem `match_documents`).
-4. A tabela `vector_db.document_chunks` também não está definida no baseline ativo.
+4. Lucas confirmou (2026-06-25) que `vector_db.document_chunks` e `vector_db.documents` **EXISTEM no DB live** (schema confirmado via Studio). Só as funções estão faltando.
 
 **Implicações:**
-- A EF `search-documents` retorna 500 silenciosamente em produção (ou nunca foi deployada — não há como saber sem checar logs do Supabase).
-- O port Python (`services/search_documents/`) replica a assinatura de 12 params, então também vai falhar até que a função seja reaplicada.
-- Toda a stack RAG (process-document, search-documents, HybridRetriever) está morta no DB atual.
+- A EF `search-documents` retornava 500 silenciosamente em produção (ou nunca foi deployada — Lucas disse que "não achei hybrid match documents" no DB).
+- O port Python (commit `085af419`) replica a assinatura de 12 params, então também vai falhar até que a função seja reaplicada.
 
-**Ação necessária (P0):**
-- [ ] Investigar via Supabase Studio / logs se a função `vector_db.hybrid_match_documents` existe no banco remoto (pode ter sido aplicada manualmente e nunca commitada).
-- [ ] Se NÃO existe: criar migration em `supabase/migrations/proposed/` que (a) cria `vector_db.document_chunks` se faltar, (b) re-aplica `hybrid_match_documents` com a assinatura de 12 params, (c) re-aplica `match_documents` (5 params). Lucas revisa antes de aplicar.
-- [ ] Se existe: commitar a migration que a define no repo para reprodutibilidade.
-- [ ] Adicionar test smoke E2E que valida `POST /v1/search-documents` retorna 200 com resultados reais (hoje os 33 tests do port são todos unit-mocked).
+**Migration proposta criada:**
 
-**LOC:** +0 (port já feito). Migration a criar: ~150 LOC SQL.
+`supabase/migrations/proposed/20260625000000_hybrid_match_documents_12param.sql`
+
+- Cria `vector_db.match_documents` (5 params, signature exata que o EF "semantic" mode chama).
+- Cria `vector_db.hybrid_match_documents` (12 params, signature exata que o EF "hybrid" mode e o port Python chamam).
+- Implementa RRF (`1/(60+rank_sem) + 1/(60+rank_kw)`) e weighted fusion (configurável por `p_fusion_strategy`).
+- Threshold do hybrid é aplicado LOOSELY (similarity >= threshold/2 OR keyword_score > 0) pra preservar FTS-only hits.
+- JOIN com `vector_db.documents` retorna `file_name` e `document_title` (o que `blu_rag_factory.retriever` espera).
+- `SET search_path = ''` + `STABLE SECURITY DEFINER` (padrão).
+- Grants para `service_role` e `authenticated`.
+
+**Ação de Lucas (próximo passo):**
+- [ ] Revisar a migration proposta (5 min de leitura).
+- [ ] Aplicar no DB live via Supabase Studio SQL Editor OU `supabase db push` se a migration for promoted para `applied/`.
+- [ ] Smoke test: rodar a query comentada no fim do arquivo (descomentar e ajustar o client_id).
+- [ ] Verificar se `POST /v1/search-documents` retorna 200 com resultados reais (os 33 tests do port são todos unit-mocked — só cobrem a forma, não a função SQL).
+
+**Follow-up (P1, não-bloqueador):**
+- [ ] Capturar o schema de `vector_db.documents` + `vector_db.document_chunks` + 11 índices numa migration `proposed/20260625*_vector_db_schema_snapshot.sql` pra repo ficar reproduzível (Lucas colou o DDL via chat; precisa virar migration).
+- [ ] Adicionar test E2E real (1-2 tests) que valide `POST /v1/search-documents` contra o DB live, com cleanup.
+
+**LOC:** +200 LOC SQL (a migration proposta).
 
 ---
 

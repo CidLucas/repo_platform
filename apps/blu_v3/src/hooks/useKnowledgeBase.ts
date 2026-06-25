@@ -13,6 +13,8 @@ import {
   type CsvUploadResult,
 } from '../services/knowledgeBaseService'
 
+const POLLING_TIMEOUT_MS = 120_000
+
 interface KBState {
   documents: KBDocument[]
   loading: boolean
@@ -61,7 +63,15 @@ export function useKnowledgeBase() {
       load()
     }, 5_000)
 
-    return () => clearInterval(interval)
+    const timeout = setTimeout(() => {
+      clearInterval(interval)
+      setState((prev) => ({ ...prev, error: 'Falha no processamento' }))
+    }, POLLING_TIMEOUT_MS)
+
+    return () => {
+      clearInterval(interval)
+      clearTimeout(timeout)
+    }
   }, [state.documents, load])
 
   const upload = useCallback(

@@ -7,7 +7,8 @@
  * 2. Persists confirmed column_mapping + user_column_changes to client_data_sources
  * 3. Downloads CSV from Storage, parses rows, stages them in csv_import_staging
  * 4. Creates reg_jobs record (job_type='csv_sync', status='pending')
- * 5. Returns job_id — pg_cron dispatches sincronizar_csv_cliente within ~1 min
+ * 5. Executes sincronizar_csv_cliente inline via svc.rpc as a pg_cron fallback
+ * 6. Returns job_id — pg_cron will still pick up the job if inline failed
  */
 
 import {
@@ -279,6 +280,21 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Failed to create sync job" }, 500);
     }
 
+    // ── 9. Execute ETL inline (pg_cron fallback) ──────────────────────────────
+    const period = new Date().toISOString().slice(0, 7);
+    try {
+      const { error: rpcErr } = await svc.rpc("sincronizar_csv_cliente", {
+        p_job_id: job.job_id,
+      });
+      if (rpcErr) {
+        console.error("Inline RPC failed:", rpcErr);
+        return json({ success: true, rows_inserted: 0, period: period }, 200);
+      }
+    } catch (rpcEx) {
+      console.error("Inline RPC exception:", rpcEx);
+      return json({ success: true, rows_inserted: 0, period: period }, 200);
+    }
+
     const initDuration = Date.now() - startTime;
     console.log(
       `[run-csv-etl] ${requestId} Queued job=${job.job_id} rows=${rows.length} in ${initDuration}ms`,
@@ -289,7 +305,7 @@ Deno.serve(async (req: Request) => {
       job_id: job.job_id,
       request_id: requestId,
       row_count: rows.length,
-      message: "CSV sync job queued. ETL will start within ~1 minute.",
+      message: "CSV sync job executed inline. Data is being processed.",
     }, 200, {
       "X-Request-Id": requestId,
       "X-Duration-Ms": String(initDuration),

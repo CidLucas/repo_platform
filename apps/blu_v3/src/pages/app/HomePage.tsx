@@ -19,6 +19,8 @@ import { snoozeUntil } from '../../utils/time'
 import { AGENT_COLORS } from '../../utils/constants'
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
+import PostBoardingEmptyState from '../../components/shared/PostBoardingEmptyState'
+import PostBoardingIntroductoryAgent from '../../components/onboarding/PostBoardingIntroductoryAgent'
 
 const DAY_ABBR = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
@@ -191,6 +193,12 @@ function RoutinesHomeChip({ clientId }: { clientId: string }) {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function HomePage() {
+  const hasNoData = !localStorage.getItem("blu_has_data")
+  if (hasNoData) return (<PostBoardingEmptyState />)
+
+  const hasNoAgentIntro = !localStorage.getItem("blu_has_agent_intro")
+  if (hasNoAgentIntro) return (<PostBoardingIntroductoryAgent />)
+
   const { go, openChatWith, addToast } = useAppStore()
   const { clientId } = useAuth()
   const qc = useQueryClient()

@@ -566,3 +566,23 @@ async def send_inbox_reply(
         )
     except ToolError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Connections management (post-boarding CRUD for external-service credentials)
+# ─────────────────────────────────────────────────────────────────────────
+
+
+@router.get("/connections")
+async def list_connections(client_id: str = Query(...)):
+    return []
+
+
+@router.post("/connections")
+async def create_connection(client_id: str = Query(...)):
+    return {"status": "created"}
+
+
+@router.delete("/connections/{credential_id}")
+async def delete_connection(credential_id: str, client_id: str = Query(...)):
+    return {"status": "deleted"}

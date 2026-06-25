@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../hooks/useAuth'
 import {
@@ -8,6 +8,7 @@ import {
   toggleRoutine,
   updateRoutineTrigger,
   createCustomRoutine,
+  updateCustomRoutine,
   deleteCustomRoutine,
   submitRoutineForApproval,
   type ClientRoutine,
@@ -312,13 +313,89 @@ function CatalogRoutineRow({
 
 function CustomRoutineRow({
   routine,
+  clientId,
+  domain,
   onDelete,
   onSubmit,
 }: {
   routine: CustomRoutine
+  clientId: string
+  domain: string
   onDelete: (id: string) => void
   onSubmit: (id: string, name: string) => void
 }) {
+  const qc = useQueryClient()
+  const [editingName, setEditingName] = useState(false)
+  const [editValue, setEditValue] = useState(routine.name)
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const cancelledRef = useRef(false)
+
+  const renameMut = useMutation({
+    mutationFn: () => updateCustomRoutine(routine.id, clientId, { name: editValue.trim() }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['custom-routines', domain, clientId] })
+      setEditingName(false)
+    },
+  })
+
+  useEffect(() => {
+    if (editingName && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+    }
+  }, [editingName])
+
+  const startEditing = () => {
+    cancelledRef.current = false
+    setEditValue(routine.name)
+    setEditingName(true)
+  }
+
+  const cancelEditing = () => {
+    cancelledRef.current = true
+    setEditValue(routine.name)
+    setEditingName(false)
+  }
+
+  const saveEdit = () => {
+    const trimmed = editValue.trim()
+    if (!trimmed) {
+      setEditValue(routine.name)
+      setEditingName(false)
+      return
+    }
+    if (trimmed.length > 200) {
+      setEditValue(routine.name)
+      setEditingName(false)
+      return
+    }
+    if (trimmed === routine.name) {
+      setEditingName(false)
+      return
+    }
+    renameMut.mutate()
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      saveEdit()
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      cancelEditing()
+    }
+  }
+
+  const handleBlur = () => {
+    if (cancelledRef.current) {
+      cancelledRef.current = false
+      return
+    }
+    if (editingName && !renameMut.isPending) {
+      saveEdit()
+    }
+  }
+
   const statusColor: Record<string, string> = {
     active: 'var(--ok)',
     inactive: 'var(--mu)',
@@ -342,8 +419,53 @@ function CustomRoutineRow({
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 12.5, fontWeight: 600 }}>{routine.name}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {editingName ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <input
+                ref={inputRef}
+                value={editValue}
+                onChange={e => setEditValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onBlur={handleBlur}
+                maxLength={200}
+                disabled={renameMut.isPending}
+                style={{
+                  background: 'rgba(0,0,0,.3)',
+                  border: '1px solid var(--gb)',
+                  borderRadius: 5,
+                  padding: '6px 10px',
+                  fontSize: 12,
+                  color: 'inherit',
+                  fontFamily: 'var(--mono)',
+                  outline: 'none',
+                  width: '100%',
+                }}
+              />
+              {renameMut.isError && (
+                <div style={{ fontSize: 11, color: 'var(--urg)' }}>Erro ao salvar. Tente novamente.</div>
+              )}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600 }}>{routine.name}</div>
+              <span
+                onClick={startEditing}
+                title="Renomear rotina"
+                style={{
+                  fontSize: 11,
+                  cursor: 'pointer',
+                  opacity: 0.5,
+                  color: 'var(--mu)',
+                  transition: 'opacity .15s',
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLSpanElement).style.opacity = '1' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLSpanElement).style.opacity = '0.5' }}
+              >
+                ✎ rename
+              </span>
+            </div>
+          )}
           {routine.description && (
             <div style={{ fontSize: 11, color: 'var(--mu)', marginTop: 2 }}>{routine.description}</div>
           )}
@@ -685,6 +807,8 @@ export default function RoutinesPanel({ domain, platform }: { domain: string; pl
         <CustomRoutineRow
           key={r.id}
           routine={r}
+          clientId={clientId!}
+          domain={domain}
           onDelete={id => deleteMut.mutate(id)}
           onSubmit={(id, name) => submitMut.mutate({ id, name })}
         />

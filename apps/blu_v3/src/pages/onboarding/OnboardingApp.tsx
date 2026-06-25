@@ -58,6 +58,12 @@ interface PendingCredential {
 
 type Step = 'auth' | 'info' | 'data' | 'mapping' | 'launch'
 
+type CsvClassification = {
+  confirmed: boolean
+  schemaType: string
+  canceled: boolean
+}
+
 const STEP_ORDER: Step[] = ['auth', 'info', 'data', 'mapping', 'launch']
 const STEP_LABELS = ['Conta', 'Empresa', 'Dados', 'Mapeamento']
 
@@ -132,11 +138,11 @@ export type ColumnMappingResult = {
   details: MappingDetail[]
 }
 
-async function callMatchColumns(sourceColumns: string[]): Promise<ColumnMappingResult | null> {
+async function callMatchColumns(sourceColumns: string[], schemaType?: string): Promise<ColumnMappingResult | null> {
   if (sourceColumns.length === 0) return null
   try {
     const { data, error } = await supabase.functions.invoke('match-columns', {
-      body: { source_columns: sourceColumns, schema_type: 'invoices' },
+      body: { source_columns: sourceColumns, schema_type: schemaType || 'invoices' },
     })
     if (error) {
       console.warn('[onboarding] match-columns failed:', error.message)
@@ -428,6 +434,7 @@ interface SiteContext {
   vertical?: string
   confidence: number
   suggested_agents?: string[]
+  telefone?: string
 }
 
 function formatCnpj(raw: string): string {
@@ -464,6 +471,7 @@ function StepInfo({
   const [nome, setNome] = useState(initialNome)
   const [empresa, setEmpresa] = useState(initialEmpresa)
   const [cnpj, setCnpj] = useState(initialCnpj)
+  const [telefone, setTelefone] = useState('')
   const [website, setWebsite] = useState(initialWebsite)
   const [vertical, setVertical] = useState(initialVertical || '')
   const [teamSize, setTeamSize] = useState(initialPorte || '')
@@ -472,12 +480,13 @@ function StepInfo({
   const [error, setError] = useState<string | null>(null)
   const [detecting, setDetecting] = useState(false)
   const [siteContext, setSiteContext] = useState<SiteContext | null>(null)
+  const clearSiteCtx = () => setSiteContext(null)
 
   async function handleWebsiteBlur() {
     const url = website.trim()
     if (!url) return
     setDetecting(true)
-    setSiteContext(null)
+    clearSiteCtx()
     try {
       const { data, error } = await supabase.functions.invoke('onboarding-website-intel', {
         body: { website_url: url },
@@ -491,13 +500,15 @@ function StepInfo({
         setCnpj(ctx.cnpj)
         setCnpj(prev => prev.replace(/\D/g, ""))
       }
+      // Auto-fill telefone
+      if (ctx.telefone && !telefone.trim()) setTelefone(ctx.telefone)
       // Auto-fill vertical
       const detected = VERTICAL_DISPLAY[ctx.vertical as string]
       if (detected && ctx.confidence >= 0.3) {
         setVertical(detected)
       }
       // Show context card for any confidence level to let user confirm/adjust
-      if (ctx.vertical || ctx.company_name) setSiteContext(ctx)
+      if (ctx.vertical || ctx.company_name || ctx.cnpj || ctx.telefone) setSiteContext(ctx)
     } catch {
       // best-effort, silent
     } finally {
@@ -616,6 +627,26 @@ function StepInfo({
                     value={siteContext.suggested_agents.slice(0, 3).join(', ')}
                     delay={500}
                   />
+                )}
+                {siteContext.cnpj && (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <ScrapeField label="CNPJ" value={formatCnpj(siteContext.cnpj)} delay={250} />
+                    {siteContext.confidence >= 0.7 ? (
+                      <span style={{ color: '#16a34a', background: '#dcfce7', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança alta</span>
+                    ) : siteContext.confidence >= 0.3 ? (
+                      <span style={{ color: '#ca8a04', background: '#fef9c3', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança média</span>
+                    ) : null}
+                  </span>
+                )}
+                {siteContext.telefone && (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <ScrapeField label="Telefone" value={siteContext.telefone} delay={500} />
+                    {siteContext.confidence >= 0.7 ? (
+                      <span style={{ color: '#16a34a', background: '#dcfce7', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança alta</span>
+                    ) : siteContext.confidence >= 0.3 ? (
+                      <span style={{ color: '#ca8a04', background: '#fef9c3', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança média</span>
+                    ) : null}
+                  </span>
                 )}
               </div>
 
@@ -933,7 +964,7 @@ function StepData({
   saveDraft: (patch: Partial<OnboardingDraft>) => Promise<void>
   onMappingReady: (result: ColumnMappingResult | null) => void
   onCredentialCollected: (platform: ConnectorPlatform, nomServico: string, credentials: CredentialPayload) => void
-  onCsvFileReady: (file: File | null, sheetName?: string) => void
+  onCsvFileReady: (file: File | null, sheetName?: string, schemaType?: string) => void
   onDriveFileReady: (fileId: string) => void
 }) {
   const [connected, setConnected] = useState<Record<string, boolean>>({})
@@ -942,7 +973,10 @@ function StepData({
   const [csvUploaded, setCsvUploaded] = useState(false)
   const [csvHeaders, setCsvHeaders] = useState<string[]>([])
   const [csvFileName, setCsvFileName] = useState<string>('')
+  const [csvClassification, setCsvClassification] = useState<CsvClassification | null>(null)
+  const [showClassificationModal, setShowClassificationModal] = useState(false)
   const csvRef = useRef<HTMLInputElement>(null)
+  const csvFileRef = useRef<File | null>(null)
   const [driveOpen, setDriveOpen] = useState(false)
   const [driveUrl, setDriveUrl] = useState('')
   const [driveConnected, setDriveConnected] = useState(false)
@@ -1057,11 +1091,13 @@ function StepData({
   async function handleCsvChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    setCsvUploaded(true)
+    // Only set file info, not csvUploaded — modal will confirm
     setCsvFileName(file.name)
     const { headers, sheetName } = await parseSpreadsheetHeaders(file)
     setCsvHeaders(headers)
-    onCsvFileReady(file, sheetName)
+    // Store file ref for later use
+    csvFileRef.current = file
+    setShowClassificationModal(true)
   }
 
   async function handleNext() {
@@ -1071,7 +1107,8 @@ function StepData({
     ]
     await saveDraft({ systems, csvUploaded })
     // Match CSV columns if uploaded; BQ columns are discovered in StepLaunch
-    const mappingResult = csvHeaders.length > 0 ? await callMatchColumns(csvHeaders) : null
+    const schemaType = csvClassification?.schemaType || 'invoices'
+    const mappingResult = csvHeaders.length > 0 ? await callMatchColumns(csvHeaders, schemaType) : null
     onMappingReady(mappingResult)
     onNext(mappingResult)
   }
@@ -1186,6 +1223,56 @@ function StepData({
                   Confirmar arquivo
                 </button>
               </div>
+            </div>
+          )}
+          {showClassificationModal && (
+            <div style={{ marginTop: 16, padding: 16, background: 'var(--surface)', border: '1px solid var(--gb)', borderRadius: 'var(--rl)' }}>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
+                Detectamos {csvHeaders.length} colunas que parecem ser de notas fiscais. Confirma?
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                <button className="btn btn-primary" onClick={() => {
+                  setCsvUploaded(true)
+                  setCsvClassification({ confirmed: true, schemaType: 'invoices', canceled: false })
+                  setShowClassificationModal(false)
+                  const file = csvFileRef.current
+                  if (file) onCsvFileReady(file, undefined, 'invoices')
+                }}>Sim, sao notas</button>
+                <button className="btn btn-ghost" onClick={() => {
+                  setCsvClassification(prev => prev ? { ...prev, schemaType: '' } : { confirmed: false, schemaType: '', canceled: false })
+                }}>Nao, e outro tipo</button>
+                <button className="btn btn-ghost" onClick={() => {
+                  setCsvFileName('')
+                  setCsvHeaders([])
+                  setCsvUploaded(false)
+                  setCsvClassification(null)
+                  setShowClassificationModal(false)
+                  csvFileRef.current = null
+                  onCsvFileReady(null)
+                }}>Cancelar</button>
+              </div>
+              {csvClassification && !csvClassification.confirmed && (
+                <div className="field">
+                  <label>schemaType:</label>
+                  <select value={csvClassification.schemaType} onChange={e => {
+                    setCsvClassification(prev => prev ? { ...prev, schemaType: e.target.value } : { confirmed: false, schemaType: e.target.value, canceled: false })
+                    if (e.target.value !== '') {
+                      setCsvUploaded(true)
+                      setCsvClassification({ confirmed: true, schemaType: e.target.value, canceled: false })
+                      setShowClassificationModal(false)
+                      const file = csvFileRef.current
+                      if (file) onCsvFileReady(file, undefined, e.target.value)
+                    }
+                  }}>
+                    <option value="">Selecione…</option>
+                    <option value="invoices">invoices</option>
+                    <option value="receipts">receipts</option>
+                    <option value="bank_statements">bank_statements</option>
+                    <option value="outros">outros</option>
+                    <option value="Nao sei">Nao sei (sugere via LLM)</option>
+                  </select>
+                </div>
+              )}
             </div>
           )}
           <input
@@ -1490,13 +1577,14 @@ function StepMapping({
 
 // ─── StepLaunch ───────────────────────────────────────────────────────────────
 
-function StepLaunch({ bootstrap, pendingCredentials, onDone, website, csvFile, csvSheetName, driveFileId, confirmedColumnMapping }: {
+function StepLaunch({ bootstrap, pendingCredentials, onDone, website, csvFile, csvSheetName, csvSchemaType, driveFileId, confirmedColumnMapping }: {
   bootstrap: () => Promise<{ client_id: string; agents: number; routines: number; prompts_seeded: number }>
   pendingCredentials: PendingCredential[]
   onDone: (mappingResult: ColumnMappingResult | null, credentialId: number | null, clientId: string, csvSourceId: string | null) => void
   website?: string
   csvFile?: File | null
   csvSheetName?: string
+  csvSchemaType?: string
   driveFileId?: string | null
   confirmedColumnMapping?: Record<string, string>
 }) {
@@ -1614,7 +1702,7 @@ function StepLaunch({ bootstrap, pendingCredentials, onDone, website, csvFile, c
             const form = new FormData()
             form.append('file', csvFile)
             form.append('client_id', result.client_id)
-            form.append('schema_type', 'invoices')
+            form.append('schema_type', csvSchemaType || 'invoices')
             if (csvSheetName) form.append('sheet_name', csvSheetName)
             const { data: uploadData, error: uploadErr } = await supabase.functions.invoke('upload-csv-source', {
               body: form,
@@ -1772,6 +1860,7 @@ export default function OnboardingApp() {
   const [bqClientId, setBqClientId] = useState<string | null>(null)
   const [csvFile, setCsvFile] = useState<File | null>(null)
   const [csvSheetName, setCsvSheetName] = useState<string>('')
+  const [csvSchemaType, setCsvSchemaType] = useState<string>('invoices')
   const [csvSourceId, setCsvSourceId] = useState<string | null>(null)
   const [driveFileId, setDriveFileId] = useState<string | null>(null)
 
@@ -1908,7 +1997,11 @@ export default function OnboardingApp() {
         onSkip={() => go('launch')}
         saveDraft={saveDraft}
         onMappingReady={setMappingResult}
-        onCsvFileReady={(file, sheetName) => { setCsvFile(file); setCsvSheetName(sheetName ?? '') }}
+        onCsvFileReady={(file, sheetName, schemaType) => {
+          setCsvFile(file)
+          setCsvSheetName(sheetName ?? '')
+          if (schemaType) setCsvSchemaType(schemaType)
+        }}
         onDriveFileReady={(fileId) => setDriveFileId(fileId)}
         onCredentialCollected={(platform, nomServico, credentials) =>
           setPendingCredentials(prev => [
@@ -1942,6 +2035,7 @@ export default function OnboardingApp() {
       website={draft.website || undefined}
       csvFile={csvFile}
       csvSheetName={csvSheetName}
+      csvSchemaType={csvSchemaType}
       driveFileId={driveFileId}
       confirmedColumnMapping={confirmedColumnMapping ?? undefined}
       onDone={(bqMapping, credentialId, clientId, uploadedCsvSourceId) => {

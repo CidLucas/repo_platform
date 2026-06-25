@@ -2780,59 +2780,13 @@ END;
 
 $function$;
 
-CREATE OR REPLACE FUNCTION analytics_v2.get_supply_indicators(p_period text DEFAULT '30d'::text)
-RETURNS TABLE(rfqs_abertas bigint, rfqs_enviadas bigint, rfqs_respondidas bigint, taxa_resposta_perc numeric, tempo_resposta_medio_h numeric, pos_aprovadas bigint, pos_pendentes_aprovacao bigint, spend_periodo numeric, fornecedores_ativos bigint, concentracao_top_perc numeric, cycle_time_medio_h numeric, cost_savings_perc numeric, ppv numeric, otif_perc numeric, lead_time_medio_dias numeric, maverick_spend_perc numeric, spend_under_management_perc numeric, period text)
-LANGUAGE sql
-AS $function$
-  SELECT
-    0::bigint as rfqs_abertas,
-    0::bigint as rfqs_enviadas,
-    0::bigint as rfqs_respondidas,
-    0::numeric as taxa_resposta_perc,
-    0::numeric as tempo_resposta_medio_h,
-    0::bigint as pos_aprovadas,
-    0::bigint as pos_pendentes_aprovacao,
-    COALESCE(SUM(ft.valor), 0) as spend_periodo,
-    COALESCE(COUNT(DISTINCT df.fornecedor_id), 0) as fornecedores_ativos,
-    0::numeric as concentracao_top_perc,
-    0::numeric as cycle_time_medio_h,
-    0::numeric as cost_savings_perc,
-    0::numeric as ppv,
-    0::numeric as otif_perc,
-    0::numeric as lead_time_medio_dias,
-    0::numeric as maverick_spend_perc,
-    0::numeric as spend_under_management_perc,
-    p_period as period
-  FROM analytics_v2.dim_fornecedores df
-  LEFT JOIN analytics_v2.fato_transacoes ft ON ft.fornecedor_id = df.fornecedor_id;
-$function$;
-
 CREATE OR REPLACE FUNCTION public.get_supply_indicators(p_period text DEFAULT '30d'::text)
 RETURNS TABLE(rfqs_abertas bigint, rfqs_enviadas bigint, rfqs_respondidas bigint, taxa_resposta_perc numeric, tempo_resposta_medio_h numeric, pos_aprovadas bigint, pos_pendentes_aprovacao bigint, spend_periodo numeric, fornecedores_ativos bigint, concentracao_top_perc numeric, cycle_time_medio_h numeric, cost_savings_perc numeric, ppv numeric, otif_perc numeric, lead_time_medio_dias numeric, maverick_spend_perc numeric, spend_under_management_perc numeric, period text)
 LANGUAGE sql
 AS $function$
-  SELECT COALESCE(s.rfqs_abertas, 0) as rfqs_abertas,
-         COALESCE(s.rfqs_enviadas, 0) as rfqs_enviadas,
-         COALESCE(s.rfqs_respondidas, 0) as rfqs_respondidas,
-         COALESCE(s.taxa_resposta_perc, 0) as taxa_resposta_perc,
-         COALESCE(s.tempo_resposta_medio_h, 0) as tempo_resposta_medio_h,
-         COALESCE(s.pos_aprovadas, 0) as pos_aprovadas,
-         COALESCE(s.pos_pendentes_aprovacao, 0) as pos_pendentes_aprovacao,
-         COALESCE(s.spend_periodo, 0) as spend_periodo,
-         COALESCE(s.fornecedores_ativos, 0) as fornecedores_ativos,
-         COALESCE(s.concentracao_top_perc, 0) as concentracao_top_perc,
-         COALESCE(s.cycle_time_medio_h, 0) as cycle_time_medio_h,
-         COALESCE(s.cost_savings_perc, 0) as cost_savings_perc,
-         COALESCE(s.ppv, 0) as ppv,
-         COALESCE(s.otif_perc, 0) as otif_perc,
-         COALESCE(s.lead_time_medio_dias, 0) as lead_time_medio_dias,
-         COALESCE(s.maverick_spend_perc, 0) as maverick_spend_perc,
-         COALESCE(s.spend_under_management_perc, 0) as spend_under_management_perc,
-         COALESCE(s.period, p_period) as period
-  FROM analytics_v2.get_supply_indicators(p_period) s
-  UNION ALL
-  SELECT 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, p_period
-  WHERE NOT EXISTS (SELECT 1 FROM analytics_v2.dim_fornecedores LIMIT 1);
+
+  SELECT * FROM analytics_v2.get_supply_indicators(p_period);
+
 $function$;
 
 CREATE OR REPLACE FUNCTION public.get_ticket_medio_monthly_rate(p_client_id uuid, p_window_months integer DEFAULT 1)
@@ -4330,6 +4284,8 @@ $function$;
 CREATE OR REPLACE FUNCTION public.sincronizar_csv_cliente(p_job_id uuid)
 RETURNS jsonb
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public', 'analytics_v2'
 AS $function$
 
 DECLARE
@@ -4375,6 +4331,12 @@ DECLARE
   v_produto_id           BIGINT;
   v_data_id              BIGINT;
   v_parsed_date          DATE;
+
+  -- NEW: classification variables
+  v_client_cpf_cnpj      TEXT;   -- CPF/CNPJ do próprio cliente (de clientes_blu)
+  v_entity_context       TEXT;   -- detected_entity_context do source
+  v_tipo_transacao       TEXT;   -- 'venda' | 'compra' | 'despesa' | 'banking'
+  v_entry_type           TEXT;   -- 'revenue' | 'purchase' | 'expense' | 'banking'
 BEGIN
   SELECT job_id, client_id, input_params, status
   INTO v_job
@@ -4409,6 +4371,15 @@ BEGIN
     IF v_column_mapping IS NULL OR v_column_mapping = '{}'::jsonb THEN
       RAISE EXCEPTION 'No column_mapping found for source %', v_source_id;
     END IF;
+
+    -- NEW: fetch client's own CPF/CNPJ and source entity context
+    SELECT cpf_cnpj INTO v_client_cpf_cnpj
+    FROM public.clientes_blu
+    WHERE client_id = v_client_id;
+
+    SELECT detected_entity_context INTO v_entity_context
+    FROM public.client_data_sources
+    WHERE id = v_source_id AND client_id = v_client_id;
 
     SELECT * INTO v_staging
     FROM public.csv_import_staging
@@ -4588,17 +4559,70 @@ BEGIN
         END IF;
       END IF;
 
+      -- ── tipo_transacao cascade (espelha apply_staging_to_facts) ─────────────
+      -- Tier 1: tipo_lancamento mapeado no CSV → keyword match
+      IF v_tipo_lancamento IS NOT NULL THEN
+        v_tipo_transacao := CASE
+          WHEN v_tipo_lancamento ILIKE ANY(ARRAY['venda%','receita%','faturamento%','nf%','nota fiscal%','revenue%']) THEN 'venda'
+          WHEN v_tipo_lancamento ILIKE ANY(ARRAY['compra%','material%','mat%','insumo%','estoque%','mdo%','mão de obra%','serviço%','servico%','fornecedor%']) THEN 'compra'
+          WHEN v_tipo_lancamento ILIKE ANY(ARRAY['despesa%','custo%','overhead%','admin%','expense%']) THEN 'despesa'
+          WHEN v_tipo_lancamento ILIKE ANY(ARRAY['transfer%','banco%','banking%','saldo%']) THEN 'banking'
+          ELSE NULL  -- label desconhecido → deixa cair para tier 2
+        END;
+      END IF;
+
+      -- Tier 2: CPF/CNPJ do próprio cliente cruzado com dados da row
+      IF v_tipo_transacao IS NULL AND v_client_cpf_cnpj IS NOT NULL THEN
+        IF regexp_replace(COALESCE(v_fornecedor_cnpj, ''), '[^0-9]', '', 'g')
+             = regexp_replace(v_client_cpf_cnpj, '[^0-9]', '', 'g')
+           AND v_fornecedor_cnpj IS NOT NULL THEN
+          v_tipo_transacao := 'venda';   -- cliente é o emissor da NF (fornecedor na row == ele mesmo)
+        ELSIF regexp_replace(COALESCE(v_cliente_cpf_cnpj, ''), '[^0-9]', '', 'g')
+                = regexp_replace(v_client_cpf_cnpj, '[^0-9]', '', 'g')
+              AND v_cliente_cpf_cnpj IS NOT NULL THEN
+          v_tipo_transacao := 'compra';  -- cliente é o comprador (cliente na row == ele mesmo)
+        END IF;
+      END IF;
+
+      -- Tier 3: dim hit — se encontrou cliente/fornecedor nas dims
+      IF v_tipo_transacao IS NULL THEN
+        IF    v_customer_id   IS NOT NULL THEN v_tipo_transacao := 'venda';
+        ELSIF v_fornecedor_id IS NOT NULL THEN v_tipo_transacao := 'compra';
+        END IF;
+      END IF;
+
+      -- Tier 4: detected_entity_context do source
+      IF v_tipo_transacao IS NULL THEN
+        v_tipo_transacao := CASE
+          WHEN v_entity_context ILIKE ANY(ARRAY['supplier%','cost%','expense%','purchase%','custo%','fornecedor%','compra%']) THEN 'compra'
+          WHEN v_entity_context ILIKE ANY(ARRAY['customer%','revenue%','sales%','venda%','faturamento%','cliente%'])          THEN 'venda'
+          WHEN v_entity_context ILIKE ANY(ARRAY['banking%','bank%','account%','conta%'])                                      THEN 'banking'
+          ELSE 'despesa'  -- último fallback
+        END;
+      END IF;
+
+      -- Derivar entry_type a partir de tipo_transacao
+      v_entry_type := CASE v_tipo_transacao
+        WHEN 'venda'   THEN 'revenue'
+        WHEN 'compra'  THEN 'purchase'
+        WHEN 'despesa' THEN 'expense'
+        WHEN 'banking' THEN 'banking'
+        ELSE 'expense'
+      END;
+
       -- Insert/upsert fato_transacoes
       INSERT INTO analytics_v2.fato_transacoes (
         transacao_id, client_id, data_competencia_id, customer_id,
         fornecedor_id, produto_id, documento, quantidade,
         valor_unitario, valor, status,
+        tipo_transacao, entry_type,
         tipo_lancamento, categoria, subcategoria
       ) VALUES (
         v_transacao_id, v_client_id, v_data_id, v_customer_id,
         v_fornecedor_id, v_produto_id,
         NULLIF(v_documento, ''), v_quantidade,
         v_valor_unitario, v_valor, v_status,
+        v_tipo_transacao, v_entry_type,
         v_tipo_lancamento, v_categoria, v_subcategoria
       )
       ON CONFLICT (transacao_id, client_id) DO UPDATE SET
@@ -4610,6 +4634,8 @@ BEGIN
         valor_unitario      = EXCLUDED.valor_unitario,
         valor               = EXCLUDED.valor,
         status              = EXCLUDED.status,
+        tipo_transacao      = COALESCE(EXCLUDED.tipo_transacao, analytics_v2.fato_transacoes.tipo_transacao),
+        entry_type          = COALESCE(EXCLUDED.entry_type,     analytics_v2.fato_transacoes.entry_type),
         tipo_lancamento     = EXCLUDED.tipo_lancamento,
         categoria           = EXCLUDED.categoria,
         subcategoria        = EXCLUDED.subcategoria;
@@ -5062,117 +5088,95 @@ CREATE TRIGGER polp_bills_updated_at BEFORE UPDATE ON public.polp_bills FOR EACH
 CREATE TRIGGER polp_integrations_updated_at BEFORE UPDATE ON public.polp_integrations FOR EACH ROW EXECUTE FUNCTION polp_set_updated_at();
 CREATE TRIGGER polp_transactions_updated_at BEFORE UPDATE ON public.polp_transactions FOR EACH ROW EXECUTE FUNCTION polp_set_updated_at();
 
-CREATE OR REPLACE FUNCTION analytics_v2.popular_dim_clientes(p_client_id uuid)
-RETURNS void
-LANGUAGE plpgsql
-AS $function$
+-- =============================================================================
+-- analytics_v2.dim_clientes (materialized from archive)
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS analytics_v2.dim_clientes (
+  customer_id          BIGINT  PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+  client_id            UUID    REFERENCES public.clientes_blu(client_id) ON DELETE CASCADE,
+  cpf_cnpj             TEXT,
+  nome                 TEXT,
+  telefone             TEXT,
+  endereco_cidade      TEXT,
+  endereco_uf          TEXT,
+  total_pedidos        BIGINT  DEFAULT 0,
+  receita_total        NUMERIC(15,2) DEFAULT 0,
+  ticket_medio         NUMERIC(15,2) DEFAULT 0,
+  quantidade_total     NUMERIC DEFAULT 0,
+  frequencia_mensal    NUMERIC,
+  dias_recencia        INTEGER,
+  data_primeira_compra DATE,
+  data_ultima_compra   DATE,
+  pontuacao_cluster    NUMERIC,
+  nivel_cluster        TEXT,
+  atualizado_em        TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_dim_clientes_client ON analytics_v2.dim_clientes(client_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_dim_clientes_cpf_cnpj ON analytics_v2.dim_clientes(client_id, cpf_cnpj) WHERE cpf_cnpj IS NOT NULL;
+
+-- =============================================================================
+-- analytics_v2.fato_transacoes (materialized from archive)
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS analytics_v2.fato_transacoes (
+  transacao_id          TEXT    NOT NULL,
+  client_id             UUID    NOT NULL REFERENCES public.clientes_blu(client_id) ON DELETE CASCADE,
+  data_competencia_id   BIGINT  REFERENCES analytics_v2.dim_datas(data_id) ON DELETE SET NULL,
+  customer_id           BIGINT  REFERENCES analytics_v2.dim_clientes(customer_id) ON DELETE SET NULL,
+  fornecedor_id         BIGINT  REFERENCES analytics_v2.dim_fornecedores(fornecedor_id) ON DELETE SET NULL,
+  produto_id            BIGINT  REFERENCES analytics_v2.dim_inventory(inventory_id) ON DELETE SET NULL,
+  documento             TEXT,
+  quantidade            NUMERIC,
+  valor_unitario        NUMERIC(15,2),
+  valor                 NUMERIC(15,2),
+  status                TEXT,
+  tipo_transacao        TEXT,
+  entry_type            TEXT,
+  tipo_lancamento       TEXT,
+  categoria             TEXT,
+  subcategoria          TEXT,
+  created_at            TIMESTAMPTZ DEFAULT now(),
+  PRIMARY KEY (transacao_id, client_id)
+);
+CREATE INDEX IF NOT EXISTS idx_fato_client ON analytics_v2.fato_transacoes(client_id);
+CREATE INDEX IF NOT EXISTS idx_fato_data ON analytics_v2.fato_transacoes(data_competencia_id);
+CREATE INDEX IF NOT EXISTS idx_fato_customer ON analytics_v2.fato_transacoes(customer_id);
+CREATE INDEX IF NOT EXISTS idx_fato_fornecedor ON analytics_v2.fato_transacoes(fornecedor_id);
+
+-- =============================================================================
+-- analytics_v2.reg_jobs (with csv_sync in CHECK constraint)
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS analytics_v2.reg_jobs (
+  job_id        UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  client_id     UUID        REFERENCES public.clientes_blu(client_id) ON DELETE CASCADE,
+  job_type      TEXT        NOT NULL DEFAULT 'bigquery_sync'
+                CHECK (job_type IN ('bigquery_sync','connector_sync','analytics_etl','csv_sync','custom')),
+  credential_id BIGINT      REFERENCES public.credencial_servico_externo(id) ON DELETE SET NULL,
+  resource_type TEXT,
+  sync_mode     TEXT        DEFAULT 'incremental' CHECK (sync_mode IN ('incremental','full')),
+  status        TEXT        NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','running','completed','failed','cancelled')),
+  input_params  JSONB       DEFAULT '{}',
+  output        JSONB,
+  rows_inserted BIGINT      DEFAULT 0,
+  progress_pct  INTEGER     DEFAULT 0,
+  error_message TEXT,
+  started_at    TIMESTAMPTZ,
+  completed_at  TIMESTAMPTZ,
+  duration_seconds NUMERIC,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_reg_jobs_client_status ON analytics_v2.reg_jobs(client_id, status);
+CREATE INDEX IF NOT EXISTS idx_reg_jobs_created ON analytics_v2.reg_jobs(created_at DESC);
+
+-- =============================================================================
+-- pg_cron job: process-csv-sync-jobs (dispatches ETL for csv_sync jobs)
+-- =============================================================================
+CREATE OR REPLACE FUNCTION public.process_csv_sync_jobs()
+RETURNS void LANGUAGE plpgsql AS $$
 BEGIN
-  INSERT INTO analytics_v2.dim_clientes (client_id, cpf_cnpj, nome, telefone, endereco_cidade, endereco_uf, atualizado_em)
-  SELECT
-    p_client_id,
-    c.cpf_cnpj,
-    c.nome,
-    c.telefone,
-    c.endereco_cidade,
-    c.endereco_uf,
-    now()
-  FROM public.clientes c
-  WHERE c.client_id = p_client_id
-  ON CONFLICT (client_id, cpf_cnpj) WHERE cpf_cnpj IS NOT NULL
-  DO UPDATE SET
-    nome = COALESCE(EXCLUDED.nome, analytics_v2.dim_clientes.nome),
-    telefone = COALESCE(EXCLUDED.telefone, analytics_v2.dim_clientes.telefone),
-    endereco_cidade = COALESCE(EXCLUDED.endereco_cidade, analytics_v2.dim_clientes.endereco_cidade),
-    endereco_uf = COALESCE(EXCLUDED.endereco_uf, analytics_v2.dim_clientes.endereco_uf),
-    atualizado_em = now();
+  -- Placeholder: implementation in run-csv-etl Edge Function
+  -- Dispatched by pg_cron on a 5-minute heartbeat
 END;
-$function$;
+$$;
 
-CREATE OR REPLACE FUNCTION analytics_v2.get_commercial_top_clients(p_period text DEFAULT 30d, p_limit integer DEFAULT 10)
-RETURNS TABLE(client_id bigint, nome text, receita numeric, pedidos bigint, share_perc numeric, period text)
-LANGUAGE plpgsql
-AS $function$
-DECLARE
-  v_total numeric;
-  v_days integer;
-BEGIN
-  v_days := CASE
-    WHEN p_period = 7d THEN 7
-    WHEN p_period = 90d THEN 90
-    WHEN p_period = mtd THEN extract(day FROM now())::integer
-    WHEN p_period = ytd THEN extract(doy FROM now())::integer
-    ELSE 30
-  END;
-
-  SELECT COALESCE(SUM(ft.valor_total), 0) INTO v_total
-  FROM analytics_v2.fato_transacoes ft
-  WHERE ft.client_id = public.get_my_client_id()
-    AND ft.data_transacao >= CURRENT_DATE - v_days;
-
-  RETURN QUERY
-  SELECT
-    dc.customer_id,
-    dc.nome,
-    COALESCE(SUM(ft.valor_total), 0)::numeric AS receita,
-    COUNT(ft.transacao_id) AS pedidos,
-    CASE WHEN v_total > 0 THEN
-      ROUND((COALESCE(SUM(ft.valor_total), 0) / v_total * 100)::numeric, 2)
-    ELSE NULL END AS share_perc,
-    p_period AS period
-  FROM analytics_v2.dim_clientes dc
-  LEFT JOIN analytics_v2.fato_transacoes ft
-    ON dc.customer_id = ft.customer_id
-    AND dc.client_id = ft.client_id
-    AND ft.data_transacao >= CURRENT_DATE - v_days
-  WHERE dc.client_id = public.get_my_client_id()
-  GROUP BY dc.customer_id, dc.nome
-  ORDER BY receita DESC
-  LIMIT p_limit;
-END;
-$function$;
-
-CREATE OR REPLACE FUNCTION analytics_v2.get_commercial_indicators(p_period text DEFAULT 30d)
-RETURNS TABLE(pedidos_periodo bigint, receita_periodo numeric, ticket_medio numeric, clientes_unicos bigint, clientes_novos bigint, clientes_recorrentes bigint, recencia_media_dias numeric, frequencia_media_mensal numeric, churn_60d_perc numeric, crescimento_receita_perc numeric, win_rate_perc numeric, ciclo_venda_dias numeric, nrr_perc numeric, clv numeric, checkout_conversion_perc numeric, nps numeric, period text)
-LANGUAGE plpgsql
-AS $function$
-DECLARE
-  v_days integer;
-BEGIN
-  v_days := CASE
-    WHEN p_period = 7d THEN 7
-    WHEN p_period = 90d THEN 90
-    WHEN p_period = mtd THEN extract(day FROM now())::integer
-    WHEN p_period = ytd THEN extract(doy FROM now())::integer
-    ELSE 30
-  END;
-
-  RETURN QUERY
-  SELECT
-    COALESCE(COUNT(ft.transacao_id), 0)::bigint AS pedidos_periodo,
-    COALESCE(SUM(ft.valor_total), 0)::numeric AS receita_periodo,
-    CASE WHEN COUNT(ft.transacao_id) > 0 THEN
-      ROUND((SUM(ft.valor_total) / COUNT(ft.transacao_id))::numeric, 2)
-    ELSE 0 END AS ticket_medio,
-    COALESCE(COUNT(DISTINCT ft.customer_id), 0)::bigint AS clientes_unicos,
-    COALESCE(SUM(CASE WHEN dc.created_at >= CURRENT_DATE - v_days THEN 1 ELSE 0 END), 0)::bigint AS clientes_novos,
-    COALESCE(COUNT(DISTINCT ft.customer_id)
-      - SUM(CASE WHEN dc.created_at >= CURRENT_DATE - v_days THEN 1 ELSE 0 END), 0)::bigint AS clientes_recorrentes,
-    0::numeric AS recencia_media_dias,
-    0::numeric AS frequencia_media_mensal,
-    NULL::numeric AS churn_60d_perc,
-    NULL::numeric AS crescimento_receita_perc,
-    NULL::numeric AS win_rate_perc,
-    NULL::numeric AS ciclo_venda_dias,
-    NULL::numeric AS nrr_perc,
-    NULL::numeric AS clv,
-    NULL::numeric AS checkout_conversion_perc,
-    NULL::numeric AS nps,
-    p_period AS period
-  FROM analytics_v2.fato_transacoes ft
-  LEFT JOIN analytics_v2.dim_clientes dc
-    ON ft.customer_id = dc.customer_id
-    AND ft.client_id = dc.client_id
-  WHERE ft.client_id = public.get_my_client_id()
-    AND ft.data_transacao >= CURRENT_DATE - v_days;
-END;
-$function$;
+SELECT cron.schedule('process-csv-sync-jobs', '*/5 * * * *', $$SELECT public.process_csv_sync_jobs();$$);

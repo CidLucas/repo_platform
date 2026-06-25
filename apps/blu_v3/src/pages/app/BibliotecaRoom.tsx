@@ -59,6 +59,11 @@ function catLabel(cat: string | null): string {
   return KB_CATEGORIES.find(c => c.value === cat)?.label ?? cat ?? '—'
 }
 
+// F-3-B3: falha desconhecida para documentos presos em processing > 2min
+function isTimedOut(doc: KBDocument): boolean {
+  return doc.status === 'processing' && Date.now() - new Date(doc.created_at).getTime() > 120_000
+}
+
 // ── Document card (grid view) ─────────────────────────────────────────────────
 
 function DocCard({ doc, onRemove, onRetry }: {
@@ -176,13 +181,13 @@ function DocCard({ doc, onRemove, onRetry }: {
         transition: 'opacity 0.15s',
         marginTop: 2,
       }}>
-        {(doc.status === 'failed' || doc.status === 'partially_failed') && (
+        {(doc.status === 'failed' || doc.status === 'partially_failed' || isTimedOut(doc)) && (
           <button
             className="btn bs"
             style={{ fontSize: 9.5, padding: '2px 7px', flex: 1 }}
             onClick={() => onRetry(doc)}
           >
-            ↻ Reprocessar
+            {doc.status === 'processing' ? '↻ Reprocessar' : '↻ Reprocessar'}
           </button>
         )}
         <button
@@ -251,7 +256,7 @@ function DocRow({ doc, onRemove, onRetry }: {
       <span style={{ fontSize: 10, color: 'var(--mu)', whiteSpace: 'nowrap' }}>
         {relativeTime(doc.created_at)}
       </span>
-      {(doc.status === 'failed' || doc.status === 'partially_failed') && (
+      {(doc.status === 'failed' || doc.status === 'partially_failed' || isTimedOut(doc)) && (
         <button className="btn bs" style={{ fontSize: 9.5, padding: '2px 7px' }} onClick={() => onRetry(doc)}>↻</button>
       )}
       <button className="btn brd" style={{ fontSize: 9.5, padding: '2px 7px' }} onClick={() => onRemove(doc.id, doc.storage_path)}>×</button>

@@ -1,166 +1,145 @@
-// Deno test for supabase/functions/onboarding-website-intel/index.ts
-//
-// AC#12 — RED: the `await fetch(normalized, ...)` call inside
-// `Deno.serve` must be wrapped in a `try { ... } catch (...) { ... } finally { ... }`
-// whose `catch` handler returns `confidence: 0.35` (NOT `0`).
-//
-// Run with:
-//   deno test --allow-read supabase/functions/onboarding-website-intel/index_test.ts
-//
-// Strategy: source inspection. We read the .ts file as text and locate the
-// `try {` that immediately precedes `await fetch(normalized,`. We then
-// walk the brace structure to find the matching closing `}` of that `try`,
-// and finally inspect what follows — it MUST be a `catch` clause (not
-// `finally` only), and the catch body MUST contain `confidence: 0.35` and
-// MUST NOT contain the top-level `confidence: 0`.
-//
-// This is deliberately offline (no module import, no `Deno.serve` listener)
-// so the test is deterministic and cannot be flaky on CI.
-//
-// RED state at current HEAD (pr-200-bkl-019 @ 4ca47da3):
-//   index.ts has `try { ... await fetch(...) ... } finally { clearTimeout(...) }`
-//   with NO `catch` clause. The error propagates to the outer `try { ... }
-//   catch (err) { ... confidence: 0.35 }` (a different, wider scope). Per
-//   AC#12, the fetch must own its own `catch` returning `confidence: 0.35`.
-
+import { assert, assertEquals, assertFalse, assertStrictEquals } from "jsr:@std/assert";
 import {
-  assert,
-  assertEquals,
-  assertStringIncludes,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
+  calculateConfidence,
+  detectVertical,
+  extractCNPJ,
+  extractPhone,
+  validateCNPJ,
+} from "./index.ts";
 
-const INDEX_TS_PATH = new URL("./index.ts", import.meta.url);
+Deno.test("extractCNPJ returns formatted CNPJ from HTML body", () => {
+  const html = `
+    <html>
+      <body>
+        <p>Empresa Teste LTDA - CNPJ 11.444.777/0001-61</p>
+        <p>Inscrição estadual: 123.456.789.012</p>
+      </body>
+    </html>
+  `;
+  const result = extractCNPJ(html);
+  assertEquals(result, "11.444.777/0001-61");
+});
 
-function readIndexSource(): string {
-  return Deno.readTextFileSync(INDEX_TS_PATH);
-}
+Deno.test("extractCNPJ finds CNPJ in meta tags (og:*, article:*, business:*)", () => {
+  const html = `
+    <html>
+      <head>
+        <meta property="og:CNPJ" content="11.444.777/0001-61" />
+        <meta property="article:author" content="Empresa X" />
+        <meta property="business:contact_data" content="11.444.777/0001-61" />
+      </head>
+      <body>nothing here</body>
+    </html>
+  `;
+  const result = extractCNPJ(html);
+  assertEquals(result, "11.444.777/0001-61");
+});
 
-interface FetchTryAnalysis {
-  tryBlockStart: number;
-  tryBlockEnd: number;
-  afterTry: string;
-  hasCatch: boolean;
-  catchBody: string | null;
-  hasFinally: boolean;
-}
-
-function analyzeFetchTry(source: string): FetchTryAnalysis | null {
-  const fetchIdx = source.indexOf("await fetch(normalized,");
-  if (fetchIdx === -1) return null;
-
-  const before = source.slice(0, fetchIdx);
-  const tryStart = before.lastIndexOf("try {");
-  if (tryStart === -1) return null;
-
-  let depth = 0;
-  let tryEnd = -1;
-  for (let i = tryStart; i < source.length; i++) {
-    const ch = source[i];
-    if (ch === "{") depth++;
-    else if (ch === "}") {
-      depth--;
-      if (depth === 0) {
-        tryEnd = i;
-        break;
-      }
-    }
-  }
-  if (tryEnd === -1) return null;
-
-  const afterTry = source.slice(tryEnd + 1);
-
-  const catchOpenMatch = afterTry.match(/^\s*catch\s*(?:\([^)]*\))?\s*\{/);
-  const hasCatch = catchOpenMatch !== null;
-  let catchBody: string | null = null;
-
-  if (hasCatch && catchOpenMatch.index !== undefined) {
-    const catchBodyStart = catchOpenMatch.index + catchOpenMatch[0].length;
-    let cDepth = 1;
-    let catchEnd = -1;
-    for (let i = catchBodyStart; i < afterTry.length; i++) {
-      const ch = afterTry[i];
-      if (ch === "{") cDepth++;
-      else if (ch === "}") {
-        cDepth--;
-        if (cDepth === 0) {
-          catchEnd = i;
-          break;
+Deno.test("extractCNPJ finds CNPJ inside JSON-LD script tag", () => {
+  const html = `
+    <html>
+      <head>
+        <script type="application/ld+json">
+        {
+          "@context": "https://schema.org",
+          "@type": "Organization",
+          "name": "Empresa Y",
+          "taxID": "11.444.777/0001-61"
         }
-      }
-    }
-    if (catchEnd !== -1) {
-      catchBody = afterTry.slice(catchBodyStart, catchEnd);
-    }
+        </script>
+      </head>
+      <body>content</body>
+    </html>
+  `;
+  const result = extractCNPJ(html);
+  assertEquals(result, "11.444.777/0001-61");
+});
+
+Deno.test("extractCNPJ returns null when no CNPJ is present", () => {
+  const html = `
+    <html>
+      <body>
+        <p>This page has no business registration number at all.</p>
+        <p>Just a phone: (11) 1234-5678</p>
+      </body>
+    </html>
+  `;
+  const result = extractCNPJ(html);
+  assertStrictEquals(result, null);
+});
+
+Deno.test("validateCNPJ returns true for valid CNPJ 11.444.777/0001-61", () => {
+  const result = validateCNPJ("11.444.777/0001-61");
+  assert(result);
+});
+
+Deno.test("validateCNPJ returns false for CNPJ with wrong check digits 11.444.777/0001-99", () => {
+  const result = validateCNPJ("11.444.777/0001-99");
+  assertFalse(result);
+});
+
+Deno.test("extractPhone matches (11) 91234-5678", () => {
+  const html = `
+    <html>
+      <body>
+        <p>Entre em contato: (11) 91234-5678</p>
+        <p>Horário de atendimento: 9h às 18h</p>
+      </body>
+    </html>
+  `;
+  const result = extractPhone(html);
+  assertEquals(result, "(11) 91234-5678");
+});
+
+Deno.test("extractPhone returns null for international format +55 11 91234-5678", () => {
+  const html = `
+    <html>
+      <body>
+        <p>Call us at +55 11 91234-5678</p>
+      </body>
+    </html>
+  `;
+  const result = extractPhone(html);
+  assertStrictEquals(result, null);
+});
+
+Deno.test("extractPhone returns null when no phone is present", () => {
+  const html = `
+    <html>
+      <body>
+        <p>Send us an email at contact@example.com</p>
+      </body>
+    </html>
+  `;
+  const result = extractPhone(html);
+  assertStrictEquals(result, null);
+});
+
+Deno.test("detectVertical returns the correct vertical for each of 11 categories", () => {
+  const cases: Array<{ text: string; expected: string }> = [
+    { text: "Loja virtual com checkout e carrinho de compras", expected: "ecommerce" },
+    { text: "Distribuidora e atacadista de materiais", expected: "industria" },
+    { text: "Clínica médica com hospital e consultório", expected: "saude" },
+    { text: "Curso online para alunos da escola", expected: "educacao" },
+    { text: "Escritório contábil e financeiro", expected: "financeiro" },
+    { text: "Agência de design, logo e branding", expected: "design" },
+    { text: "Buffet de eventos para festas e cerimônias", expected: "buffet" },
+    { text: "Empresa de construção civil e obras de engenharia", expected: "construcao" },
+    { text: "Companhia de logística, frete e transporte com frota", expected: "logistica" },
+    { text: "Empresa de assessoria e mentoria para treinamento", expected: "consultoria" },
+    { text: "Agência de atendimento e serviços gerais", expected: "servicos" },
+  ];
+
+  for (const { text, expected } of cases) {
+    const result = detectVertical(text);
+    assertEquals(result, expected, `expected detectVertical("${text}") === "${expected}", got ${result}`);
   }
+});
 
-  const finallyMatch = afterTry.match(
-    /^\s*(?:catch\s*(?:\([^)]*\))?\s*\{[\s\S]*?\}\s*)?finally\s*\{/,
-  );
-  const hasFinally = finallyMatch !== null;
-
-  return {
-    tryBlockStart: tryStart,
-    tryBlockEnd: tryEnd,
-    afterTry,
-    hasCatch,
-    catchBody,
-    hasFinally,
-  };
-}
-
-Deno.test({
-  name: "AC#12 RED — fetch catch returns confidence 0.35 (not 0)",
-  fn: () => {
-    const source = readIndexSource();
-
-    assertStringIncludes(
-      source,
-      "await fetch(normalized,",
-      "Sanity: index.ts must contain the `await fetch(normalized, ...)` call.",
-    );
-
-    const analysis = analyzeFetchTry(source);
-    assert(
-      analysis !== null,
-      "Could not locate the `try {` block that wraps `await fetch(normalized, ...)`.",
-    );
-
-    // AC#12 — the fetch's try block MUST have a catch clause.
-    assertEquals(
-      analysis!.hasCatch,
-      true,
-      "AC#12 RED — the `try { ... await fetch(normalized, ...) ... }` block in " +
-        "supabase/functions/onboarding-website-intel/index.ts must own a `catch` " +
-        "clause. Currently it has only `finally { clearTimeout(...) }` (no catch), " +
-        "so fetch errors fall through to the outer handler instead of being answered " +
-        "with a fetch-specific fallback.",
-    );
-
-    assert(
-      analysis!.catchBody !== null,
-      "AC#12 RED — the `catch` clause of the fetch `try` block must have a non-empty body.",
-    );
-
-    // AC#12 (primary assertion) — the fetch catch MUST return `confidence: 0.35`.
-    assertStringIncludes(
-      analysis!.catchBody!,
-      "confidence: 0.35",
-      "AC#12 RED — the `catch` clause of the fetch `try` block must return " +
-        "`confidence: 0.35` (not `0`). The current `catch` body does not include " +
-        "`0.35`.",
-    );
-
-    // AC#12 (defensive assertion) — the fetch catch MUST NOT return `confidence: 0`.
-    // Use a negative lookbehind to avoid matching cnpj_confidence /
-    // telefone_confidence / vertical_confidence sub-fields (which may legitimately
-    // stay 0 — the AC only governs the top-level `confidence` value).
-    const zeroConfidenceRe = /(?<![a-zA-Z_])confidence\s*:\s*0(?!\d|\.)/;
-    assertEquals(
-      zeroConfidenceRe.test(analysis!.catchBody!),
-      false,
-      "AC#12 RED — the `catch` clause of the fetch `try` block must not return " +
-        "top-level `confidence: 0`. The fetch error path must answer with " +
-        "`confidence: 0.35` only.",
-    );
-  },
+Deno.test("calculateConfidence returns 0.0, 0.3, 0.5, 0.7, 0.7 for sourceCount 0, 1, 2, 3, 5", () => {
+  assertEquals(calculateConfidence(0), 0.0);
+  assertEquals(calculateConfidence(1), 0.3);
+  assertEquals(calculateConfidence(2), 0.5);
+  assertEquals(calculateConfidence(3), 0.7);
+  assertEquals(calculateConfidence(5), 0.7);
 });

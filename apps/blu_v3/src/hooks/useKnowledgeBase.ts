@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useAuth } from '@blu/auth'
 import {
   listDocuments,
@@ -36,6 +36,8 @@ export function useKnowledgeBase() {
     csvResult: null,
   })
 
+  const pollingStartRef = useRef<number>(Date.now())
+
   const load = useCallback(async () => {
     if (!clientId) return
     try {
@@ -59,7 +61,14 @@ export function useKnowledgeBase() {
     )
     if (processing.length === 0) return
 
+    pollingStartRef.current = Date.now()
+
     const interval = setInterval(() => {
+      if (Date.now() - pollingStartRef.current > POLLING_TIMEOUT_MS) {
+        clearInterval(interval)
+        clearTimeout(timeout)
+        return
+      }
       load()
     }, 5_000)
 

@@ -23,7 +23,6 @@ const NAV_ITEMS: NavItem[] = [
   { s: 'compras',    icon: <ShoppingCart size={ICON_SIZE} weight={ICON_WEIGHT} />, label: 'Compras' },
   { s: 'financeiro', icon: <ChartBar    size={ICON_SIZE} weight={ICON_WEIGHT} />, label: 'Financeiro' },
   { s: 'agenda',     icon: <CalendarDots size={ICON_SIZE} weight={ICON_WEIGHT} />, label: 'Agenda' },
-  { s: 'documentos', icon: <PencilSimpleLine size={ICON_SIZE} weight={ICON_WEIGHT} />, label: 'Documentos' },
   { s: 'estrategia', icon: <Target      size={ICON_SIZE} weight={ICON_WEIGHT} />, label: 'Estratégia' },
   { s: 'clientes',   icon: <UsersThree  size={ICON_SIZE} weight={ICON_WEIGHT} />, label: 'Clientes' },
   { s: 'biblioteca', icon: <Books       size={ICON_SIZE} weight={ICON_WEIGHT} />, label: 'Biblioteca' },

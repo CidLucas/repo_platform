@@ -42,7 +42,19 @@ export async function fetchCustomerSegments(clientId: string): Promise<CustomerS
 
   if (error) {
     console.warn('fetchCustomerSegments:', error.message)
-    return []
+    return [
+      { cluster: 'Alto', count: 0, avg_ticket: null, revenue_share: null },
+      { cluster: 'Médio', count: 0, avg_ticket: null, revenue_share: null },
+      { cluster: 'Baixo', count: 0, avg_ticket: null, revenue_share: null },
+    ]
+  }
+
+  if (!data || (Array.isArray(data) && data.length === 0)) {
+    return [
+      { cluster: 'Alto', count: 0, avg_ticket: null, revenue_share: null },
+      { cluster: 'Médio', count: 0, avg_ticket: null, revenue_share: null },
+      { cluster: 'Baixo', count: 0, avg_ticket: null, revenue_share: null },
+    ]
   }
 
   return (data ?? []).map((row: Record<string, unknown>) => ({

@@ -480,12 +480,13 @@ function StepInfo({
   const [error, setError] = useState<string | null>(null)
   const [detecting, setDetecting] = useState(false)
   const [siteContext, setSiteContext] = useState<SiteContext | null>(null)
+  const clearSiteCtx = () => setSiteContext(null)
 
   async function handleWebsiteBlur() {
     const url = website.trim()
     if (!url) return
     setDetecting(true)
-    setSiteContext(null)
+    clearSiteCtx()
     try {
       const { data, error } = await supabase.functions.invoke('onboarding-website-intel', {
         body: { website_url: url },
@@ -1224,22 +1225,47 @@ function StepData({
               </div>
             </div>
           )}
-          {showClassificationModal && (
+          {csvHeaders.length > 0 && showClassificationModal && (
             <div style={{ marginTop: 16, padding: 16, background: 'var(--surface)', border: '1px solid var(--gb)', borderRadius: 'var(--rl)' }}>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
-                Detectamos {csvHeaders.length} colunas que parecem ser de notas fiscais. Confirma?
+              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>
+                Qual o tipo de dados desta planilha?
               </div>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
+                Detectamos {csvHeaders.length} colunas. Selecione o tipo que melhor descreve esta planilha.
+              </div>
+              {(showSchemaTypeRadios || !csvClassification?.schemaType) && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer', fontSize: 13 }}>
+                    <input type="radio" name="csvSchemaType" value="invoices" checked={(csvClassification?.schemaType ?? 'invoices') === 'invoices'} onChange={() => setCsvClassification({ confirmed: false, schemaType: 'invoices', canceled: false })} />
+                    <span><strong>Notas Fiscais / Faturamento</strong> — invoices, NF-e, NFC-e, recibos de venda.</span>
+                  </label>
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer', fontSize: 13 }}>
+                    <input type="radio" name="csvSchemaType" value="fato_transacoes" checked={csvClassification?.schemaType === 'fato_transacoes'} onChange={() => setCsvClassification({ confirmed: false, schemaType: 'fato_transacoes', canceled: false })} />
+                    <span><strong>Transacoes Financeiras</strong> — fato_transacoes, lancamentos, receitas, despesas.</span>
+                  </label>
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer', fontSize: 13 }}>
+                    <input type="radio" name="csvSchemaType" value="dim_clientes" checked={csvClassification?.schemaType === 'dim_clientes'} onChange={() => setCsvClassification({ confirmed: false, schemaType: 'dim_clientes', canceled: false })} />
+                    <span><strong>Clientes</strong> — dim_clientes, cadastro de clientes.</span>
+                  </label>
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer', fontSize: 13 }}>
+                    <input type="radio" name="csvSchemaType" value="dim_inventory" checked={csvClassification?.schemaType === 'dim_inventory'} onChange={() => setCsvClassification({ confirmed: false, schemaType: 'dim_inventory', canceled: false })} />
+                    <span><strong>Estoque / Produtos</strong> — dim_inventory, SKU, produtos, catalogo.</span>
+                  </label>
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 8 }}>
                 <button className="btn btn-primary" onClick={() => {
+                  const schemaType = csvClassification?.schemaType || 'invoices'
                   setCsvUploaded(true)
-                  setCsvClassification({ confirmed: true, schemaType: 'invoices', canceled: false })
+                  setCsvClassification({ confirmed: true, schemaType, canceled: false })
                   setShowClassificationModal(false)
+                  setShowSchemaTypeRadios(false)
                   const file = csvFileRef.current
-                  if (file) onCsvFileReady(file, undefined, 'invoices')
-                }}>Sim, sao notas</button>
-                <button className="btn btn-ghost" onClick={() => {
-                  setCsvClassification(prev => prev ? { ...prev, schemaType: '' } : { confirmed: false, schemaType: '', canceled: false })
-                }}>Nao, e outro tipo</button>
+                  if (file) onCsvFileReady(file, undefined, schemaType)
+                }}>Confirmar</button>
+                {!showSchemaTypeRadios && (
+                  <button className="btn btn-ghost" onClick={() => setShowSchemaTypeRadios(true)}>Alterar tipo</button>
+                )}
                 <button className="btn btn-ghost" onClick={() => {
                   setCsvFileName('')
                   setCsvHeaders([])
@@ -1890,6 +1916,7 @@ export default function OnboardingApp() {
 
   // When user is authenticated at the auth step, route based on profile state.
   // Handles: (a) existing session on /onboarding?mode=login, (b) return from Google OAuth.
+  // Uses centralized RPC is_onboarded_client() (multi-signal check).
   const clientIdChecked = useRef(false)
   useEffect(() => {
     if (loading || !user || step !== 'auth') return
@@ -1897,40 +1924,59 @@ export default function OnboardingApp() {
     if (clientIdChecked.current) return
     clientIdChecked.current = true
     let cancelled = false
-    supabase.rpc('get_my_client_id').then(
-      async ({ data: clientId }) => {
-        if (cancelled) return
-        if (clientId) {
-          // Profile exists — but it may be a provisional row (ensure_tenant_row)
-          // created mid-onboarding. Only redirect to /app when onboarding is done.
-          const { data: row } = await supabase
-            .from('clientes_blu')
-            .select('onboarding_completed_at')
-            .eq('client_id', clientId)
-            .maybeSingle()
 
-          if (row?.onboarding_completed_at) {
-            navigate('/app', { replace: true })
-          } else if (localStorage.getItem('onboarding_returning_to_data') === '1') {
-            // User came back from Drive OAuth during the data step — restore it.
-            localStorage.removeItem('onboarding_returning_to_data')
-            if (!cancelled) setStep('data')
-          } else {
-            // Provisional profile without completed onboarding — resume from info.
-            if (!cancelled) setStep('info')
-          }
+    // Use the centralized RPC that checks multiple "is this a real client" signals
+    supabase.rpc('is_onboarded_client').then(
+      ({ data: onboarded }) => {
+        if (cancelled) return
+
+        if (onboarded) {
+          // Client is onboarded by any signal — go to app
+          navigate('/app', { replace: true })
+        } else if (localStorage.getItem('onboarding_returning_to_data') === '1') {
+          // User came back from Drive OAuth during the data step — restore it.
+          localStorage.removeItem('onboarding_returning_to_data')
+          if (!cancelled) setStep('data')
         } else {
-          // New user — provision the clientes_blu row immediately so that Drive
-          // OAuth token capture (which happens during the data step) finds a valid
-          // tenant. onboarding_bootstrap_tx will update it later with full info.
-          try { await supabase.rpc('ensure_tenant_row') } catch { /* best-effort */ }
-          if (!cancelled) setStep('info')
+          // New or provisional client — ensure tenant row and show onboarding
+          supabase.rpc('get_my_client_id').then(
+            ({ data: clientId }) => {
+              if (cancelled) return
+              if (!clientId) {
+                supabase.rpc('ensure_tenant_row').then(() => {}, () => {})
+              }
+              if (!cancelled) setStep('info')
+            },
+            () => { if (!cancelled) setStep('info') }
+          )
         }
       },
       () => {
-        if (!cancelled) setStep('info')
-      },
+        // RPC failed gracefully — fall back to original behavior
+        supabase.rpc('get_my_client_id').then(
+          async ({ data: clientId }) => {
+            if (cancelled) return
+            if (clientId) {
+              const { data: row } = await supabase
+                .from('clientes_blu')
+                .select('onboarding_completed_at')
+                .eq('client_id', clientId)
+                .maybeSingle()
+              if (row?.onboarding_completed_at) {
+                navigate('/app', { replace: true })
+              } else if (!cancelled) {
+                setStep('info')
+              }
+            } else {
+              try { await supabase.rpc('ensure_tenant_row') } catch { /* best-effort */ }
+              if (!cancelled) setStep('info')
+            }
+          },
+          () => { if (!cancelled) setStep('info') }
+        )
+      }
     )
+
     return () => { cancelled = true }
   }, [user?.id, loading, step, navigate])
 

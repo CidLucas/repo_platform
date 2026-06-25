@@ -7,6 +7,7 @@ import {
   uploadCsvDataSource,
   retryDocument,
   getDocumentProgress,
+  getDocumentDownloadUrl,
   type KBDocument,
   type UploadOptions,
   type KBDocumentSource,
@@ -152,6 +153,14 @@ export function useKnowledgeBase() {
     [],
   )
 
+  const getDownloadUrl = useCallback(
+    async (doc: KBDocument): Promise<string> => {
+      if (!doc.storage_path) throw new Error('Documento sem storage_path')
+      return getDocumentDownloadUrl(doc.storage_path)
+    },
+    [],
+  )
+
   return {
     ...state,
     reload: load,
@@ -159,6 +168,7 @@ export function useKnowledgeBase() {
     uploadCsv,
     remove,
     retry,
+    getDownloadUrl,
     getDocumentProgress,
   }
 }

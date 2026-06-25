@@ -47,9 +47,39 @@ function detectVertical(text: string): string | null {
 }
 
 function extractCNPJ(html: string): string | null {
-  const pattern = /\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/;
-  const match = html.match(pattern);
-  return match ? match[0] : null;
+  // CNPJ format: \d{2}\d{3}\d{3}\d{4}\d{2} (14 digits) or \d{2}\.\d{3}\.\d{3}/\d{4}-\d{2} (formatted)
+  const cnpjRegex = new RegExp("\\d{2}\\.\\d{3}\\.\\d{3}/\\d{4}-\\d{2}");
+  const cnpjPlainRegex = /\d{2}\d{3}\d{3}\d{4}\d{2}/;
+
+  const direct = html.match(cnpjRegex);
+  if (direct) return direct[0];
+
+  const plain = html.match(cnpjPlainRegex);
+  if (plain) return plain[0];
+
+  const metaContent = html.match(/<meta[^>]+content=["']([^"']+)["']/i);
+  if (metaContent) {
+    const fromMeta = metaContent[1].match(cnpjRegex) || metaContent[1].match(cnpjPlainRegex);
+    if (fromMeta) return fromMeta[0];
+  }
+
+  const ldJson = html.match(
+    /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/i,
+  );
+  if (ldJson) {
+    try {
+      const data = JSON.parse(ldJson[1]);
+      const vatID = (data && (data.vatID || data["@id"])) || null;
+      if (typeof vatID === "string") {
+        const fromLd = vatID.match(cnpjRegex) || vatID.match(cnpjPlainRegex);
+        if (fromLd) return fromLd[0];
+      }
+    } catch (_) {
+      // ignore JSON parse errors
+    }
+  }
+
+  return null;
 }
 
 function extractPhone(html: string): string | null {
@@ -65,6 +95,7 @@ function extractPhone(html: string): string | null {
 function validateCNPJ(cnpj) {
   const cleaned = cnpj.replace(/\D/g, "");
   if (cleaned.length !== 14) return false;
+  if (/^(\d)\1+$/.test(cleaned)) return false;
 
   const weights1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
   const weights2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
@@ -173,6 +204,22 @@ Deno.serve(async (req: Request) => {
       if (resp.ok) {
         html = await resp.text();
       }
+    } catch (fetchErr) {
+      console.warn("[onboarding-website-intel] fetch failed, returning SPA fallback", fetchErr);
+      return json({
+        company_name: null,
+        vertical: null,
+        suggested_size: null,
+        ...suggestFromVertical(null),
+        confidence: 0,
+        cnpj: null,
+        telefone: null,
+        confidence_details: {
+          cnpj_confidence: 0,
+          telefone_confidence: 0,
+          vertical_confidence: 0,
+        },
+      });
     } finally {
       clearTimeout(timeout);
     }

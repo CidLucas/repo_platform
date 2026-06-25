@@ -471,3 +471,358 @@ def test_empty_state_function_destructures_required_prop(prop: str):
         f"title={destructure['title']}, "
         f"description={destructure['description']}."
     )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# AC#2 — shared `LoadingState` component
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# GOAL:
+#     Every room page in `apps/blu_v3` (Compras, Financeiro, Clientes,
+#     Documentos, Estoque, Estratégia, Agenda, …) also needs a shared
+#     "loading" state — the spinner/skeleton block rendered while the
+#     page is fetching its data. Today each page rolls its own ad-hoc
+#     loading block: a `<div className="loading">…</div>` with a
+#     hand-typed spinner, sometimes a hand-typed "Carregando…" string,
+#     and no shared `data-testid` or `role` for tests to anchor on.
+#
+#     The fix is a single shared component at
+#     `apps/blu_v3/src/components/shared/LoadingState.tsx` with a
+#     minimal, fully-typed prop surface. The prop surface here is even
+#     narrower than `EmptyState` — a single optional `message` string
+#     (e.g. "Carregando compras…") so rooms can override the default
+#     copy but otherwise get a polished spinner for free.
+#
+# BEHAVIOR:
+#     The shared `LoadingState` component must:
+#
+#         1. Live at `apps/blu_v3/src/components/shared/LoadingState.tsx`.
+#         2. Export a TypeScript `interface LoadingStateProps` with:
+#                message?: string
+#           — i.e. `message` is OPTIONAL (the `?` modifier) and, when
+#           provided, is a plain `string` (the component decides how to
+#           render the message: a `<span>`, a `<p>`, a `aria-label`,
+#           etc.).
+#         3. Be the default export of the file, named `LoadingState`,
+#            and accept `LoadingStateProps` as the type annotation on
+#            its parameter list. The optional prop (`message`) must be
+#            reachable as a named local inside the function body —
+#            i.e. the function must destructure it out of the props
+#            argument (so a consumer can write `<LoadingState />` for
+#            the default copy, or `<LoadingState message="…" />` to
+#            override it, without having to dig into `props.message`).
+#
+# AC (Acceptance Criteria):
+#     AC#1 — `apps/blu_v3/src/components/shared/LoadingState.tsx`
+#            exists on disk (the canonical location for the shared
+#            component).
+#     AC#2 — The file exports `interface LoadingStateProps` so other
+#            files can `import type { LoadingStateProps } from
+#            '../../components/shared/LoadingState'`.
+#     AC#3 — `LoadingStateProps` declares `message?:` — i.e. the
+#            `message` prop is OPTIONAL (the `?` modifier) and, when
+#            present, is typed as `string`. NOT `message: string`
+#            (would force every caller to pass a string), NOT
+#            `message?: ReactNode` (the prop is a raw string — the
+#            component decides how to render it).
+#     AC#4 — The file has a `export default function
+#            LoadingState(...): LoadingStateProps` signature — the
+#            component is the default export and is typed against
+#            the contract.
+#     AC#5 — The default-export function destructures `message` out
+#            of its props argument, so the JSX body can reference it
+#            as a bare identifier (`{message ?? 'Carregando…'}`)
+#            without going through `props.message`.
+#
+# DECISION:
+#     Estratégia: create — a brand-new shared component, no
+#                 pre-existing `LoadingState` to migrate from. The
+#                 shared component is the source of truth for
+#                 loading-state markup; rooms will adopt it in
+#                 follow-up PRs.
+#     Arquivo alvo: apps/blu_v3/src/components/shared/LoadingState.tsx
+#     Função alvo:  `export default function LoadingState(props:
+#                  LoadingStateProps) { … }` plus the
+#                  `LoadingStateProps` interface.
+#
+# Estado atual: RED — `LoadingState.tsx` does NOT exist on disk.
+# Every AC fails on the file-exists check (AC#1) and the source-
+# inspection checks (AC#2 → AC#5) cannot run. The Coder must create
+# the file with the exact prop contract above to turn all 5 ACs
+# GREEN.
+#
+# Anti-Goals (must NOT be violated):
+#     1. NÃO renomear o prop `message` — ele é contrato.
+#     2. NÃO tornar `message` obrigatório — ele é OPTIONAL (`?`) e
+#        um consumidor que não quer customizar a copy deve poder
+#        escrever `<LoadingState />` sem erro de tipo.
+#     3. NÃO alterar o tipo de `message` — ele é exatamente
+#        `string`. Não aceitar `message?: ReactNode`, não aceitar
+#        `message?: JSX.Element`, não aceitar `message?: string | null`.
+#     4. NÃO exportar o componente como named export — ele deve ser
+#        o DEFAULT export para casar com o padrão de
+#        `import LoadingState from '../../components/shared/LoadingState'`
+#        já usado pelos outros componentes shared (`DecisionCard`,
+#        `ErrorFallback`, `EmptyState`, …).
+#     5. NÃO colocar o componente em outro diretório
+#        (`components/common/`, `components/ui/`, etc.) — ele é
+#        `components/shared/LoadingState.tsx` por contrato.
+
+
+# ── Paths ─────────────────────────────────────────────────────────────────
+
+
+LOADING_STATE_PATH = (
+    REPO_ROOT
+    / "apps"
+    / "blu_v3"
+    / "src"
+    / "components"
+    / "shared"
+    / "LoadingState.tsx"
+)
+
+
+# ── Source-level guard helpers (LoadingState) ─────────────────────────────
+
+
+def _has_loading_state_props_interface(source: str) -> bool:
+    """Detect an `export interface LoadingStateProps { … }` declaration.
+
+    We match the opening `export interface LoadingStateProps {` and
+    the closing `}`. The body is allowed to contain at most one level
+    of nested braces (the prop surface is a single optional `message`
+    string, so no nested braces are actually needed — but the regex
+    is symmetric with the `EmptyStateProps` helper for readability).
+    """
+    pattern = (
+        r"export\s+interface\s+LoadingStateProps\s*\{"
+        r"((?:[^{}]|\{[^{}]*\})*)"
+        r"\}"
+    )
+    return re.search(pattern, source, re.DOTALL) is not None
+
+
+def _loading_state_props_body(source: str) -> str | None:
+    """Return the body of the `LoadingStateProps` interface, or None
+    if the interface is not declared.
+
+    The body is the substring between the opening `{` and the
+    matching closing `}`, with one level of nested-brace support.
+    """
+    pattern = (
+        r"export\s+interface\s+LoadingStateProps\s*\{"
+        r"((?:[^{}]|\{[^{}]*\})*)"
+        r"\}"
+    )
+    m = re.search(pattern, source, re.DOTALL)
+    return m.group(1) if m else None
+
+
+def _declares_optional_message_prop(source: str) -> bool:
+    """Detect `message?:` — i.e. `message` is declared as an OPTIONAL
+    prop, typed against the contract.
+
+    We look for `message` followed by `?:` (the question mark making
+    it optional) and the literal `string` type. This rejects:
+        - `message: string` (required — wrong)
+        - `message?: ReactNode` (wrong type)
+        - `message?: JSX.Element` (wrong type)
+    """
+    pattern = r"\bmessage\s*\?\s*:\s*string\b"
+    return re.search(pattern, source) is not None
+
+
+def _has_loading_state_default_export_function(source: str) -> bool:
+    """Detect `export default function LoadingState(...) { … }`.
+
+    We are permissive about the parameter list: both the destructure
+    form (`({ … }: LoadingStateProps)`) and the bare form
+    (`(props: LoadingStateProps)`) must pass. The function name MUST
+    be `LoadingState` (the default export of the file).
+    """
+    pattern = (
+        r"export\s+default\s+function\s+LoadingState\s*\("
+        r"[^)]*\)"
+        r"\s*:\s*LoadingStateProps"
+    )
+    return re.search(pattern, source, re.DOTALL) is not None
+
+
+def _loading_state_destructures_message(source: str) -> bool:
+    """Detect the destructure form of the default-export parameter
+    list and check that `message` is reachable as a bare name.
+
+    We only check the `message` prop (the entire prop surface). A
+    prop is "present" if its identifier appears inside the `{ … }`
+    destructure of the default-export function.
+    """
+    sig = re.search(
+        r"export\s+default\s+function\s+LoadingState\s*\(\s*\{([^}]*)\}\s*:\s*LoadingStateProps",
+        source,
+    )
+    if not sig:
+        # If the function uses the bare `props: LoadingStateProps`
+        # form, the destructure is not present. We surface `message`
+        # as "not detected" — the dedicated signature test is the
+        # one that enforces typing.
+        return False
+    body = sig.group(1)
+    return re.search(r"\bmessage\b", body) is not None
+
+
+# ── AC#1: file exists at the canonical path ──────────────────────────────
+
+
+class TestLoadingState:
+    """AC#2 — shared `LoadingState` component.
+
+    Validates that a shared loading-state component exists at
+    `apps/blu_v3/src/components/shared/LoadingState.tsx` with a
+    minimal, fully-typed prop surface: a single OPTIONAL `message`
+    string. The shared component is the single source of truth for
+    loading-state markup across all room pages.
+    """
+
+    def test_loading_state_file_exists(self):
+        """AC#1 — `apps/blu_v3/src/components/shared/LoadingState.tsx`
+        must exist on disk.
+
+        This is the source-of-truth guard for the entire migration:
+        until the file exists, every other AC#2..AC#5 is unreachable.
+        The rooms will import the shared component from this exact
+        path, so placing the file elsewhere (e.g.
+        `components/ui/LoadingState.tsx`) is a hard contract
+        violation.
+        """
+        assert LOADING_STATE_PATH.exists(), (
+            f"RED — source file not found: {LOADING_STATE_PATH}. "
+            "Expected: a new `LoadingState.tsx` under "
+            "`apps/blu_v3/src/components/shared/` exporting the "
+            "shared loading-state component used by every room "
+            "page. Without it, each room keeps rolling its own "
+            "ad-hoc loading block (different spinners, different "
+            "copy, no shared `role`/`data-testid` for tests to "
+            "anchor on), and the visual drift across rooms "
+            "continues."
+        )
+
+    def test_loading_state_exports_loading_state_props_interface(self):
+        """AC#2 — The file must export
+        `interface LoadingStateProps { … }`.
+
+        Other modules will import the type as
+        `import type { LoadingStateProps } from
+        '../../components/shared/LoadingState'`, which requires the
+        `export` keyword on the interface declaration. We also
+        require the body to be well-formed (one level of
+        nested-brace support, symmetric with the `EmptyStateProps`
+        helper).
+        """
+        assert LOADING_STATE_PATH.exists(), (
+            f"RED — source file not found: {LOADING_STATE_PATH}"
+        )
+        source = _read_source(LOADING_STATE_PATH)
+
+        assert _has_loading_state_props_interface(source), (
+            "RED — LoadingState.tsx does NOT export `interface "
+            "LoadingStateProps { … }`. Expected: "
+            "`export interface LoadingStateProps { message?: string }` "
+            "so consumers can `import type { LoadingStateProps }` "
+            "and rely on the prop contract."
+        )
+
+    def test_loading_state_message_is_optional_string(self):
+        """AC#3 — The `message` prop must be OPTIONAL
+        (`message?:`) AND typed as `string`.
+
+        Two contracts pinned at once:
+            (a) `message` MUST be optional — a consumer that wants
+                the default copy must be able to write
+                `<LoadingState />` without supplying a `message`,
+                and TypeScript must accept it.
+            (b) When `message` IS supplied, it MUST be a raw
+                `string` (NOT `ReactNode`, NOT `JSX.Element`).
+                The shared component decides how to render the
+                string: a `<span>`, a `<p>`, an `aria-label`,
+                etc. A `ReactNode` type would invite consumers
+                to pass a `<Spinner />` element, which belongs
+                in the component body, not in the prop.
+        """
+        assert LOADING_STATE_PATH.exists(), (
+            f"RED — source file not found: {LOADING_STATE_PATH}"
+        )
+        source = _read_source(LOADING_STATE_PATH)
+
+        body = _loading_state_props_body(source)
+        assert body is not None, (
+            "RED — LoadingState.tsx does NOT export `interface "
+            "LoadingStateProps`. AC#3 cannot be evaluated until "
+            "the interface exists; declare it first (see AC#2)."
+        )
+
+        assert _declares_optional_message_prop(source), (
+            "RED — LoadingState.tsx does NOT declare `message` as "
+            "an OPTIONAL string prop. Expected `message?: string` "
+            "(with the `?` modifier) so consumers that don't need "
+            "to override the default copy can write `<LoadingState />` "
+            "without a TypeScript error. A required `message: string` "
+            "would force every caller to pass a string, which is "
+            "wrong — the default copy is a sensible fallback."
+        )
+
+    def test_loading_state_default_export_function_uses_props(self):
+        """AC#4 — The file must have
+        `export default function LoadingState(...): LoadingStateProps`.
+
+        Two things are pinned at once:
+            (a) the component is the DEFAULT export of the file
+                (rooms will write
+                `import LoadingState from
+                '../../components/shared/LoadingState'`), and
+            (b) its parameter list is typed against the
+                `LoadingStateProps` interface, so TypeScript will
+                catch any consumer that passes the wrong prop
+                shape at compile time.
+        """
+        assert LOADING_STATE_PATH.exists(), (
+            f"RED — source file not found: {LOADING_STATE_PATH}"
+        )
+        source = _read_source(LOADING_STATE_PATH)
+
+        assert _has_loading_state_default_export_function(source), (
+            "RED — LoadingState.tsx does NOT have the expected "
+            "default-export signature "
+            "`export default function LoadingState(...): LoadingStateProps`. "
+            "The component MUST be the default export (matching the "
+            "convention of other shared components like "
+            "`DecisionCard`, `ErrorFallback`, and `EmptyState`) "
+            "and MUST be typed against `LoadingStateProps` so the "
+            "prop contract is enforced at compile time for every "
+            "room that adopts it."
+        )
+
+    def test_loading_state_function_destructures_message(self):
+        """AC#5 — The default-export function must destructure
+        `message` out of its props argument, so the JSX body can
+        reference it as a bare identifier
+        (`{message ?? 'Carregando…'}`) without going through
+        `props.message`.
+        """
+        assert LOADING_STATE_PATH.exists(), (
+            f"RED — source file not found: {LOADING_STATE_PATH}"
+        )
+        source = _read_source(LOADING_STATE_PATH)
+
+        assert _loading_state_destructures_message(source), (
+            "RED — the default-export `LoadingState` function does "
+            "not destructure the `message` prop. Expected the "
+            "signature to be "
+            "`export default function LoadingState({ message }: "
+            "LoadingStateProps) { … }` so the JSX body can "
+            "reference `{message}` directly (and fall back to a "
+            "default like `'Carregando…'` when the prop is "
+            "omitted). Going through `props.message` is "
+            "functionally equivalent but is out of contract for "
+            "this shared component."
+        )

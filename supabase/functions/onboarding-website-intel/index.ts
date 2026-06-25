@@ -166,6 +166,22 @@ Deno.serve(async (req: Request) => {
       if (resp.ok) {
         html = await resp.text();
       }
+    } catch (fetchErr) {
+      console.warn("[onboarding-website-intel] fetch failed, returning SPA fallback", fetchErr);
+      return json({
+        company_name: null,
+        vertical: null,
+        suggested_size: null,
+        ...suggestFromVertical(null),
+        confidence: 0,
+        cnpj: null,
+        telefone: null,
+        confidence_details: {
+          cnpj_confidence: 0,
+          telefone_confidence: 0,
+          vertical_confidence: 0,
+        },
+      });
     } finally {
       clearTimeout(timeout);
     }

@@ -2780,13 +2780,59 @@ END;
 
 $function$;
 
+CREATE OR REPLACE FUNCTION analytics_v2.get_supply_indicators(p_period text DEFAULT '30d'::text)
+RETURNS TABLE(rfqs_abertas bigint, rfqs_enviadas bigint, rfqs_respondidas bigint, taxa_resposta_perc numeric, tempo_resposta_medio_h numeric, pos_aprovadas bigint, pos_pendentes_aprovacao bigint, spend_periodo numeric, fornecedores_ativos bigint, concentracao_top_perc numeric, cycle_time_medio_h numeric, cost_savings_perc numeric, ppv numeric, otif_perc numeric, lead_time_medio_dias numeric, maverick_spend_perc numeric, spend_under_management_perc numeric, period text)
+LANGUAGE sql
+AS $function$
+  SELECT
+    0::bigint as rfqs_abertas,
+    0::bigint as rfqs_enviadas,
+    0::bigint as rfqs_respondidas,
+    0::numeric as taxa_resposta_perc,
+    0::numeric as tempo_resposta_medio_h,
+    0::bigint as pos_aprovadas,
+    0::bigint as pos_pendentes_aprovacao,
+    COALESCE(SUM(ft.valor), 0) as spend_periodo,
+    COALESCE(COUNT(DISTINCT df.fornecedor_id), 0) as fornecedores_ativos,
+    0::numeric as concentracao_top_perc,
+    0::numeric as cycle_time_medio_h,
+    0::numeric as cost_savings_perc,
+    0::numeric as ppv,
+    0::numeric as otif_perc,
+    0::numeric as lead_time_medio_dias,
+    0::numeric as maverick_spend_perc,
+    0::numeric as spend_under_management_perc,
+    p_period as period
+  FROM analytics_v2.dim_fornecedores df
+  LEFT JOIN analytics_v2.fato_transacoes ft ON ft.fornecedor_id = df.fornecedor_id;
+$function$;
+
 CREATE OR REPLACE FUNCTION public.get_supply_indicators(p_period text DEFAULT '30d'::text)
 RETURNS TABLE(rfqs_abertas bigint, rfqs_enviadas bigint, rfqs_respondidas bigint, taxa_resposta_perc numeric, tempo_resposta_medio_h numeric, pos_aprovadas bigint, pos_pendentes_aprovacao bigint, spend_periodo numeric, fornecedores_ativos bigint, concentracao_top_perc numeric, cycle_time_medio_h numeric, cost_savings_perc numeric, ppv numeric, otif_perc numeric, lead_time_medio_dias numeric, maverick_spend_perc numeric, spend_under_management_perc numeric, period text)
 LANGUAGE sql
 AS $function$
-
-  SELECT * FROM analytics_v2.get_supply_indicators(p_period);
-
+  SELECT COALESCE(s.rfqs_abertas, 0) as rfqs_abertas,
+         COALESCE(s.rfqs_enviadas, 0) as rfqs_enviadas,
+         COALESCE(s.rfqs_respondidas, 0) as rfqs_respondidas,
+         COALESCE(s.taxa_resposta_perc, 0) as taxa_resposta_perc,
+         COALESCE(s.tempo_resposta_medio_h, 0) as tempo_resposta_medio_h,
+         COALESCE(s.pos_aprovadas, 0) as pos_aprovadas,
+         COALESCE(s.pos_pendentes_aprovacao, 0) as pos_pendentes_aprovacao,
+         COALESCE(s.spend_periodo, 0) as spend_periodo,
+         COALESCE(s.fornecedores_ativos, 0) as fornecedores_ativos,
+         COALESCE(s.concentracao_top_perc, 0) as concentracao_top_perc,
+         COALESCE(s.cycle_time_medio_h, 0) as cycle_time_medio_h,
+         COALESCE(s.cost_savings_perc, 0) as cost_savings_perc,
+         COALESCE(s.ppv, 0) as ppv,
+         COALESCE(s.otif_perc, 0) as otif_perc,
+         COALESCE(s.lead_time_medio_dias, 0) as lead_time_medio_dias,
+         COALESCE(s.maverick_spend_perc, 0) as maverick_spend_perc,
+         COALESCE(s.spend_under_management_perc, 0) as spend_under_management_perc,
+         COALESCE(s.period, p_period) as period
+  FROM analytics_v2.get_supply_indicators(p_period) s
+  UNION ALL
+  SELECT 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, p_period
+  WHERE NOT EXISTS (SELECT 1 FROM analytics_v2.dim_fornecedores LIMIT 1);
 $function$;
 
 CREATE OR REPLACE FUNCTION public.get_ticket_medio_monthly_rate(p_client_id uuid, p_window_months integer DEFAULT 1)
@@ -5015,3 +5061,118 @@ CREATE TRIGGER polp_accounts_updated_at BEFORE UPDATE ON public.polp_accounts FO
 CREATE TRIGGER polp_bills_updated_at BEFORE UPDATE ON public.polp_bills FOR EACH ROW EXECUTE FUNCTION polp_set_updated_at();
 CREATE TRIGGER polp_integrations_updated_at BEFORE UPDATE ON public.polp_integrations FOR EACH ROW EXECUTE FUNCTION polp_set_updated_at();
 CREATE TRIGGER polp_transactions_updated_at BEFORE UPDATE ON public.polp_transactions FOR EACH ROW EXECUTE FUNCTION polp_set_updated_at();
+
+CREATE OR REPLACE FUNCTION analytics_v2.popular_dim_clientes(p_client_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+AS $function$
+BEGIN
+  INSERT INTO analytics_v2.dim_clientes (client_id, cpf_cnpj, nome, telefone, endereco_cidade, endereco_uf, atualizado_em)
+  SELECT
+    p_client_id,
+    c.cpf_cnpj,
+    c.nome,
+    c.telefone,
+    c.endereco_cidade,
+    c.endereco_uf,
+    now()
+  FROM public.clientes c
+  WHERE c.client_id = p_client_id
+  ON CONFLICT (client_id, cpf_cnpj) WHERE cpf_cnpj IS NOT NULL
+  DO UPDATE SET
+    nome = COALESCE(EXCLUDED.nome, analytics_v2.dim_clientes.nome),
+    telefone = COALESCE(EXCLUDED.telefone, analytics_v2.dim_clientes.telefone),
+    endereco_cidade = COALESCE(EXCLUDED.endereco_cidade, analytics_v2.dim_clientes.endereco_cidade),
+    endereco_uf = COALESCE(EXCLUDED.endereco_uf, analytics_v2.dim_clientes.endereco_uf),
+    atualizado_em = now();
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION analytics_v2.get_commercial_top_clients(p_period text DEFAULT 30d, p_limit integer DEFAULT 10)
+RETURNS TABLE(client_id bigint, nome text, receita numeric, pedidos bigint, share_perc numeric, period text)
+LANGUAGE plpgsql
+AS $function$
+DECLARE
+  v_total numeric;
+  v_days integer;
+BEGIN
+  v_days := CASE
+    WHEN p_period = 7d THEN 7
+    WHEN p_period = 90d THEN 90
+    WHEN p_period = mtd THEN extract(day FROM now())::integer
+    WHEN p_period = ytd THEN extract(doy FROM now())::integer
+    ELSE 30
+  END;
+
+  SELECT COALESCE(SUM(ft.valor_total), 0) INTO v_total
+  FROM analytics_v2.fato_transacoes ft
+  WHERE ft.client_id = public.get_my_client_id()
+    AND ft.data_transacao >= CURRENT_DATE - v_days;
+
+  RETURN QUERY
+  SELECT
+    dc.customer_id,
+    dc.nome,
+    COALESCE(SUM(ft.valor_total), 0)::numeric AS receita,
+    COUNT(ft.transacao_id) AS pedidos,
+    CASE WHEN v_total > 0 THEN
+      ROUND((COALESCE(SUM(ft.valor_total), 0) / v_total * 100)::numeric, 2)
+    ELSE NULL END AS share_perc,
+    p_period AS period
+  FROM analytics_v2.dim_clientes dc
+  LEFT JOIN analytics_v2.fato_transacoes ft
+    ON dc.customer_id = ft.customer_id
+    AND dc.client_id = ft.client_id
+    AND ft.data_transacao >= CURRENT_DATE - v_days
+  WHERE dc.client_id = public.get_my_client_id()
+  GROUP BY dc.customer_id, dc.nome
+  ORDER BY receita DESC
+  LIMIT p_limit;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION analytics_v2.get_commercial_indicators(p_period text DEFAULT 30d)
+RETURNS TABLE(pedidos_periodo bigint, receita_periodo numeric, ticket_medio numeric, clientes_unicos bigint, clientes_novos bigint, clientes_recorrentes bigint, recencia_media_dias numeric, frequencia_media_mensal numeric, churn_60d_perc numeric, crescimento_receita_perc numeric, win_rate_perc numeric, ciclo_venda_dias numeric, nrr_perc numeric, clv numeric, checkout_conversion_perc numeric, nps numeric, period text)
+LANGUAGE plpgsql
+AS $function$
+DECLARE
+  v_days integer;
+BEGIN
+  v_days := CASE
+    WHEN p_period = 7d THEN 7
+    WHEN p_period = 90d THEN 90
+    WHEN p_period = mtd THEN extract(day FROM now())::integer
+    WHEN p_period = ytd THEN extract(doy FROM now())::integer
+    ELSE 30
+  END;
+
+  RETURN QUERY
+  SELECT
+    COALESCE(COUNT(ft.transacao_id), 0)::bigint AS pedidos_periodo,
+    COALESCE(SUM(ft.valor_total), 0)::numeric AS receita_periodo,
+    CASE WHEN COUNT(ft.transacao_id) > 0 THEN
+      ROUND((SUM(ft.valor_total) / COUNT(ft.transacao_id))::numeric, 2)
+    ELSE 0 END AS ticket_medio,
+    COALESCE(COUNT(DISTINCT ft.customer_id), 0)::bigint AS clientes_unicos,
+    COALESCE(SUM(CASE WHEN dc.created_at >= CURRENT_DATE - v_days THEN 1 ELSE 0 END), 0)::bigint AS clientes_novos,
+    COALESCE(COUNT(DISTINCT ft.customer_id)
+      - SUM(CASE WHEN dc.created_at >= CURRENT_DATE - v_days THEN 1 ELSE 0 END), 0)::bigint AS clientes_recorrentes,
+    0::numeric AS recencia_media_dias,
+    0::numeric AS frequencia_media_mensal,
+    NULL::numeric AS churn_60d_perc,
+    NULL::numeric AS crescimento_receita_perc,
+    NULL::numeric AS win_rate_perc,
+    NULL::numeric AS ciclo_venda_dias,
+    NULL::numeric AS nrr_perc,
+    NULL::numeric AS clv,
+    NULL::numeric AS checkout_conversion_perc,
+    NULL::numeric AS nps,
+    p_period AS period
+  FROM analytics_v2.fato_transacoes ft
+  LEFT JOIN analytics_v2.dim_clientes dc
+    ON ft.customer_id = dc.customer_id
+    AND ft.client_id = dc.client_id
+  WHERE ft.client_id = public.get_my_client_id()
+    AND ft.data_transacao >= CURRENT_DATE - v_days;
+END;
+$function$;

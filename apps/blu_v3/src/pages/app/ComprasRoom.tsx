@@ -25,6 +25,8 @@ import { formatBRL } from '../../utils/formatters'
 
 type Tab = 'decisoes' | 'tarefas' | 'historico' | 'config'
 
+const LOADING_TIMEOUT = 15_000
+
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
 }
@@ -95,6 +97,16 @@ export default function ComprasRoom() {
   })
 
   const invalidateApprovals = () => qc.invalidateQueries({ queryKey: ['approvals'] })
+
+  useEffect(() => {
+    if (!supplyQ.isLoading) return
+    const t = setTimeout(() => {
+      if (supplyQ.isLoading) {
+        console.warn('[ComprasRoom] supply indicators loading timeout after', LOADING_TIMEOUT, 'ms')
+      }
+    }, LOADING_TIMEOUT)
+    return () => clearTimeout(t)
+  }, [supplyQ.isLoading])
 
   const approveMut = useMutation({
     mutationFn: (id: string) => approveRequest(id, clientId!),

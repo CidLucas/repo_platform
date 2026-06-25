@@ -25,6 +25,11 @@ function detectVertical(text: string): string | null {
   if (/(cl[ií]nica|hospital|paciente|consult[oó]rio)/.test(t)) return "saude";
   if (/(curso|aluno|escola|educa)/.test(t)) return "educacao";
   if (/(contabil|financeir|banco|cr[eé]dito|invest)/.test(t)) return "financeiro";
+  if (/(design|logo|branding|criativo|artes|visual)/.test(t)) return "design";
+  if (/(buffet|eventos|festa|cerimonia|gastronomia)/.test(t)) return "buffet";
+  if (/(construcao|obra|engenharia|incorporadora|reforma)/.test(t)) return "construcao";
+  if (/(logistica|frete|transporte|entregas|frota)/.test(t)) return "logistica";
+  if (/(consultoria|assessoria|mentoria|treinamento)/.test(t)) return "consultoria";
   if (/(servi[cç]o|ag[eê]ncia|consultoria|atendimento)/.test(t)) return "servicos";
   if (/(design|gr[aá]fico|ux|ui)/.test(t)) return "design";
   if (/(buffet|catering|evento)/.test(t)) return "alimentacao";
@@ -46,50 +51,43 @@ function detectVertical(text: string): string | null {
   return null;
 }
 
+function validateCNPJ(cnpj: string): boolean {
+  const digits = cnpj.replace(/\D/g, "");
+  if (digits.length !== 14) return false;
+  if (/^(\d)\1+$/.test(digits)) return false;
+  const weights1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  const weights2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  let sum1 = 0;
+  for (let i = 0; i < 12; i++) {
+    sum1 += parseInt(digits[i], 10) * weights1[i];
+  }
+  const rem1 = sum1 % 11;
+  const d1 = rem1 < 2 ? 0 : 11 - rem1;
+  if (d1 !== parseInt(digits[12], 10)) return false;
+  let sum2 = 0;
+  for (let i = 0; i < 13; i++) {
+    sum2 += parseInt(digits[i], 10) * weights2[i];
+  }
+  const rem2 = sum2 % 11;
+  const d2 = rem2 < 2 ? 0 : 11 - rem2;
+  if (d2 !== parseInt(digits[13], 10)) return false;
+  return true;
+}
+
 function extractCNPJ(html: string): string | null {
-  const pattern = /\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/;
-  const match = html.match(pattern);
-  return match ? match[0] : null;
+  const regex = /(\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2})/g;
+  const matches = html.match(regex);
+  if (!matches) return null;
+  for (const m of matches) {
+    if (validateCNPJ(m)) return m;
+  }
+  return null;
 }
 
 function extractPhone(html: string): string | null {
-  const formattedPattern = /\(\d{2}\)\s?\d{4,5}-?\d{4}/;
-  const formattedMatch = html.match(formattedPattern);
-  if (formattedMatch) return formattedMatch[0];
-
-  const plainPattern = /\d{10,11}/;
-  const plainMatch = html.match(plainPattern);
-  return plainMatch ? plainMatch[0] : null;
-}
-
-function validateCNPJ(cnpj) {
-  const cleaned = cnpj.replace(/\D/g, "");
-  if (cleaned.length !== 14) return false;
-
-  const weights1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
-  const weights2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
-
-  let sum = 0;
-  for (let i = 0; i < 12; i++) {
-    sum += parseInt(cleaned[i]) * weights1[i];
-  }
-  let rest = sum % 11;
-  const dv1 = rest < 2 ? 0 : 11 - rest;
-
-  sum = 0;
-  for (let i = 0; i < 13; i++) {
-    sum += parseInt(cleaned[i]) * weights2[i];
-  }
-  rest = sum % 11;
-  const dv2 = rest < 2 ? 0 : 11 - rest;
-
-  return dv1 === parseInt(cleaned[12]) && dv2 === parseInt(cleaned[13]);
-}
-
-function calcSourceConfidence(sourceCount: number): number {
-  if (sourceCount >= 3) return 0.7;
-  if (sourceCount >= 2) return 0.5;
-  return 0.3;
+  const regex = /\(\d{2}\)\s?(?:9\d{4}-\d{4}|\d{4}-\d{4})/g;
+  const match = html.match(regex);
+  return match ? match[0] : null;
 }
 
 function suggestFromVertical(vertical: string | null) {
@@ -147,15 +145,10 @@ Deno.serve(async (req: Request) => {
         company_name: null,
         vertical: null,
         suggested_size: null,
-        ...suggestFromVertical(null),
-        confidence: 0,
         cnpj: null,
-        telefone: null,
-        confidence_details: {
-          cnpj_confidence: 0,
-          telefone_confidence: 0,
-          vertical_confidence: 0,
-        },
+        phone: null,
+        ...suggestFromVertical(null),
+        confidence: 0.3,
       });
     }
 
@@ -182,6 +175,8 @@ Deno.serve(async (req: Request) => {
 
     const title = titleMatch ? stripHtml(titleMatch[1]) : null;
     const summaryText = stripHtml([title ?? "", metaDescMatch?.[1] ?? "", html.slice(0, 3000)].join(" "));
+    const cnpj = extractCNPJ(html);
+    const phone = extractPhone(html);
 
     const rawCnpj = extractCNPJ(html);
     const cnpj = rawCnpj && validateCNPJ(rawCnpj) ? rawCnpj : null;
@@ -189,31 +184,26 @@ Deno.serve(async (req: Request) => {
     const vertical = detectVertical(summaryText);
     const suggestions = suggestFromVertical(vertical);
 
-    // Source counting for confidence scoring
-    let sourceCount = 0;
-    if (title) sourceCount++;
-    if (metaDescMatch?.[1]) sourceCount++;
-    if (html.length > 0) sourceCount++;
-    const sourceConfidence = calcSourceConfidence(sourceCount);
+    const sourceCount =
+      (title ? 1 : 0) +
+      (metaDescMatch ? 1 : 0) +
+      (cnpj ? 1 : 0) +
+      (phone ? 1 : 0) +
+      (summaryText.length > 0 ? 1 : 0);
 
-    const cnpj_confidence = cnpj ? sourceConfidence : 0;
-    const telefone_confidence = telefone ? sourceConfidence : 0;
-    const vertical_confidence = vertical ? sourceConfidence : 0;
-    const confidence = (cnpj_confidence + telefone_confidence + vertical_confidence) / 3;
+    let confidence: number;
+    if (sourceCount >= 3) confidence = 0.7;
+    else if (sourceCount === 2) confidence = 0.5;
+    else confidence = 0.3;
 
     return json({
       company_name: title,
       vertical,
       suggested_size: null,
+      cnpj,
+      phone,
       ...suggestions,
       confidence,
-      cnpj,
-      telefone,
-      confidence_details: {
-        cnpj_confidence,
-        telefone_confidence,
-        vertical_confidence,
-      },
     });
   } catch (err) {
     console.warn("[onboarding-website-intel] fallback due to error", err);
@@ -221,6 +211,8 @@ Deno.serve(async (req: Request) => {
       company_name: null,
       vertical: null,
       suggested_size: null,
+      cnpj: null,
+      phone: null,
       ...suggestFromVertical(null),
       confidence: 0,
       cnpj: null,

@@ -1099,3 +1099,320 @@ class TestRoomsUseSharedComponents:
             f"markup; rooms that import it but never render it "
             f"are still drifting."
         )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# AC#4 — `EmptyState` and `LoadingState` use INFORMATIVE messages
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# GOAL:
+#     The shared `EmptyState` and `LoadingState` components must NOT
+#     fall back to generic, single-word copy like `'Carregando…'` or
+#     `'Nenhum item'` — they must carry enough context for the user
+#     to understand (a) what is missing/loading and (b) what they can
+#     do about it. This AC validates the MESSAGING contract of the
+#     two shared components at three different levels:
+#
+#         1. The `EmptyState` JSX body RENDERS `{title}` AND
+#            `{description}` from props (so a room can ship a
+#            2-level message: a heading + a supporting line, both
+#            driven by props — NOT a hardcoded string).
+#         2. The `LoadingState` JSX body renders `{message}` with a
+#            DESCRIPTIVE fallback default — e.g.
+#            `'Aguarde enquanto carregamos…'` — so the user knows
+#            the system is working on something specific, rather
+#            than seeing a bare `'Carregando…'`.
+#         3. The `EmptyStateProps` interface pins the 2-level
+#            messaging contract at the TYPE level: `title` and
+#            `description` are SEPARATE required string fields,
+#            so a room cannot satisfy the contract with a single
+#            message field.
+#
+# AC (Acceptance Criteria):
+#     AC#1 — `EmptyState.tsx` JSX body renders `{title}` AND
+#            `{description}` as JSX expression containers (i.e.
+#            both destructured props are reachable in the markup,
+#            not replaced by hardcoded text).
+#     AC#2 — `LoadingState.tsx` JSX body renders `{message}` with
+#            a DESCRIPTIVE fallback default (e.g. via `??`, `||`,
+#            or a ternary), and the fallback is not a trivial
+#            string like `'Carregando…'`.
+#     AC#3 — `EmptyStateProps` declares BOTH `title: string` AND
+#            `description: string` as required props — i.e. the
+#            2-level messaging contract is pinned at the type
+#            level and cannot be collapsed into a single field.
+#
+# DECISION:
+#     Estratégia: create — the contract is enforced by the
+#                 interface and the JSX body; no behavior change
+#                 beyond the messaging copy. Rooms will inherit
+#                 the informative copy automatically once they
+#                 adopt the shared components.
+#
+# Estado atual: RED — neither `EmptyState.tsx` nor `LoadingState.tsx`
+# exist on disk, so every AC fails on the file-exists guard. The
+# Coder must create the files with the messaging contract above to
+# turn all 3 ACs GREEN.
+#
+# Anti-Goals (must NOT be violated):
+#     1. NÃO hardcodar a copy de `EmptyState` ou `LoadingState` —
+#        as mensagens DEVEM vir de props (`title`, `description`,
+#        `message`). Um `EmptyState` com `<h1>Sem dados</h1>`
+#        hardcoded violaria o AC#1.
+#     2. NÃO aceitar fallback trivial em `LoadingState` (e.g.
+#        `{message ?? 'Carregando…'}`) — o AC#2 exige fallback
+#        descritivo (e.g. `'Aguarde enquanto carregamos…'`).
+#     3. NÃO colapsar `title` e `description` em um único campo
+#        (e.g. `message: string`) em `EmptyStateProps` — o AC#3
+#        pina os dois como props SEPARADAS e REQUIRED.
+#     4. NÃO tornar `title` ou `description` opcionais em
+#        `EmptyStateProps` — a contract é 2-level, e a room é
+#        forçada a suprir ambos.
+
+
+# ── Source-level guard helpers (AC#4 — informative messages) ──────────────
+
+
+def _jsx_renders_bare_identifier(source: str, identifier: str) -> bool:
+    """Detect a JSX expression container `{<identifier>}` in the source.
+
+    The pattern matches the opening `{`, the bare identifier, and
+    the closing `}`. We accept any whitespace around the identifier
+    but reject dotted forms (`{props.title}`) — the AC#6 destructure
+    guard is what pins the bare-name form, and AC#4 only needs to
+    confirm the identifier is reachable as a JSX expression.
+    """
+    pattern = rf"\{{\s*{re.escape(identifier)}\s*\}}"
+    return re.search(pattern, source) is not None
+
+
+def _loading_state_fallback_default(source: str) -> str | None:
+    """Return the fallback default string used for `message` in
+    `LoadingState.tsx`, or `None` if no fallback is detected.
+
+    We accept three fallback idioms:
+        - `message ?? '...'`   (nullish coalescing)
+        - `message || '...'`   (logical OR — falsy fallback)
+        - `message ? '...' : '...'` (ternary)
+
+    The fallback string may be wrapped in `'`, `"`, or backticks
+    (template literal). The function returns the literal
+    contents, stripped of surrounding whitespace.
+    """
+    pattern = (
+        r"\bmessage\s*(?:\?\?|\|\||\?)\s*"
+        r"['\"`]([^'\"`]+)['\"`]"
+    )
+    m = re.search(pattern, source)
+    return m.group(1).strip() if m else None
+
+
+def _is_descriptive_loading_fallback(fallback: str) -> bool:
+    """Return True if a `LoadingState` fallback default is DESCRIPTIVE.
+
+    The AC#4 contract rejects trivial copy like `'Carregando…'` or
+    `'Loading…'` and requires a fallback that gives the user
+    actionable context. We accept a fallback as descriptive if EITHER:
+
+        (a) it contains the word "Aguarde" (the recommended polite
+            "please wait…" formulation — e.g. `'Aguarde enquanto
+            carregamos…'`), OR
+        (b) it is at least 15 characters long (a soft length floor
+            that filters out any single-word or short phrase
+            fallback).
+    """
+    if "Aguarde" in fallback or "aguarde" in fallback:
+        return True
+    return len(fallback) >= 15
+
+
+def _is_trivial_loading_fallback(fallback: str) -> bool:
+    """Return True if a `LoadingState` fallback default is TRIVIAL.
+
+    A trivial fallback is one of the bare generic strings the
+    AC#4 contract explicitly rejects: `'Carregando...'`,
+    `'Carregando…'`, or any short string that starts with
+    `'Carregando'` and is shorter than 12 characters.
+    """
+    normalized = fallback.strip()
+    if normalized in ("Carregando...", "Carregando…", "Loading...", "Loading…"):
+        return True
+    if normalized.startswith("Carregando") and len(normalized) < 12:
+        return True
+    return False
+
+
+def _empty_state_props_declares_field(body: str, field: str) -> bool:
+    """Detect `<field>: string` declared as a REQUIRED prop inside
+    the `EmptyStateProps` body.
+
+    Mirrors the `_declares_required_string_prop` helper used by
+    AC#3, but scoped to a pre-extracted interface body so we do
+    not pick up stray JSX `title="…"` attributes in the file.
+    """
+    pattern = rf"\b{re.escape(field)}\s*:\s*string\b"
+    return re.search(pattern, body) is not None
+
+
+# ── AC#4: informative messaging contract ──────────────────────────────────
+
+
+class TestInformativeMessages:
+    """AC#4 — `EmptyState` and `LoadingState` use INFORMATIVE messages.
+
+    Validates the messaging contract of the two shared components
+    at three different levels (JSX rendering, fallback default,
+    interface shape). The contract pins that:
+
+        - `EmptyState` does NOT hardcode its copy — it renders
+          `{title}` and `{description}` from props (2-level
+          messaging, prop-driven, not hardcoded).
+        - `LoadingState` does NOT fall back to a trivial string
+          like `'Carregando…'` — it falls back to a DESCRIPTIVE
+          default (e.g. `'Aguarde enquanto carregamos…'`) so the
+          user knows the system is working on something specific.
+        - `EmptyStateProps` enforces BOTH `title` and
+          `description` as separate required string fields, so a
+          room cannot satisfy the contract with a single message
+          field (the 2-level messaging is pinned at the type
+          level).
+    """
+
+    def test_empty_state_jsx_renders_title_and_description(self):
+        """AC#4.1 — `EmptyState.tsx` JSX body renders `{title}` AND
+        `{description}` from props.
+
+        The shared component must NOT hardcode its copy. A room
+        that adopts `<EmptyState icon="…" title="Sem compras"
+        description="Crie sua primeira compra…" />` expects
+        BOTH props to reach the DOM as distinct elements (a
+        heading and a supporting line). Rendering only one of
+        them, or rendering hardcoded text, violates the
+        2-level messaging contract.
+
+        We match the JSX expression containers `{title}` and
+        `{description}` anywhere in the source — the destructure
+        form (AC#6) is what makes the bare identifiers
+        reachable; this test confirms they are USED in the
+        markup.
+        """
+        assert EMPTY_STATE_PATH.exists(), (
+            f"RED — source file not found: {EMPTY_STATE_PATH}"
+        )
+        source = _read_source(EMPTY_STATE_PATH)
+
+        has_title = _jsx_renders_bare_identifier(source, "title")
+        has_description = _jsx_renders_bare_identifier(source, "description")
+
+        assert has_title and has_description, (
+            "RED — EmptyState.tsx does NOT render both `{title}` "
+            "and `{description}` from props in its JSX. Expected "
+            "the component body to render BOTH the heading "
+            "(`{title}`) and the supporting line (`{description}`) "
+            "so the user gets 2-level messaging (what is empty + "
+            "why/what to do). Rendering only one, or rendering "
+            "hardcoded text instead of the props, violates the "
+            "AC#4 contract. Detected: "
+            f"title={has_title}, description={has_description}."
+        )
+
+    def test_loading_state_jsx_renders_message_with_descriptive_fallback(self):
+        """AC#4.2 — `LoadingState.tsx` JSX renders `{message}` with
+        a DESCRIPTIVE fallback default.
+
+        The shared component must NOT fall back to a trivial
+        string like `'Carregando…'` — that copy tells the user
+        nothing. The AC#4 contract requires a DESCRIPTIVE
+        fallback (e.g. `'Aguarde enquanto carregamos…'`) that
+        gives the user actionable context. We accept three
+        fallback idioms (`??`, `||`, ternary) and verify that
+        the fallback string is descriptive — either containing
+        the word "Aguarde" (the recommended polite formulation)
+        or at least 15 characters long — and is NOT one of the
+        explicitly-rejected trivial strings.
+        """
+        assert LOADING_STATE_PATH.exists(), (
+            f"RED — source file not found: {LOADING_STATE_PATH}"
+        )
+        source = _read_source(LOADING_STATE_PATH)
+
+        fallback = _loading_state_fallback_default(source)
+        assert fallback is not None, (
+            "RED — LoadingState.tsx does NOT render `{message}` "
+            "with a fallback default. Expected the JSX body to "
+            "use a fallback expression like `{message ?? '...'}` "
+            "or `{message || '...'}` or `{message ? '...' : '...'}` "
+            "so the user sees informative copy when the room does "
+            "not override the default. A bare `{message}` (no "
+            "fallback) renders `undefined` when omitted, which is "
+            "out of contract."
+        )
+
+        assert not _is_trivial_loading_fallback(fallback), (
+            f"RED — LoadingState.tsx fallback default is TRIVIAL. "
+            f"Detected fallback: {fallback!r}. The AC#4 contract "
+            f"explicitly rejects bare generic copy like "
+            f"'Carregando...' or 'Carregando…' — the user learns "
+            f"nothing from those strings. Expected a DESCRIPTIVE "
+            f"fallback like 'Aguarde enquanto carregamos…' so the "
+            f"user knows the system is working on something "
+            f"specific."
+        )
+
+        assert _is_descriptive_loading_fallback(fallback), (
+            f"RED — LoadingState.tsx fallback default is not "
+            f"descriptive. Detected fallback: {fallback!r}. "
+            f"Expected a DESCRIPTIVE fallback — either containing "
+            f"the word 'Aguarde' (the recommended polite "
+            f"formulation, e.g. 'Aguarde enquanto carregamos…') "
+            f"or at least 15 characters long. The AC#4 contract "
+            f"pins that loading messages are informative, not "
+            f"generic."
+        )
+
+    def test_empty_state_props_enforces_separate_title_and_description(self):
+        """AC#4.3 — `EmptyStateProps` enforces SEPARATE `title` and
+        `description` fields (2-level messaging contract at the
+        type level).
+
+        The 2-level messaging is not just a JSX convention — it
+        is pinned in the TypeScript interface. Both `title` and
+        `description` must be declared as SEPARATE required
+        string fields. A room that tries to ship a one-word
+        empty state (e.g. `<EmptyState message="Vazio" />`)
+        must get a TypeScript error, because the interface
+        requires BOTH fields.
+
+        We require the `:` modifier (NOT `?:`) to reject
+        optional versions, and we require the literal `string`
+        type to reject `ReactNode` / `JSX.Element` variants.
+        """
+        assert EMPTY_STATE_PATH.exists(), (
+            f"RED — source file not found: {EMPTY_STATE_PATH}"
+        )
+        source = _read_source(EMPTY_STATE_PATH)
+
+        body = _empty_state_props_body(source)
+        assert body is not None, (
+            "RED — EmptyState.tsx does NOT export `interface "
+            "EmptyStateProps`. AC#4.3 cannot be evaluated until "
+            "the interface exists; declare it first (see AC#2)."
+        )
+
+        has_title = _empty_state_props_declares_field(body, "title")
+        has_description = _empty_state_props_declares_field(
+            body, "description"
+        )
+
+        assert has_title and has_description, (
+            "RED — EmptyStateProps does NOT enforce separate "
+            "`title` and `description` fields. Expected the "
+            "interface to declare BOTH `title: string` and "
+            "`description: string` as REQUIRED props (the "
+            "2-level messaging contract: a heading and a "
+            "supporting line). Combining them into a single "
+            "field, or making either one optional, would let "
+            "a room ship a one-word empty state and is out of "
+            "contract. Detected: "
+            f"title={has_title}, description={has_description}."
+        )

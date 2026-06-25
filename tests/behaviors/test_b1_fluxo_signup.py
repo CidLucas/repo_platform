@@ -453,3 +453,285 @@ def test_call_chain_invariant_stepauth_to_supabase_signup():
         "dentro do signUp() — esse é o ponto exato onde o signOut "
         "precisa ser inserido."
     )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# AC#4 — handle_new_auth_user() trigger exists in migration SQL
+# ══════════════════════════════════════════════════════════════════════════
+
+BASELINE_MIGRATION_PATH = (
+    REPO_ROOT
+    / "supabase"
+    / "migrations"
+    / "20260523999999_baseline_v2.sql"
+)
+
+ONBOARDING_DRAFT_PATH = (
+    REPO_ROOT
+    / "apps"
+    / "blu_v3"
+    / "src"
+    / "hooks"
+    / "useOnboardingDraft.ts"
+)
+
+EDGE_FN_BOOTSTRAP_PATH = (
+    REPO_ROOT
+    / "supabase"
+    / "functions"
+    / "onboarding-bootstrap"
+    / "index.ts"
+)
+
+
+def _read_source(path: Path) -> str:
+    assert path.exists(), f"Arquivo nao encontrado: {path.relative_to(REPO_ROOT)}"
+    return path.read_text(encoding="utf-8")
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# AC#4 — ensure_tenant_row() must be called BEFORE onboarding_bootstrap_tx
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def test_ac4_edge_fn_calls_ensure_tenant_row_before_rpc():
+    """AC#4: Na edge function ``onboarding-bootstrap/index.ts``, a chamada
+    ``ensure_tenant_row`` DEVE ocorrer ANTES da chamada ao RPC
+    ``onboarding_bootstrap_tx``.
+
+    A ordem importa: primeiro a edge function garante que o tenant
+    (clientes_blu) existe via ``userClient.rpc('ensure_tenant_row')``,
+    e SÓ ENTÃO chama o RPC de bootstrap com o payload completo.
+
+    Hoje (RED), a edge function tem a ordem:
+        rpc('ensure_tenant_row')
+        rpc('onboarding_bootstrap_tx', { p_payload: payload })
+
+    O teste verifica que ensure_tenant_row aparece primeiro no arquivo.
+    """
+    source = _read_source(EDGE_FN_BOOTSTRAP_PATH)
+
+    # ensure_tenant_row deve existir
+    assert "ensure_tenant_row" in source, (
+        "AC#4 violated (RED): onboarding-bootstrap/index.ts NAO chama "
+        "ensure_tenant_row. Esperado:\n"
+        "  userClient.rpc('ensure_tenant_row')\n"
+        "Essa chamada garante que o tenant existe antes do bootstrap."
+    )
+
+    # onboarding_bootstrap_tx deve existir (pode ser multi-line)
+    assert "onboarding_bootstrap_tx" in source, (
+        "AC#4 violated (RED): onboarding-bootstrap/index.ts NAO chama "
+        "onboarding_bootstrap_tx RPC. Esperado:\n"
+        "  userClient.rpc('onboarding_bootstrap_tx', { p_payload: payload })"
+    )
+
+    # ensure_tenant_row DEVE aparecer ANTES de onboarding_bootstrap_tx
+    # Pular a seção de comentários/header — procurar a partir de "Deno.serve"
+    code_body = source[source.find("Deno.serve"):]
+    idx_ensure = code_body.find("ensure_tenant_row")
+    idx_rpc = code_body.find("onboarding_bootstrap_tx")
+
+    assert idx_ensure < idx_rpc, (
+        "AC#4 violated (RED): ensure_tenant_row DEVE ser chamado ANTES "
+        "de onboarding_bootstrap_tx, mas no codigo (posicao relativa "
+        "ao handler Deno.serve):\n"
+        "  ensure_tenant_row em posicao: {}, "
+        "onboarding_bootstrap_tx em posicao: {}\n\n"
+        "A chamada ensure_tenant_row garante que o tenant existe "
+        "antes do bootstrap atomico, evitando race conditions."
+        .format(idx_ensure, idx_rpc)
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# AC#5 — bootstrap_knowledge_from_onboarding is called after tx RPC
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def test_ac5_knowledge_bootstrap_called_after_tx_rpc():
+    """AC#5: Na edge function, ``bootstrap_knowledge_from_onboarding``
+    DEVE ser chamado DEPOIS de ``onboarding_bootstrap_tx``, pois precisa
+    do ``client_id`` retornado pela transacao atomica.
+
+    Hoje (RED), a funcao tem:
+        rpc('onboarding_bootstrap_tx', ...)
+        ...
+        rpc('bootstrap_knowledge_from_onboarding', { p_client_id })
+
+    O teste verifica que a chamada tx RPC aparece antes.
+    """
+    source = _read_source(EDGE_FN_BOOTSTRAP_PATH)
+
+    has_knowledge_rpc = "bootstrap_knowledge_from_onboarding" in source
+
+    assert has_knowledge_rpc, (
+        "AC#5 violated (RED): onboarding-bootstrap/index.ts NAO chama "
+        "bootstrap_knowledge_from_onboarding. Esperado:\n"
+        "  svc.rpc('bootstrap_knowledge_from_onboarding', { p_client_id })"
+    )
+
+    # knowledge DEVE aparecer DEPOIS de onboarding_bootstrap_tx
+    tx_idx = source.find('onboarding_bootstrap_tx')
+    kb_idx = source.find('bootstrap_knowledge_from_onboarding')
+
+    assert tx_idx < kb_idx, (
+        "AC#5 violated (RED): bootstrap_knowledge_from_onboarding DEVE "
+        "ser chamado DEPOIS de onboarding_bootstrap_tx, pois precisa "
+        "do client_id retornado pela transacao.\n\n"
+        "Ordem atual: tx={}, knowledge={}"
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# AC#6 — website-context-builder fire-and-forget via EdgeRuntime.waitUntil
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def test_ac6_website_context_builder_fire_and_forget():
+    """AC#6: Na edge function, o disparo do ``website-context-builder``
+    DEVE ser fire-and-forget via ``EdgeRuntime.waitUntil``, e NAO um
+    await síncrono que bloquearia a resposta HTTP.
+
+    A edge function deve responder rapido (redirect do wizard), entao
+    a chamada para website-context-builder nao pode travar a resposta.
+
+    O teste falha RED se:
+      - website-context-builder nao for chamado (ausente)
+      - OU for chamado com await síncrono (nao usa waitUntil)
+    """
+    source = _read_source(EDGE_FN_BOOTSTRAP_PATH)
+
+    assert "website-context-builder" in source, (
+        "AC#6 violated (RED): onboarding-bootstrap/index.ts NAO "
+        "referencia website-context-builder. Esperado: fire-and-forget "
+        "fetch para /functions/v1/website-context-builder."
+    )
+
+    # website-context-builder deve estar dentro de EdgeRuntime.waitUntil
+    # Verificar que existe um waitUntil que contem website-context-builder
+    wait_until_blocks = [p for p in source.split("EdgeRuntime.waitUntil(") if "website-context-builder" in p]
+    assert len(wait_until_blocks) >= 1, (
+        "AC#6 violated (RED): website-context-builder NAO esta dentro de "
+        "EdgeRuntime.waitUntil(). Esperado:\n"
+        "  EdgeRuntime.waitUntil(\n"
+        "    fetch(`${SUPABASE_URL}/functions/v1/website-context-builder`, ...)\n"
+        "  )\n\n"
+        "Sem waitUntil, o fetch blocaria a resposta HTTP da edge function, "
+        "atrasando o redirect do wizard de onboarding."
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# AC#7 — onboarding_bootstrap_tx(p_payload jsonb) RPC exists in SQL
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def test_ac7_onboarding_bootstrap_tx_rpc_exists():
+    """AC#7: O RPC ``onboarding_bootstrap_tx(p_payload jsonb)``
+    DEVE existir na migration SQL como funcao PL/pgSQL
+    que chama ``public.get_my_client_id()`` e retorna jsonb.
+
+    Este RPC é o coracao do provisionamento atomico pós-signup:
+    ele recebe o payload completo do wizard de onboarding,
+    cria/atualiza o tenant e retorna { client_id, agents, routines }.
+
+    O teste falha RED enquanto a funcao SQL nao existir com
+    a assinatura correta e chamadas internas esperadas.
+    """
+    source = _read_source(BASELINE_MIGRATION_PATH)
+
+    assert "onboarding_bootstrap_tx" in source, (
+        "AC#7 violated (RED): onboarding_bootstrap_tx NAO encontrado "
+        "na migration baseline. Esperado:\n"
+        "  CREATE OR REPLACE FUNCTION public.onboarding_bootstrap_tx(p_payload jsonb)\n"
+        "  RETURNS jsonb"
+    )
+
+    # Extrair o bloco da funcao (do nome ate o $function$)
+    func_header = source.split("onboarding_bootstrap_tx")[1][:300]
+
+    assert 'p_payload' in func_header, (
+        "AC#7 violated (RED): onboarding_bootstrap_tx NAO tem parametro "
+        "p_payload na assinatura. Esperado:\n"
+        "  onboarding_bootstrap_tx(p_payload jsonb)"
+    )
+
+    assert 'RETURNS jsonb' in func_header, (
+        "AC#7 violated (RED): onboarding_bootstrap_tx NAO retorna jsonb. "
+        "Esperado: RETURNS jsonb para retornar { client_id, agents, routines }."
+    )
+
+    # Verificar corpo da funcao
+    tx_body = source.split("onboarding_bootstrap_tx")[1][:2000]
+    assert 'get_my_client_id()' in tx_body, (
+        "AC#7 violated (RED): onboarding_bootstrap_tx NAO chama "
+        "public.get_my_client_id(). Esperado:\n"
+        "  v_client_id := public.get_my_client_id()"
+    )
+
+    assert 'UPDATE public.clientes_blu' in tx_body, (
+        "AC#7 violated (RED): onboarding_bootstrap_tx NAO faz "
+        "UPDATE em public.clientes_blu com company_profile, "
+        "team_structure, etc. Essa atualizacao eh o core "
+        "do provisionamento."
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# AC#8 — bootstrap_knowledge_from_onboarding(p_client_id uuid) seeds docs
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def test_ac8_bootstrap_knowledge_from_onboarding_seeds_documents():
+    """AC#8: O RPC ``bootstrap_knowledge_from_onboarding(p_client_id uuid)``
+    DEVE existir na migration SQL e fazer INSERT INTO
+    ``public.client_knowledge_documents`` com status='partial',
+    source='onboarding'.
+
+    Esta funcao sementa documentos de conhecimento iniciais
+    (ficha_cadastral, perfil_empresarial, etc) para que os scores
+    de cobertura nao sejam zero desde o primeiro dia.
+
+    O teste falha RED enquanto a funcao SQL nao existir com os
+    inserts corretos.
+    """
+    source = _read_source(BASELINE_MIGRATION_PATH)
+
+    assert "bootstrap_knowledge_from_onboarding" in source, (
+        "AC#8 violated (RED): bootstrap_knowledge_from_onboarding "
+        "NAO encontrado na migration baseline. Esperado:\n"
+        "  CREATE OR REPLACE FUNCTION "
+        "public.bootstrap_knowledge_from_onboarding(p_client_id uuid)\n"
+        "  RETURNS jsonb"
+    )
+
+    # Verificar assinatura
+    kb_header = source.split("bootstrap_knowledge_from_onboarding")[1][:200]
+    assert 'p_client_id' in kb_header, (
+        "AC#8 violated (RED): bootstrap_knowledge_from_onboarding "
+        "NAO tem parametro p_client_id. Esperado:\n"
+        "  bootstrap_knowledge_from_onboarding(p_client_id uuid)"
+    )
+
+    # Verificar corpo (INSERT em client_knowledge_documents)
+    kb_body = source.split("bootstrap_knowledge_from_onboarding")[1][:2000]
+    assert 'client_knowledge_documents' in kb_body, (
+        "AC#8 violated (RED): bootstrap_knowledge_from_onboarding "
+        "NAO insere em client_knowledge_documents. Esperado:\n"
+        "  INSERT INTO public.client_knowledge_documents\n"
+        "    (client_id, document_type_id, status, source)\n"
+        "  VALUES (p_client_id, 'ficha_cadastral', 'partial', 'onboarding')"
+    )
+
+    assert "source" in kb_body and "onboarding" in kb_body, (
+        "AC#8 violated (RED): bootstrap_knowledge_from_onboarding "
+        "NAO usa source='onboarding' no INSERT. Esperado:\n"
+        "  source = 'onboarding' para rastrear a origem do documento."
+    )
+
+    assert "INSERT" in kb_body and "ON CONFLICT" in kb_body, (
+        "AC#8 violated (RED): bootstrap_knowledge_from_onboarding "
+        "NAO tem ON CONFLICT DO NOTHING. Esperado: upsert que "
+        "nao duplica documentos se o mesmo document_type_id ja existir."
+    )

@@ -18,6 +18,7 @@ import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
 
 import RoutineExecutionFeed from '../../components/shared/RoutineExecutionFeed'
+import DecisionCard from '../../components/shared/DecisionCard'
 import { snoozeUntil } from '../../utils/time'
 import { formatBRL } from '../../utils/formatters'
 
@@ -30,10 +31,6 @@ function fmtCompact(value: number | null): string {
   if (abs >= 1_000_000) return `R$ ${(value / 1_000_000).toFixed(1)}M`
   if (abs >= 1_000) return `R$ ${(value / 1_000).toFixed(0)}K`
   return formatBRL(value)
-}
-
-function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
 
 function formatDate(iso: string) {
@@ -123,7 +120,7 @@ function getTxFingerprint(tx: PolpTransaction): string {
 }
 
 export default function FinanceiroRoom() {
-  const { go, toggleDc, expandedId, addToast, openChatWith } = useAppStore()
+  const { go, addToast, openChatWith } = useAppStore()
   const { clientId } = useAuth()
   const qc = useQueryClient()
   const [tab, setTab] = useState<Tab>('decisoes')
@@ -280,32 +277,15 @@ export default function FinanceiroRoom() {
                 {!approvalsQ.isLoading && approvals.length === 0 && (
                   <div style={{ padding: '12px 0', color: 'var(--mu)', fontSize: 12 }}>Nenhuma decisão pendente ✓</div>
                 )}
-                {approvals.map(approval => {
-                  const isExpanded = expandedId === approval.id
-                  const isUrgent = approval.priority === 'urgent' || approval.priority === 'high'
-                  const cls = ['dc', isUrgent ? 'urg' : 'warn', isExpanded ? 'expanded' : ''].filter(Boolean).join(' ')
-                  return (
-                    <div key={approval.id} className={cls} id={approval.id}>
-                      <div className="dc-row" onClick={() => toggleDc(approval.id)}>
-                        <div className="ag">
-                          <div className="agd" style={{ background: '#34d399' }} />Boleto
-                        </div>
-                        <span className={isUrgent ? 'bdg bu' : 'bdg bw'}>{isUrgent ? 'Urgente' : 'Amanhã'}</span>
-                        <span className="dc-row-summary">{approval.title}</span>
-                        <span className="dt">{formatTime(approval.created_at)}</span>
-                        <span className="dc-chev">▶</span>
-                      </div>
-                      <div className="dc-expand">
-                        <div className="db">{approval.body}</div>
-                        <div className="dc-act">
-                          <button className="btn bp" onClick={() => approveMut.mutate(approval.id)}>👍 Agendar</button>
-                          <button className="btn bg" onClick={() => snoozeMut.mutate(approval.id)}>⏰ Depois</button>
-                          <button className="btn bs" onClick={() => rejectMut.mutate(approval.id)}>✗ Rejeitar</button>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
+                {approvals.map(approval => (
+                  <DecisionCard
+                    key={approval.id}
+                    approval={approval}
+                    onApprove={function () { approveMut.mutate(approval.id) }}
+                    onReject={function () { rejectMut.mutate(approval.id) }}
+                    onSnooze={function () { snoozeMut.mutate(approval.id) }}
+                  />
+                ))}
               </div>
             </div>
 

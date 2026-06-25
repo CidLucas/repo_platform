@@ -23,6 +23,7 @@ import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
 
+import DecisionCard from '../../components/shared/DecisionCard'
 import { snoozeUntil } from '../../utils/time'
 import { formatBRL } from '../../utils/formatters'
 
@@ -194,12 +195,12 @@ export default function ClientesRoom() {
               ) : (
                 <div className="dl">
                   {approvals.map((ap) => (
-                    <ApprovalCard
+                    <DecisionCard
                       key={ap.id}
-                      ap={ap}
-                      onApprove={() => approveMut.mutate(ap.id)}
-                      onReject={() => rejectMut.mutate(ap.id)}
-                      onSnooze={() => snoozeMut.mutate(ap.id)}
+                      approval={ap}
+                      onApprove={function () { approveMut.mutate(ap.id) }}
+                      onReject={function () { rejectMut.mutate(ap.id) }}
+                      onSnooze={function () { snoozeMut.mutate(ap.id) }}
                     />
                   ))}
                 </div>
@@ -520,53 +521,6 @@ export default function ClientesRoom() {
           </div>
         </div>
       </div>
-    </div>
-  )
-}
-
-// ── Approval card ──────────────────────────────────────────────
-function ApprovalCard({
-  ap,
-  onApprove,
-  onReject,
-  onSnooze,
-}: {
-  ap: ApprovalRequest
-  onApprove: () => void
-  onReject: () => void
-  onSnooze: () => void
-}) {
-  const [expanded, setExpanded] = useState(false)
-  const isUrgent = ap.priority === 'urgent' || ap.priority === 'high'
-  const priorityColor = ap.priority === 'urgent' ? '#f87171' : ap.priority === 'high' ? '#818cf8' : '#2dd4bf'
-  const badgeLabel = ap.priority === 'urgent' ? 'Risco' : ap.priority === 'high' ? 'Oportunidade' : 'Alerta'
-
-  return (
-    <div className={`dc ${isUrgent ? 'urg' : 'warn'}${expanded ? ' expanded' : ''}`}>
-      <div className="dc-row" onClick={() => setExpanded(!expanded)}>
-        <div className="ag">
-          <div className="agd" style={{ background: priorityColor }} />
-          Clientes
-        </div>
-        <span className={`bdg ${isUrgent ? 'bu' : 'bw'}`}>{badgeLabel}</span>
-        <span className="dc-row-summary">{ap.title}</span>
-        <span className="dt">
-          {new Date(ap.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-        </span>
-        <span className="dc-chev">{expanded ? '▼' : '▶'}</span>
-      </div>
-      {expanded && (
-        <div className="dc-expand">
-          {ap.body && <div className="db">{ap.body}</div>}
-          <div className="dc-act">
-            <button className="btn bp" onClick={onApprove}>
-              {isUrgent ? '📞 Agendar reunião' : '📄 Aprovar'}
-            </button>
-            <button className="btn bg" onClick={onSnooze}>⏰ Depois</button>
-            <button className="btn bs" onClick={onReject}>Ignorar</button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

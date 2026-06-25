@@ -221,7 +221,7 @@ export async function uploadComplexFile(
       storage_path: storagePath,
       source,
       processing_mode: 'complex' as const,
-      status: 'pending' as const,
+      status: 'processing' as const,
       scope: 'client' as const,
       description: options?.description || null,
       category: options?.category || null,
@@ -233,38 +233,17 @@ export async function uploadComplexFile(
 
   const documentId = doc.id
 
-  const fileUploadApiUrl = import.meta.env.VITE_FILE_UPLOAD_API_URL
-  if (!fileUploadApiUrl) {
-    console.warn('VITE_FILE_UPLOAD_API_URL not set, skipping complex processing')
-    return documentId
-  }
+  const { error: fnError } = await supabase.functions.invoke('process-document', {
+    body: {
+      document_id: documentId,
+      storage_path: storagePath,
+      client_id: clientId,
+      file_name: file.name,
+      file_type: ext.replace('.', ''),
+    },
+  })
 
-  const accessToken = await getAuthToken()
-
-  try {
-    const res = await fetch(`${fileUploadApiUrl}/v1/upload/process`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({
-        document_id: documentId,
-        storage_path: storagePath,
-        file_name: file.name,
-        client_id: clientId,
-      }),
-    })
-
-    if (!res.ok) {
-      const errText = await res.text().catch(() => '')
-      throw new Error(`Erro ao processar documento complexo (HTTP ${res.status}): ${errText}`)
-    }
-  } catch (err) {
-    throw new Error(
-      `Erro ao processar documento complexo: ${err instanceof Error ? err.message : String(err)}`,
-    )
-  }
+  if (fnError) throw new Error(`Erro ao processar documento: ${fnError.message}`)
 
   return documentId
 }

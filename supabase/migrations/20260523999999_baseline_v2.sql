@@ -2780,13 +2780,59 @@ END;
 
 $function$;
 
+CREATE OR REPLACE FUNCTION analytics_v2.get_supply_indicators(p_period text DEFAULT '30d'::text)
+RETURNS TABLE(rfqs_abertas bigint, rfqs_enviadas bigint, rfqs_respondidas bigint, taxa_resposta_perc numeric, tempo_resposta_medio_h numeric, pos_aprovadas bigint, pos_pendentes_aprovacao bigint, spend_periodo numeric, fornecedores_ativos bigint, concentracao_top_perc numeric, cycle_time_medio_h numeric, cost_savings_perc numeric, ppv numeric, otif_perc numeric, lead_time_medio_dias numeric, maverick_spend_perc numeric, spend_under_management_perc numeric, period text)
+LANGUAGE sql
+AS $function$
+  SELECT
+    0::bigint as rfqs_abertas,
+    0::bigint as rfqs_enviadas,
+    0::bigint as rfqs_respondidas,
+    0::numeric as taxa_resposta_perc,
+    0::numeric as tempo_resposta_medio_h,
+    0::bigint as pos_aprovadas,
+    0::bigint as pos_pendentes_aprovacao,
+    COALESCE(SUM(ft.valor), 0) as spend_periodo,
+    COALESCE(COUNT(DISTINCT df.fornecedor_id), 0) as fornecedores_ativos,
+    0::numeric as concentracao_top_perc,
+    0::numeric as cycle_time_medio_h,
+    0::numeric as cost_savings_perc,
+    0::numeric as ppv,
+    0::numeric as otif_perc,
+    0::numeric as lead_time_medio_dias,
+    0::numeric as maverick_spend_perc,
+    0::numeric as spend_under_management_perc,
+    p_period as period
+  FROM analytics_v2.dim_fornecedores df
+  LEFT JOIN analytics_v2.fato_transacoes ft ON ft.fornecedor_id = df.fornecedor_id;
+$function$;
+
 CREATE OR REPLACE FUNCTION public.get_supply_indicators(p_period text DEFAULT '30d'::text)
 RETURNS TABLE(rfqs_abertas bigint, rfqs_enviadas bigint, rfqs_respondidas bigint, taxa_resposta_perc numeric, tempo_resposta_medio_h numeric, pos_aprovadas bigint, pos_pendentes_aprovacao bigint, spend_periodo numeric, fornecedores_ativos bigint, concentracao_top_perc numeric, cycle_time_medio_h numeric, cost_savings_perc numeric, ppv numeric, otif_perc numeric, lead_time_medio_dias numeric, maverick_spend_perc numeric, spend_under_management_perc numeric, period text)
 LANGUAGE sql
 AS $function$
-
-  SELECT * FROM analytics_v2.get_supply_indicators(p_period);
-
+  SELECT COALESCE(s.rfqs_abertas, 0) as rfqs_abertas,
+         COALESCE(s.rfqs_enviadas, 0) as rfqs_enviadas,
+         COALESCE(s.rfqs_respondidas, 0) as rfqs_respondidas,
+         COALESCE(s.taxa_resposta_perc, 0) as taxa_resposta_perc,
+         COALESCE(s.tempo_resposta_medio_h, 0) as tempo_resposta_medio_h,
+         COALESCE(s.pos_aprovadas, 0) as pos_aprovadas,
+         COALESCE(s.pos_pendentes_aprovacao, 0) as pos_pendentes_aprovacao,
+         COALESCE(s.spend_periodo, 0) as spend_periodo,
+         COALESCE(s.fornecedores_ativos, 0) as fornecedores_ativos,
+         COALESCE(s.concentracao_top_perc, 0) as concentracao_top_perc,
+         COALESCE(s.cycle_time_medio_h, 0) as cycle_time_medio_h,
+         COALESCE(s.cost_savings_perc, 0) as cost_savings_perc,
+         COALESCE(s.ppv, 0) as ppv,
+         COALESCE(s.otif_perc, 0) as otif_perc,
+         COALESCE(s.lead_time_medio_dias, 0) as lead_time_medio_dias,
+         COALESCE(s.maverick_spend_perc, 0) as maverick_spend_perc,
+         COALESCE(s.spend_under_management_perc, 0) as spend_under_management_perc,
+         COALESCE(s.period, p_period) as period
+  FROM analytics_v2.get_supply_indicators(p_period) s
+  UNION ALL
+  SELECT 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, p_period
+  WHERE NOT EXISTS (SELECT 1 FROM analytics_v2.dim_fornecedores LIMIT 1);
 $function$;
 
 CREATE OR REPLACE FUNCTION public.get_ticket_medio_monthly_rate(p_client_id uuid, p_window_months integer DEFAULT 1)

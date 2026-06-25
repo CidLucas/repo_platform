@@ -1752,7 +1752,7 @@ function StepLaunch({ bootstrap, pendingCredentials, onDone, website, csvFile, c
           }
           try {
             const { data: driveData, error: driveErr } = await supabase.functions.invoke('upload-drive-source', {
-              body: { client_id: result.client_id, drive_file_id: driveFileId, schema_type: 'invoices' },
+              body: { client_id: result.client_id, drive_file_id: driveFileId, schema_type: csvSchemaType || 'invoices' },
             })
             if (!driveErr && driveData?.source_id) {
               if (!cancelledRef.current) {

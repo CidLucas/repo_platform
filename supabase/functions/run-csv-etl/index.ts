@@ -95,7 +95,7 @@ Deno.serve(async (req: Request) => {
     // ── 3. Fetch and validate data source ─────────────────────────────────────
     const { data: dataSource, error: dsErr } = await svc
       .from("client_data_sources")
-      .select("id, storage_location, storage_type, auto_column_mapping, sync_status")
+      .select("id, storage_location, storage_type, auto_column_mapping, sync_status, schema_type")
       .eq("id", source_id)
       .eq("client_id", client_id)
       .maybeSingle();

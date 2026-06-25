@@ -14,6 +14,8 @@ import postgres from "https://deno.land/x/postgresjs@v3.4.5/mod.js";
 // pdf-parse: import from lib/ subpath to skip test-file loading that breaks in Deno
 import pdfParse from "npm:pdf-parse@1.1.1/lib/pdf-parse.js";
 import mammoth from "npm:mammoth@1.8.0";
+import XLSX from "npm:xlsx@0.18.5";
+import JSZip from "npm:jszip@3.10.1";
 import { corsHeaders, json } from "../_shared/cors.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -375,6 +377,33 @@ async function parseDocx(data: Uint8Array): Promise<string> {
     return result.value || "";
 }
 
+async function parseXlsx(data: Uint8Array): Promise<string> {
+    const workbook = XLSX.read(data, { type: "array" });
+    const sheets = workbook.SheetNames.map(name => {
+        const sheet = workbook.Sheets[name];
+        const csv = XLSX.utils.sheet_to_csv(sheet);
+        return `## ${name}\n${csv}`;
+    });
+    return sheets.join("\n\n");
+}
+
+async function parsePptx(data: Uint8Array): Promise<string> {
+    const zip = await JSZip.loadAsync(data);
+    const slideFiles = Object.keys(zip.files)
+        .filter(name => /^ppt\/slides\/slide\d+\.xml$/.test(name))
+        .sort();
+    const slides: string[] = [];
+    for (const file of slideFiles) {
+        const xml = await zip.files[file].async("text");
+        const texts = xml.match(/<a:t[^>]*>([^<]*)<\/a:t>/g) || [];
+        const slideText = texts
+            .map(t => t.replace(/<[^>]+>/g, ""))
+            .join(" ");
+        slides.push(slideText);
+    }
+    return slides.join("\n\n");
+}
+
 function getParser(
     fileType: string
 ): ((data: Uint8Array) => Promise<string>) | null {
@@ -395,6 +424,10 @@ function getParser(
             return parsePdf;
         case "docx":
             return parseDocx;
+        case "xlsx":
+            return parseXlsx;
+        case "pptx":
+            return parsePptx;
         default:
             return null;
     }

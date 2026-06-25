@@ -5,6 +5,8 @@ import { useKnowledgeBase } from '../../hooks/useKnowledgeBase'
 import { KB_CATEGORIES, isCsvFile, type KBDocument, type KBCategory } from '../../services/knowledgeBaseService'
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
+import EmptyState from '../../components/shared/EmptyState'
+import LoadingState from '../../components/shared/LoadingState'
 
 type ViewMode = 'grid' | 'list'
 type CategoryFilter = 'all' | string
@@ -57,6 +59,11 @@ function catLabel(cat: string | null): string {
   return KB_CATEGORIES.find(c => c.value === cat)?.label ?? cat ?? '—'
 }
 
+// F-3-B3: falha desconhecida para documentos presos em processing > 2min
+function isTimedOut(doc: KBDocument): boolean {
+  return doc.status === 'processing' && Date.now() - new Date(doc.created_at).getTime() > 120_000
+}
+
 // ── Document card (grid view) ─────────────────────────────────────────────────
 
 function DocCard({ doc, onRemove, onRetry }: {
@@ -71,6 +78,7 @@ function DocCard({ doc, onRemove, onRetry }: {
 
   return (
     <div
+      title={doc.description ?? ''}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
@@ -133,6 +141,12 @@ function DocCard({ doc, onRemove, onRetry }: {
         {doc.file_name}
       </div>
 
+      {doc.description && (
+        <div style={{ fontSize: 9.5, color: 'var(--mu)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {doc.description}
+        </div>
+      )}
+
       {/* Category + date */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
         {doc.category && (
@@ -147,10 +161,17 @@ function DocCard({ doc, onRemove, onRetry }: {
             {catLabel(doc.category)}
           </span>
         )}
+        {doc.status === 'completed' && ('🔗 ' + doc.chunk_count + ' chunks')}
         <span style={{ fontSize: 9.5, color: 'var(--mu)', marginLeft: 'auto' }}>
           {relativeTime(doc.created_at)}
         </span>
       </div>
+
+      {(doc.status === 'failed' || doc.status === 'partially_failed') && doc.error_message && (
+        <div title={doc.error_message} style={{ fontSize: 9, color: 'var(--urg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
+          {doc.error_message}
+        </div>
+      )}
 
       {/* Actions shown on hover */}
       <div style={{
@@ -160,13 +181,13 @@ function DocCard({ doc, onRemove, onRetry }: {
         transition: 'opacity 0.15s',
         marginTop: 2,
       }}>
-        {(doc.status === 'failed' || doc.status === 'partially_failed') && (
+        {(doc.status === 'failed' || doc.status === 'partially_failed' || isTimedOut(doc)) && (
           <button
             className="btn bs"
             style={{ fontSize: 9.5, padding: '2px 7px', flex: 1 }}
             onClick={() => onRetry(doc)}
           >
-            ↻ Reprocessar
+            {doc.status === 'processing' ? '↻ Reprocessar' : '↻ Reprocessar'}
           </button>
         )}
         <button
@@ -193,7 +214,7 @@ function DocRow({ doc, onRemove, onRetry }: {
   const tagColor = fileTypeColor(doc.file_name)
 
   return (
-    <div style={{
+    <div title={doc.description ?? ''} style={{
       display: 'flex',
       alignItems: 'center',
       gap: 10,
@@ -218,6 +239,12 @@ function DocRow({ doc, onRemove, onRetry }: {
       <span style={{ flex: 1, fontSize: 11.5, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {doc.file_name}
       </span>
+      {doc.status === 'completed' && ('🔗 ' + doc.chunk_count)}
+      {(doc.status === 'failed' || doc.status === 'partially_failed') && doc.error_message && (
+        <span title={doc.error_message} style={{ fontSize: 9, color: 'var(--urg)', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {doc.error_message}
+        </span>
+      )}
       {doc.category && (
         <span style={{ fontSize: 9.5, padding: '1px 6px', borderRadius: 3, background: 'var(--glass)', color: 'var(--mu2)', border: '1px solid var(--gb)', whiteSpace: 'nowrap' }}>
           {catLabel(doc.category)}
@@ -229,7 +256,7 @@ function DocRow({ doc, onRemove, onRetry }: {
       <span style={{ fontSize: 10, color: 'var(--mu)', whiteSpace: 'nowrap' }}>
         {relativeTime(doc.created_at)}
       </span>
-      {(doc.status === 'failed' || doc.status === 'partially_failed') && (
+      {(doc.status === 'failed' || doc.status === 'partially_failed' || isTimedOut(doc)) && (
         <button className="btn bs" style={{ fontSize: 9.5, padding: '2px 7px' }} onClick={() => onRetry(doc)}>↻</button>
       )}
       <button className="btn brd" style={{ fontSize: 9.5, padding: '2px 7px' }} onClick={() => onRemove(doc.id, doc.storage_path)}>×</button>
@@ -249,6 +276,8 @@ export default function BibliotecaRoom() {
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [sortBy, setSortBy] = useState<'created_at' | 'file_name' | 'status'>('created_at')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [kbCategory, setKbCategory] = useState<KBCategory>(KB_CATEGORIES[0].value)
   const [dragging, setDragging] = useState(false)
 
@@ -260,6 +289,16 @@ export default function BibliotecaRoom() {
       return true
     })
   }, [kb.documents, search, categoryFilter, statusFilter])
+
+  const sorted = useMemo(() => {
+    return [...filtered].sort((a, b) => {
+      let cmp = 0
+      if (sortBy === 'file_name') cmp = a.file_name.localeCompare(b.file_name)
+      else if (sortBy === 'status') cmp = a.status.localeCompare(b.status)
+      else if (sortBy === 'created_at') cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+  }, [filtered, sortBy, sortDir])
 
   // Stats
   const totalDocs = kb.documents.length
@@ -396,6 +435,22 @@ export default function BibliotecaRoom() {
               <option value="failed">Erro</option>
               <option value="partially_failed">Parcial</option>
             </select>
+            <select
+              value={`${sortBy}_${sortDir}`}
+              onChange={e => {
+                const [b, d] = e.target.value.split('_') as ['created_at' | 'file_name' | 'status', 'asc' | 'desc']
+                setSortBy(b)
+                setSortDir(d)
+              }}
+              style={{ fontSize: 10.5, padding: '4px 7px', background: 'var(--glass)', border: '1px solid var(--gb)', borderRadius: 4, color: 'var(--fg)' }}
+            >
+              <option value="created_at_desc">Mais recentes</option>
+              <option value="created_at_asc">Mais antigos</option>
+              <option value="file_name_asc">Nome A-Z</option>
+              <option value="file_name_desc">Nome Z-A</option>
+              <option value="status_asc">Status A-Z</option>
+              <option value="status_desc">Status Z-A</option>
+            </select>
           </div>
 
           {/* Drop zone */}
@@ -436,28 +491,28 @@ export default function BibliotecaRoom() {
           {/* Document list */}
           <div className="pb" style={{ flex: 1, overflowY: 'auto' }}>
             {kb.loading ? (
-              <div style={{ fontSize: 11.5, color: 'var(--mu)', padding: '16px 0', textAlign: 'center' }}>
-                Carregando documentos…
-              </div>
-            ) : filtered.length === 0 ? (
-              <div style={{ fontSize: 11.5, color: 'var(--mu)', padding: '32px 0', textAlign: 'center' }}>
-                {kb.documents.length === 0
-                  ? 'Nenhum documento adicionado ainda. Adicione arquivos para que os agentes possam consultá-los.'
-                  : 'Nenhum documento corresponde aos filtros selecionados.'}
-              </div>
+              <LoadingState message="Carregando documentos da base de conhecimento…" />
+            ) : sorted.length === 0 ? (
+              <EmptyState
+                icon="📚"
+                title={kb.documents.length === 0 ? 'Nenhum documento adicionado ainda' : 'Nenhum documento corresponde aos filtros'}
+                description={kb.documents.length === 0
+                  ? 'Adicione arquivos para que os agentes possam consultá-los.'
+                  : 'Ajuste os filtros de categoria ou status para ver mais documentos.'}
+              />
             ) : viewMode === 'grid' ? (
               <div style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))',
                 gap: 8,
               }}>
-                {filtered.map(doc => (
+                {sorted.map(doc => (
                   <DocCard key={doc.id} doc={doc} onRemove={kb.remove} onRetry={kb.retry} />
                 ))}
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {filtered.map(doc => (
+                {sorted.map(doc => (
                   <DocRow key={doc.id} doc={doc} onRemove={kb.remove} onRetry={kb.retry} />
                 ))}
               </div>

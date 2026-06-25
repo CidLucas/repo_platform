@@ -454,25 +454,47 @@ export const getFinanceIndicators = async (period: string = '30d'): Promise<Fina
 }
 
 export const getCommercialIndicators = async (period: string = '30d'): Promise<CommercialIndicators> => {
-  const r = await callDimensionRpc<Record<string, unknown>>('get_commercial_indicators', period)
-  return {
-    pedidos_periodo: num(r?.pedidos_periodo),
-    receita_periodo: num(r?.receita_periodo),
-    ticket_medio: num(r?.ticket_medio),
-    clientes_unicos: num(r?.clientes_unicos),
-    clientes_novos: num(r?.clientes_novos),
-    clientes_recorrentes: num(r?.clientes_recorrentes),
-    recencia_media_dias: num(r?.recencia_media_dias),
-    frequencia_media_mensal: num(r?.frequencia_media_mensal),
-    churn_60d_perc: numOrNull(r?.churn_60d_perc),
-    crescimento_receita_perc: numOrNull(r?.crescimento_receita_perc),
-    win_rate_perc: numOrNull(r?.win_rate_perc),
-    ciclo_venda_dias: numOrNull(r?.ciclo_venda_dias),
-    nrr_perc: numOrNull(r?.nrr_perc),
-    clv: numOrNull(r?.clv),
-    checkout_conversion_perc: numOrNull(r?.checkout_conversion_perc),
-    nps: numOrNull(r?.nps),
-    period: String(r?.period ?? period),
+  try {
+    const r = await callDimensionRpc<Record<string, unknown>>('get_commercial_indicators', period)
+    return {
+      pedidos_periodo: num(r?.pedidos_periodo),
+      receita_periodo: num(r?.receita_periodo),
+      ticket_medio: num(r?.ticket_medio),
+      clientes_unicos: num(r?.clientes_unicos),
+      clientes_novos: num(r?.clientes_novos),
+      clientes_recorrentes: num(r?.clientes_recorrentes),
+      recencia_media_dias: num(r?.recencia_media_dias),
+      frequencia_media_mensal: num(r?.frequencia_media_mensal),
+      churn_60d_perc: numOrNull(r?.churn_60d_perc),
+      crescimento_receita_perc: numOrNull(r?.crescimento_receita_perc),
+      win_rate_perc: numOrNull(r?.win_rate_perc),
+      ciclo_venda_dias: numOrNull(r?.ciclo_venda_dias),
+      nrr_perc: numOrNull(r?.nrr_perc),
+      clv: numOrNull(r?.clv),
+      checkout_conversion_perc: numOrNull(r?.checkout_conversion_perc),
+      nps: numOrNull(r?.nps),
+      period: String(r?.period ?? period),
+    }
+  } catch {
+    return {
+      pedidos_periodo: 0,
+      receita_periodo: 0,
+      ticket_medio: 0,
+      clientes_unicos: 0,
+      clientes_novos: 0,
+      clientes_recorrentes: 0,
+      recencia_media_dias: 0,
+      frequencia_media_mensal: 0,
+      churn_60d_perc: null,
+      crescimento_receita_perc: null,
+      win_rate_perc: null,
+      ciclo_venda_dias: null,
+      nrr_perc: null,
+      clv: null,
+      checkout_conversion_perc: null,
+      nps: null,
+      period,
+    }
   }
 }
 
@@ -499,31 +521,49 @@ export const getInventoryIndicators = async (period: string = '30d'): Promise<In
 }
 
 export const getSupplyIndicators = async (period: string = '30d'): Promise<SupplyIndicators> => {
-  let r: Record<string, unknown>
   try {
-    r = await callDimensionRpc<Record<string, unknown>>('get_supply_indicators', period)
-  } catch (_) {
-    r = { period }
-  }
-  return {
-    rfqs_abertas: num(r?.rfqs_abertas),
-    rfqs_enviadas: num(r?.rfqs_enviadas),
-    rfqs_respondidas: num(r?.rfqs_respondidas),
-    taxa_resposta_perc: numOrNull(r?.taxa_resposta_perc),
-    tempo_resposta_medio_h: numOrNull(r?.tempo_resposta_medio_h),
-    pos_aprovadas: num(r?.pos_aprovadas),
-    pos_pendentes_aprovacao: num(r?.pos_pendentes_aprovacao),
-    spend_periodo: num(r?.spend_periodo),
-    fornecedores_ativos: num(r?.fornecedores_ativos),
-    concentracao_top_perc: numOrNull(r?.concentracao_top_perc),
-    cycle_time_medio_h: numOrNull(r?.cycle_time_medio_h),
-    cost_savings_perc: numOrNull(r?.cost_savings_perc),
-    ppv: numOrNull(r?.ppv),
-    otif_perc: numOrNull(r?.otif_perc),
-    lead_time_medio_dias: numOrNull(r?.lead_time_medio_dias),
-    maverick_spend_perc: numOrNull(r?.maverick_spend_perc),
-    spend_under_management_perc: numOrNull(r?.spend_under_management_perc),
-    period: String(r?.period ?? period),
+    const r = await callDimensionRpc<Record<string, unknown>>('get_supply_indicators', period)
+    return {
+      rfqs_abertas: num(r?.rfqs_abertas),
+      rfqs_enviadas: num(r?.rfqs_enviadas),
+      rfqs_respondidas: num(r?.rfqs_respondidas),
+      taxa_resposta_perc: numOrNull(r?.taxa_resposta_perc),
+      tempo_resposta_medio_h: numOrNull(r?.tempo_resposta_medio_h),
+      pos_aprovadas: num(r?.pos_aprovadas),
+      pos_pendentes_aprovacao: num(r?.pos_pendentes_aprovacao),
+      spend_periodo: num(r?.spend_periodo),
+      fornecedores_ativos: num(r?.fornecedores_ativos),
+      concentracao_top_perc: numOrNull(r?.concentracao_top_perc),
+      cycle_time_medio_h: numOrNull(r?.cycle_time_medio_h),
+      cost_savings_perc: numOrNull(r?.cost_savings_perc),
+      ppv: numOrNull(r?.ppv),
+      otif_perc: numOrNull(r?.otif_perc),
+      lead_time_medio_dias: numOrNull(r?.lead_time_medio_dias),
+      maverick_spend_perc: numOrNull(r?.maverick_spend_perc),
+      spend_under_management_perc: numOrNull(r?.spend_under_management_perc),
+      period: String(r?.period ?? period),
+    }
+  } catch {
+    return {
+      rfqs_abertas: 0,
+      rfqs_enviadas: 0,
+      rfqs_respondidas: 0,
+      taxa_resposta_perc: null,
+      tempo_resposta_medio_h: null,
+      pos_aprovadas: 0,
+      pos_pendentes_aprovacao: 0,
+      spend_periodo: 0,
+      fornecedores_ativos: 0,
+      concentracao_top_perc: null,
+      cycle_time_medio_h: null,
+      cost_savings_perc: null,
+      ppv: null,
+      otif_perc: null,
+      lead_time_medio_dias: null,
+      maverick_spend_perc: null,
+      spend_under_management_perc: null,
+      period,
+    }
   }
 }
 

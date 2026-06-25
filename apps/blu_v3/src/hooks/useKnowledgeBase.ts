@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useAuth } from '@blu/auth'
 import {
   listDocuments,
@@ -12,6 +12,8 @@ import {
   type KBDocumentSource,
   type CsvUploadResult,
 } from '../services/knowledgeBaseService'
+
+const POLLING_TIMEOUT_MS = 120_000
 
 interface KBState {
   documents: KBDocument[]
@@ -33,6 +35,8 @@ export function useKnowledgeBase() {
     uploadError: null,
     csvResult: null,
   })
+
+  const pollingStartRef = useRef<number>(Date.now())
 
   const load = useCallback(async () => {
     if (!clientId) return
@@ -57,11 +61,26 @@ export function useKnowledgeBase() {
     )
     if (processing.length === 0) return
 
+    pollingStartRef.current = Date.now()
+
     const interval = setInterval(() => {
+      if (Date.now() - pollingStartRef.current > POLLING_TIMEOUT_MS) {
+        clearInterval(interval)
+        clearTimeout(timeout)
+        return
+      }
       load()
     }, 5_000)
 
-    return () => clearInterval(interval)
+    const timeout = setTimeout(() => {
+      clearInterval(interval)
+      setState((prev) => ({ ...prev, error: 'Falha no processamento' }))
+    }, POLLING_TIMEOUT_MS)
+
+    return () => {
+      clearInterval(interval)
+      clearTimeout(timeout)
+    }
   }, [state.documents, load])
 
   const upload = useCallback(

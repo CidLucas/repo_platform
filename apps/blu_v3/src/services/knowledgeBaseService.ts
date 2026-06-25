@@ -81,13 +81,20 @@ export function getAcceptedExtensions(): string {
 
 // ── Service functions ──────────────────────────────────────────
 
-export async function listDocuments(clientId: string): Promise<KBDocument[]> {
+export async function listDocuments(
+  clientId: string,
+  sortBy?: string,
+  sortDir?: string,
+): Promise<KBDocument[]> {
+  const sortColumn =
+    sortBy === 'file_name' ? 'file_name' : sortBy === 'status' ? 'status' : 'created_at'
+
   const { data, error } = await supabase
     .schema('vector_db')
     .from('documents')
     .select('*')
     .eq('client_id', clientId)
-    .order('created_at', { ascending: false })
+    .order(sortColumn, { ascending: sortDir === 'asc' })
 
   if (error) throw new Error(`Erro ao listar documentos: ${error.message}`)
   return (data ?? []) as KBDocument[]
@@ -136,12 +143,6 @@ export async function getDocumentProgress(documentId: string): Promise<Embedding
     progress_pct: row?.progress_pct ?? 0,
     status: docStatus,
   }
-}
-
-async function getAuthToken(): Promise<string> {
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session?.access_token) throw new Error('Sessão expirada — faça login novamente.')
-  return session.access_token
 }
 
 export async function uploadSimpleFile(
@@ -221,7 +222,7 @@ export async function uploadComplexFile(
       storage_path: storagePath,
       source,
       processing_mode: 'complex' as const,
-      status: 'pending' as const,
+      status: 'processing' as const,
       scope: 'client' as const,
       description: options?.description || null,
       category: options?.category || null,
@@ -233,38 +234,17 @@ export async function uploadComplexFile(
 
   const documentId = doc.id
 
-  const fileUploadApiUrl = import.meta.env.VITE_FILE_UPLOAD_API_URL
-  if (!fileUploadApiUrl) {
-    console.warn('VITE_FILE_UPLOAD_API_URL not set, skipping complex processing')
-    return documentId
-  }
+  const { error: fnError } = await supabase.functions.invoke('process-document', {
+    body: {
+      document_id: documentId,
+      storage_path: storagePath,
+      client_id: clientId,
+      file_name: file.name,
+      file_type: ext.replace('.', ''),
+    },
+  })
 
-  const accessToken = await getAuthToken()
-
-  try {
-    const res = await fetch(`${fileUploadApiUrl}/v1/upload/process`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({
-        document_id: documentId,
-        storage_path: storagePath,
-        file_name: file.name,
-        client_id: clientId,
-      }),
-    })
-
-    if (!res.ok) {
-      const errText = await res.text().catch(() => '')
-      throw new Error(`Erro ao processar documento complexo (HTTP ${res.status}): ${errText}`)
-    }
-  } catch (err) {
-    throw new Error(
-      `Erro ao processar documento complexo: ${err instanceof Error ? err.message : String(err)}`,
-    )
-  }
+  if (fnError) throw new Error(`Erro ao processar documento: ${fnError.message}`)
 
   return documentId
 }
@@ -291,11 +271,12 @@ export interface CsvUploadResult {
 export async function uploadCsvDataSource(
   file: File,
   clientId: string,
+  schemaType?: string,
 ): Promise<CsvUploadResult> {
   const form = new FormData()
   form.append('file', file)
   form.append('client_id', clientId)
-  form.append('schema_type', 'invoices')
+  form.append('schema_type', schemaType || 'invoices')
 
   const { data, error } = await supabase.functions.invoke('upload-csv-source', {
     body: form,

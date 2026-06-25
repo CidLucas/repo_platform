@@ -75,7 +75,10 @@ export function useKnowledgeBase() {
 
     const timeout = setTimeout(() => {
       clearInterval(interval)
+<<<<<<< HEAD
+=======
       setState((prev) => ({ ...prev, error: 'Falha no processamento' }))
+>>>>>>> origin/main
     }, POLLING_TIMEOUT_MS)
 
     return () => {

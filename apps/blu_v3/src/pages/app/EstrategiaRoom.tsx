@@ -281,8 +281,8 @@ export default function EstrategiaRoom() {
                       <span className="tbdg">{approvals.length}</span>
                     )}
                   </>
-                ) : t === 'analises' ? (
-                  'Análises'
+                ) : t === 'painel' ? (
+                  'Painel'
                 ) : t === 'historico' ? (
                   'Histórico'
                 ) : (
@@ -318,8 +318,8 @@ export default function EstrategiaRoom() {
               )}
             </div>
 
-            {/* ANÁLISES — context report viewer */}
-            <div className={`tc${tab === 'analises' ? ' on' : ''}`}>
+            {/* PAINEL — context report viewer */}
+            <div className={`tc${tab === 'painel' ? ' on' : ''}`}>
               {!selectedReport ? (
                 <EmptyState
                   icon="📄"
@@ -468,7 +468,7 @@ export default function EstrategiaRoom() {
                         key={report.id}
                         onClick={() => {
                           setSelectedReport(report)
-                          setTab('analises')
+                          setTab('painel')
                         }}
                         style={{
                           display: 'flex',

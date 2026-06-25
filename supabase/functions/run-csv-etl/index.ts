@@ -6,10 +6,6 @@
  * 1. Auth + ownership check
  * 2. Persists confirmed column_mapping + user_column_changes to client_data_sources
  * 3. Downloads CSV from Storage, parses rows, stages them in csv_import_staging
- * 4. Inline ETL: reads staged rows, upserts dim_clientes, inserts fato_transacoes,
- *    cleans up csv_import_staging
- * 5. Creates reg_jobs record (job_type='csv_sync') and marks it completed
- * 6. Returns job_id — no longer depends on pg_cron + sincronizar_csv_cliente
  */
 
 import {
@@ -34,10 +30,8 @@ interface RunCsvEtlRequest {
   ignored_columns?: string[];
 }
 
-// =============================================================================
-// Handler
-// =============================================================================
-
+// ======================================================================// Handler
+// ======================================================================
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -357,20 +351,6 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Failed to create sync job" }, 500);
     }
 
-    // ── 10. Mark reg_job as completed after inline ETL ───────────────────────
-    const { error: jobUpdateErr } = await svc
-      .schema("analytics_v2")
-      .from("reg_jobs")
-      .update({
-        status: "completed",
-        progress_pct: 100,
-        completed_at: now,
-        rows_inserted: rows.length,
-      })
-      .eq("job_id", job.job_id);
-
-    if (jobUpdateErr) {
-      console.error(`[run-csv-etl] ${requestId} reg_jobs update failed:`, jobUpdateErr);
     }
 
     const initDuration = Date.now() - startTime;
@@ -383,9 +363,6 @@ Deno.serve(async (req: Request) => {
       job_id: job.job_id,
       request_id: requestId,
       row_count: rows.length,
-      dim_clientes_upserted: dimClientesRows.length,
-      fato_transacoes_inserted: fatoRows.length,
-      message: "CSV sync completed inline. dim_clientes and fato_transacoes updated.",
     }, 200, {
       "X-Request-Id": requestId,
       "X-Duration-Ms": String(initDuration),

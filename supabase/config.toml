@@ -183,11 +183,6 @@ verify_jwt = false
 # can invoke them. The function body checks isSystemInvocation() to
 # reject anything else.
 
-# etl-refresh-dashboards: dashboard materialized-view refresh worker.
-# Invoked by analytics_v2.process_pending_jobs (pg_net).
-[functions.etl-refresh-dashboards]
-verify_jwt = false
-
 # generate-context-report: builds AI context report for a tenant.
 # Fire-and-forget from onboarding-bootstrap (service_role) and from
 # pg_cron on monthly reg_jobs completion.

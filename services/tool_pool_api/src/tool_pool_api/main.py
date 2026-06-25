@@ -17,6 +17,7 @@ from tool_pool_api.api.business_memory_router import router as business_memory_r
 from tool_pool_api.api.inbox_dispatch_router import router as inbox_dispatch_router
 from tool_pool_api.api.ingest_router import router as ingest_router
 from tool_pool_api.api.integrations_router import router as integrations_router
+from tool_pool_api.api.match_columns_router import router as match_columns_router
 from tool_pool_api.api.reports_router import router as reports_router
 from tool_pool_api.api.polp_webhook_router import router as polp_webhook_router
 from tool_pool_api.api.twilio_webhook_router import router as twilio_webhook_router
@@ -134,6 +135,7 @@ app.include_router(polp_webhook_router)
 app.include_router(inbox_dispatch_router)
 app.include_router(reports_router)
 app.include_router(ingest_router)
+app.include_router(match_columns_router)
 
 # Add database timeout middleware
 app.add_middleware(DatabaseTimeoutMiddleware)

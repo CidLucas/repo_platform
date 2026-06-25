@@ -494,6 +494,8 @@ async def _suggest_column_mapping_logic(
         raise ToolError("SUPABASE_URL / SUPABASE_SERVICE_KEY não configurados.")
 
     try:
+        from tool_pool_api.services.match_columns import match_columns as _match_columns
+
         db = get_supabase_client()
 
         # Read source_columns from client_data_sources
@@ -515,22 +517,10 @@ async def _suggest_column_mapping_logic(
                 "Execute a sincronização primeiro para descobrir as colunas."
             )
 
-        # Call match-columns edge function
-        async with httpx.AsyncClient(timeout=30.0) as http:
-            response = await http.post(
-                f"{_SUPABASE_URL}/functions/v1/match-columns",
-                json={
-                    "source_columns": source_columns,
-                    "schema_type": schema_type,
-                    "client_id": client_id,
-                },
-                headers={
-                    "Authorization": f"Bearer {_SUPABASE_SERVICE_KEY}",
-                    "Content-Type": "application/json",
-                },
-            )
-            response.raise_for_status()
-            match_result = response.json()
+        # Direct import — no HTTP round-trip. The Python module
+        # replaces the old match-columns Deno edge function.
+        result = _match_columns(db, source_columns, schema_type)
+        match_result = result.to_dict()
 
         logger.info(
             "[Context] suggest_column_mapping: source_id=%s matched=%d unmatched=%d",

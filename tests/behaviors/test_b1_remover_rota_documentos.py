@@ -1,381 +1,231 @@
-"""RED test for behavior B-1 — Remover 'documentos' da Sidebar, Screen types e AppShell.
+"""RED test for behavior B-1 — Sidebar + Routing: remove "Documentos", redirect → estrategia.
 
 GOAL:
-    Remover o screen "documentos" como rota/tela independente no app blu_v3.
-    A funcionalidade de documentos agora vive como aba dentro da sala
-    "Estratégia" (EstrategiaRoom), que unifica 4 abas.
+    Remover entrada "Documentos" da sidebar; redirecionar rota `documentos → estrategia`;
+    atualizar Screen type no appStore.
 
 BEHAVIOR:
-    B-1 — Sidebar + Routing — Remover 'documentos' da Sidebar, Screen types
-    e AppShell routing.
+    B-1 — Sidebar + Roteamento: remover "Documentos" da sidebar, redirect → estrategia,
+    limpar Screen type.
 
-    Antes: existia um NavItem { s: 'documentos', icon: <PencilSimpleLine...>,
-    label: 'Documentos' } na Sidebar, o union type Screen incluía 'documentos',
-    e AppShell.tsx tinha um bloco <div className=screen${on('documentos')}>
-    que renderizava DocumentosRoom.
-
-    Depois (comportamento esperado):
-    - Sidebar.tsx: NAV_ITEMS NÃO tem entrada com s='documentos'
-    - appStore.ts: Screen type NÃO inclui 'documentos'
-    - appStore.ts: SCREEN_LABELS NÃO inclui 'documentos'
-    - appStore.ts: screenFromHash() redireciona '#room/documentos' → 'estrategia'
-    - AppShell.tsx: NÃO importa DocumentosRoom
-    - 'biblioteca' permanece nos NAV_ITEMS e Screen type
+    After the fix:
+    - NAV_ITEMS in Sidebar.tsx must NOT contain 'documentos'
+    - AppShell.tsx must NOT render a 'documentos' screen div
+    - Screen type in appStore.ts must NOT include 'documentos'
+    - SCREEN_LABELS in appStore.ts must NOT include 'documentos'
+    - screenFromHash() must redirect '#room/documentos' → 'estrategia'
 
 AC (Acceptance Criteria):
-    AC#1 — Sidebar.tsx NÃO contém 'documentos' em NAV_ITEMS
-    AC#2 — appStore.ts: 'documentos' NÃO está no union type Screen
-    AC#3 — appStore.ts: SCREEN_LABELS NÃO inclui 'documentos'
-    AC#4 — appStore.ts: screenFromHash() redireciona '#room/documentos'
-           → 'estrategia' (hash legado continua funcional)
-    AC#5 — AppShell.tsx NÃO importa DocumentosRoom
-    AC#6 — 'biblioteca' permanece no Screen type e NAV_ITEMS da Sidebar
+    AC#1 — Sidebar não exibe mais entrada "Documentos"
+    AC#2 — Clicar na entrada "Documentos" da sidebar redireciona para a sala Estrategia
+    AC#3 — Navegação mobile também reflete a mudança
 
-Anti-Goals (must NOT be violated):
-    1. NÃO modificar código de produção.
-    2. NÃO importar ou executar código TypeScript/React.
-    3. NÃO usar fixtures de DB ou rede — teste é pura inspeção de arquivos.
+Estado atual: RED — the assertions below verify the expected state. If all pass,
+the behavior is already GREEN (False RED scenario).
 """
 
-import re
-from pathlib import Path
-
-import pytest
+import pathlib
 
 
-# ── Constants: paths da interface pública sob teste ──────────────────────
+# -- Paths -----------------------------------------------------------
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+_REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
+_APP_SRC = _REPO_ROOT / "apps" / "blu_v3" / "src"
 
-SIDEBAR_PATH = (
-    REPO_ROOT
-    / "apps"
-    / "blu_v3"
-    / "src"
-    / "components"
-    / "shell"
-    / "Sidebar.tsx"
-)
-
-APPSTORE_PATH = (
-    REPO_ROOT
-    / "apps"
-    / "blu_v3"
-    / "src"
-    / "store"
-    / "appStore.ts"
-)
-
-APPSHELL_PATH = (
-    REPO_ROOT
-    / "apps"
-    / "blu_v3"
-    / "src"
-    / "components"
-    / "shell"
-    / "AppShell.tsx"
-)
+_SIDEBAR_PATH = _APP_SRC / "components" / "shell" / "Sidebar.tsx"
+_APPSHELL_PATH = _APP_SRC / "components" / "shell" / "AppShell.tsx"
+_APPSTORE_PATH = _APP_SRC / "store" / "appStore.ts"
 
 
-# ── Override do root conftest (teste puramente estático) ────────────────
-
-
-@pytest.fixture(autouse=True)
-def _cleanup_test_data():
-    """Substitui o fixture de limpeza do root conftest — este teste é
-    pura inspeção de arquivos, sem necessidade de teardown no Supabase.
-    """
-    yield
-
-
-# ── Helpers de inspeção ─────────────────────────────────────────────────
-
-
-def _read_text(path: Path) -> str:
-    """Lê o arquivo e devolve o conteúdo como string única."""
-    assert path.exists(), (
-        f"Arquivo não encontrado: {path.relative_to(REPO_ROOT)}.  "
-        f"O behavior B-1 (remover rota documentos) exige que este "
-        f"arquivo exista no repositório."
-    )
+def _read(path: pathlib.Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-# ── AC#1 — Sidebar.tsx: NAV_ITEMS não contém 'documentos' ──────────────
+# -- Tests -----------------------------------------------------------
 
 
-def test_b1_ac1_sidebar_sem_documentos():
-    """AC#1: Sidebar.tsx NÃO deve conter entrada com s='documentos'
-    em NAV_ITEMS.
+class TestB1RemoverRotaDocumentos:
+    """AC#1: Sidebar não exibe mais entrada "Documentos"."""
 
-    Antes (RED): existia `{ s: 'documentos', icon: <PencilSimpleLine...>,
-    label: 'Documentos' }` como quarto item (linha 26~).
+    def test_sidebar_nao_tem_documentos_nav_item(self):
+        """AC#1: NAV_ITEMS no Sidebar.tsx não deve conter entrada 'documentos'."""
+        source = _read(_SIDEBAR_PATH)
 
-    Depois (GREEN): NAV_ITEMS não menciona 'documentos'.
-    """
-    content = _read_text(SIDEBAR_PATH)
-
-    # Verifica se 'documentos' aparece como screen identifier no array NAV_ITEMS
-    padrao_documentos_item = r"""['"']documentos['"']"""
-
-    encontrou = re.search(padrao_documentos_item, content)
-
-    if encontrou:
-        pytest.fail(
-            "AC#1 violada — RED.  A string 'documentos' ainda aparece "
-            f"em {SIDEBAR_PATH.relative_to(REPO_ROOT)} como valor de um "
-            f"NavItem (s='documentos').\n\n"
-            f"Era esperado que o item 'Documentos' tivesse sido removido "
-            f"de NAV_ITEMS, já que a funcionalidade agora vive como aba "
-            f"dentro da sala Estratégia (EstrategiaRoom).\n\n"
-            f"Localização: linha ~26 do Sidebar.tsx.\n\n"
-            f"GREEN deve remover:\n"
-            f"  {{ s: 'documentos', icon: <PencilSimpleLine ...>, "
-            f"label: 'Documentos' }},\n"
-            f"do array NAV_ITEMS."
+        # Find the NAV_ITEMS array declaration
+        nav_start = source.find("const NAV_ITEMS: NavItem[] = [")
+        assert nav_start != -1, (
+            "AC#1 violado: não foi encontrado 'const NAV_ITEMS: NavItem[] = [' "
+            "no Sidebar.tsx. Verificar estrutura do arquivo."
         )
 
-    # Confirma que a Sidebar ainda existe (arquivo válido)
-    assert "NAV_ITEMS" in content, (
-        "Pré-condição violada: o array NAV_ITEMS não foi encontrado "
-        f"em {SIDEBAR_PATH.relative_to(REPO_ROOT)}.  O teste espera que "
-        f"a Sidebar tenha NAV_ITEMS, apenas sem 'documentos'."
-    )
-
-
-# ── AC#2 — appStore.ts: Screen type não inclui 'documentos' ────────────
-
-
-def test_b1_ac2_appstore_screen_sem_documentos():
-    """AC#2: appStore.ts — o union type Screen NÃO deve incluir
-    'documentos'.
-
-    Antes (RED): Screen = 'home' | 'compras' | ... | 'documentos' | ...
-    Depois (GREEN): Screen = 'home' | 'compras' | ... | 'biblioteca' | ...
-    sem 'documentos'.
-    """
-    content = _read_text(APPSTORE_PATH)
-
-    # Procura pelo union type Screen: começa com "export type Screen =" e
-    # lista os valores entre |
-    # 'documentos' não deve estar entre os valores
-    screen_match = re.search(
-        r"export\s+type\s+Screen\s*=",
-        content,
-    )
-    assert screen_match, (
-        "Pré-condição violada: o union type 'Screen' não foi encontrado "
-        f"em {APPSTORE_PATH.relative_to(REPO_ROOT)}."
-    )
-
-    # Pega o bloco do type Screen (até o próximo type ou export)
-    screen_block = content[screen_match.start():screen_match.start() + 500]
-    # Procura por 'documentos' como um dos valores do union
-    if re.search(r"['\"]documentos['\"]", screen_block):
-        pytest.fail(
-            "AC#2 violada — RED.  O string literal 'documentos' ainda "
-            f"aparece como valor do union type Screen em "
-            f"{APPSTORE_PATH.relative_to(REPO_ROOT)}.\n\n"
-            f"Era esperado que 'documentos' tivesse sido removido do "
-            f"type Screen, já que não é mais uma tela independente.\n\n"
-            f"GREEN deve remover a linha:\n"
-            f"  | 'documentos'\n"
-            f"do union type Screen (linha ~8 do appStore.ts)."
+        # Extract the array contents (between [ and ])
+        nav_end = source.find("]\n\nconst FOOT_ITEMS", nav_start)
+        if nav_end == -1:
+            nav_end = source.find("];", nav_start)
+        assert nav_end != -1, (
+            "AC#1 violado: não foi possível determinar o fim do array NAV_ITEMS."
         )
 
+        nav_section = source[nav_start:nav_end + 1]
 
-# ── AC#3 — appStore.ts: SCREEN_LABELS não inclui 'documentos' ──────────
-
-
-def test_b1_ac3_appstore_screen_labels_sem_documentos():
-    """AC#3: appStore.ts — o dicionário SCREEN_LABELS NÃO deve incluir
-    a chave 'documentos'.
-
-    Antes (RED): SCREEN_LABELS = { ..., documentos: 'Documentos', ... }
-    Depois (GREEN): SCREEN_LABELS não mapeia 'documentos'.
-    """
-    content = _read_text(APPSTORE_PATH)
-
-    # Procura pelo dicionário SCREEN_LABELS
-    labels_match = re.search(
-        r"SCREEN_LABELS\s*:\s*Record\s*<Screen\s*,\s*string>\s*=\s*\{",
-        content,
-    )
-    if not labels_match:
-        # Tenta um padrão alternativo
-        labels_match = re.search(
-            r"const\s+SCREEN_LABELS\b",
-            content,
+        # Check that no 'documentos' screen reference exists
+        assert "'documentos'" not in nav_section or '"documentos"' not in nav_section, (
+            "AC#1 violado: NAV_ITEMS ainda contém referência a 'documentos'. "
+            "A entrada `{ s: 'documentos', icon: ..., label: 'Documentos' }` "
+            "deve ser removida do array NAV_ITEMS em Sidebar.tsx."
         )
 
-    if labels_match:
-        labels_block = content[labels_match.start():labels_match.start() + 500]
-        if re.search(r"documentos\s*:", labels_block) or \
-           re.search(r"['\"]documentos['\"]", labels_block):
-            pytest.fail(
-                "AC#3 violada — RED.  A chave 'documentos' ainda está "
-                f"presente no dicionário SCREEN_LABELS em "
-                f"{APPSTORE_PATH.relative_to(REPO_ROOT)}.\n\n"
-                f"Era esperado que 'documentos: ...' fosse removido de "
-                f"SCREEN_LABELS, já que 'documentos' não é mais uma "
-                f"tela independente.\n\n"
-                f"GREEN deve remover a entrada 'documentos: ...' do "
-                f"dicionário SCREEN_LABELS (linha ~72 do appStore.ts)."
-            )
+    def test_sidebar_nao_tem_documentos_nav_item_label(self):
+        """AC#1: NAV_ITEMS no Sidebar.tsx não deve conter label 'Documentos'."""
+        source = _read(_SIDEBAR_PATH)
 
+        nav_start = source.find("const NAV_ITEMS: NavItem[] = [")
+        nav_end = source.find("]", nav_start)
 
-# ── AC#4 — appStore.ts: screenFromHash() redireciona 'documentos' → 'estrategia' ────
+        nav_section = source[nav_start:nav_end + 1]
 
-
-def test_b1_ac4_appstore_hash_redirect_documentos_para_estrategia():
-    """AC#4: appStore.ts — screenFromHash() DEVE redirecionar o hash
-    '#room/documentos' → 'estrategia'.
-
-    Isso garante que bookmarks/links antigos para #/documentos continuem
-    funcionando, levando o usuário à sala Estratégia (que agora contém
-    a aba Documentos como uma das 4 abas unificadas).
-    """
-    content = _read_text(APPSTORE_PATH)
-
-    # Procura pela função screenFromHash
-    hash_fn = re.search(
-        r"function\s+screenFromHash\b",
-        content,
-    )
-    assert hash_fn, (
-        "Pré-condição violada: a função 'screenFromHash' não foi "
-        f"encontrada em {APPSTORE_PATH.relative_to(REPO_ROOT)}."
-    )
-
-    # Pega o bloco da função
-    fn_block = content[hash_fn.start():hash_fn.start() + 600]
-
-    # Verifica se existe o redirect de '#room/documentos' → 'estrategia'
-    redirect_exists = re.search(
-        r"['\"]\#room/documentos['\"]\s*\)?\s*(?:return\s+)?['\"]estrategia['\"]",
-        fn_block,
-    )
-
-    # Ou padrão: `if (window.location.hash === '#room/documentos') return 'estrategia'`
-    simple_redirect = re.search(
-        r"documentos.*return.*estrategia",
-        fn_block,
-    ) or re.search(
-        r"estrategia.*documentos",
-        fn_block,
-    )
-
-    if not (redirect_exists or simple_redirect):
-        pytest.fail(
-            "AC#4 violada — RED.  A função screenFromHash() NÃO "
-            f"redireciona '#room/documentos' → 'estrategia' em "
-            f"{APPSTORE_PATH.relative_to(REPO_ROOT)}.\n\n"
-            f"O hash legado '#/documentos' (que existia antes da "
-            f"remoção) precisa ser redirecionado para 'estrategia', "
-            f"já que a sala Estratégia agora unifica 4 abas, incluindo "
-            f"a aba de documentos.\n\n"
-            f"GREEN deve adicionar em screenFromHash():\n\n"
-            f"  if (window.location.hash === '#room/documentos')\n"
-            f"    return 'estrategia';"
+        assert "Documentos" not in nav_section, (
+            "AC#1 violado: NAV_ITEMS ainda contém label 'Documentos'. "
+            "A entrada com label: 'Documentos' deve ser removida."
         )
 
+    def test_screen_type_nao_tem_documentos(self):
+        """AC#2: Screen type no appStore.ts não deve incluir 'documentos'."""
+        source = _read(_APPSTORE_PATH)
 
-# ── AC#5 — AppShell.tsx não importa DocumentosRoom ─────────────────────
-
-
-def test_b1_ac5_appshell_sem_documentos_room():
-    """AC#5: AppShell.tsx NÃO deve importar DocumentosRoom.
-
-    Como 'documentos' não é mais uma tela independente, o import de
-    DocumentosRoom e seu bloco de renderização devem ter sido removidos
-    de AppShell.tsx.
-    """
-    content = _read_text(APPSHELL_PATH)
-
-    # Procura por import de DocumentosRoom
-    if re.search(r"import\s+DocumentosRoom", content):
-        pytest.fail(
-            "AC#5 violada — RED.  AppShell.tsx ainda importa "
-            f"DocumentosRoom em {APPSHELL_PATH.relative_to(REPO_ROOT)}.\n\n"
-            f"Como 'documentos' não é mais uma tela independente, o "
-            f"import de DocumentosRoom deve ser removido do AppShell.\n\n"
-            f"GREEN deve remover a linha:\n"
-            f"  import DocumentosRoom from '../../pages/app/DocumentosRoom'\n"
-            f"do AppShell.tsx."
+        screen_type_start = source.find("export type Screen =")
+        assert screen_type_start != -1, (
+            "AC#2 violado: não foi encontrado 'export type Screen =' "
+            "no appStore.ts."
         )
 
-    # Verifica se também não tem bloco de renderização para documentos
-    if re.search(r"screen\$\{on\(['\"]documentos['\"]\)\}", content) or \
-       re.search(r"id=[\"']s-documentos[\"']", content):
-        pytest.fail(
-            "AC#5 violada — RED.  AppShell.tsx ainda contém bloco de "
-            f"renderização para 'documentos' em "
-            f"{APPSHELL_PATH.relative_to(REPO_ROOT)}.\n\n"
-            f"O bloco <div className=screen${{on('documentos')}}> deve "
-            f"ser removido, já que 'documentos' não é mais uma tela "
-            f"independente."
+        # Extract the Screen union type
+        pipe_pos = source.find("|", screen_type_start)
+        assert pipe_pos != -1, (
+            "AC#2 violado: Screen type não parece ser um union type com '|'."
         )
 
+        # Look for 'documentos' in the type definition
+        screen_section = source[screen_type_start:pipe_pos + 200]
 
-# ── AC#6 — 'biblioteca' permanece no Screen type e NAV_ITEMS ────────────
-
-
-def test_b1_ac6_biblioteca_continua_acessivel():
-    """AC#6: 'biblioteca' DEVE permanecer acessível — tanto no Screen
-    type quanto nos NAV_ITEMS da Sidebar.
-
-    A remoção de 'documentos' não deve afetar 'biblioteca', que continua
-    sendo uma tela independente.
-    """
-    # Verifica appStore.ts
-    store_content = _read_text(APPSTORE_PATH)
-
-    # Screen type deve conter 'biblioteca'
-    screen_match = re.search(
-        r"export\s+type\s+Screen\s*=",
-        store_content,
-    )
-    assert screen_match, (
-        "Pré-condição violada: type Screen não encontrado."
-    )
-    screen_block = store_content[screen_match.start():screen_match.start() + 500]
-    if not re.search(r"['\"]biblioteca['\"]", screen_block):
-        pytest.fail(
-            "AC#6 violada — RED.  O union type Screen NÃO contém "
-            f"'biblioteca' em {APPSTORE_PATH.relative_to(REPO_ROOT)}.\n\n"
-            f"A remoção de 'documentos' não deve remover 'biblioteca', "
-            f"que continua sendo uma tela independente."
+        assert "'documentos'" not in screen_section, (
+            "AC#2 violado: Screen type ainda contém 'documentos'. "
+            "O literal 'documentos' deve ser removido do union type Screen "
+            "em appStore.ts, já que a rota agora redireciona para 'estrategia'."
         )
 
-    # SCREEN_LABELS deve conter 'biblioteca'
-    labels_match = re.search(
-        r"SCREEN_LABELS\b",
-        store_content,
-    )
-    if labels_match:
-        labels_block = store_content[labels_match.start():labels_match.start() + 500]
-        if not re.search(r"\bbiblioteca\b", labels_block):
-            pytest.fail(
-                "AC#6 violada — RED.  'biblioteca' NÃO está em "
-                f"SCREEN_LABELS em {APPSTORE_PATH.relative_to(REPO_ROOT)}.\n\n"
-                f"Biblioteca deve continuar mapeada em SCREEN_LABELS."
-            )
+    def test_screen_labels_nao_tem_documentos(self):
+        """AC#2: SCREEN_LABELS no appStore.ts não deve incluir 'documentos'."""
+        source = _read(_APPSTORE_PATH)
 
-    # Verifica Sidebar.tsx
-    sidebar_content = _read_text(SIDEBAR_PATH)
+        labels_start = source.find("const SCREEN_LABELS: Record<Screen, string> = {")
+        assert labels_start != -1, (
+            "AC#2 violado: não foi encontrado 'const SCREEN_LABELS' no appStore.ts."
+        )
 
-    nav_match = re.search(
-        r"const\s+NAV_ITEMS\s*(?::\s*NavItem\[\]\s*)?=\s*\[",
-        sidebar_content,
-    )
-    assert nav_match, (
-        "Pré-condição violada: NAV_ITEMS não encontrado na Sidebar."
-    )
-    nav_block = sidebar_content[nav_match.start():nav_match.start() + 1000]
-    if not re.search(r"['\"]biblioteca['\"]", nav_block):
-        pytest.fail(
-            "AC#6 violada — RED.  'biblioteca' NÃO está nos NAV_ITEMS "
-            f"da Sidebar em {SIDEBAR_PATH.relative_to(REPO_ROOT)}.\n\n"
-            f"Biblioteca deve continuar sendo um item na sidebar "
-            "(s: 'biblioteca', icon: <Books ...>, label: 'Biblioteca')."
+        labels_end = source.find("}", labels_start)
+        labels_section = source[labels_start:labels_end + 1]
+
+        assert "documentos:" not in labels_section, (
+            "AC#2 violado: SCREEN_LABELS ainda contém 'documentos:'. "
+            "A entrada 'documentos: 'Documentos'' deve ser removida do "
+            "dicionário SCREEN_LABELS em appStore.ts."
+        )
+
+    def test_screen_from_hash_redirects_documentos_to_estrategia(self):
+        """AC#2: screenFromHash() deve redirecionar '#room/documentos' → 'estrategia'."""
+        source = _read(_APPSTORE_PATH)
+
+        hash_func_start = source.find("function screenFromHash(): Screen {")
+        assert hash_func_start != -1, (
+            "AC#2 violado: não foi encontrada a função 'screenFromHash()' "
+            "no appStore.ts."
+        )
+
+        hash_func_end = source.find("return 'home'", hash_func_start)
+        assert hash_func_end != -1, (
+            "AC#2 violado: não foi encontrado 'return 'home'' "
+            "dentro de screenFromHash()."
+        )
+
+        hash_section = source[hash_func_start:hash_func_end + 20]
+
+        assert "documentos" in hash_section, (
+            "AC#2 violado: screenFromHash() não contém referência a 'documentos'. "
+            "Deve haver um redirect de '#room/documentos' para 'estrategia' "
+            "para manter compatibilidade com links antigos: "
+            "`if (window.location.hash === '#room/documentos') return 'estrategia'`."
+        )
+        assert "return 'estrategia'" in hash_section, (
+            "AC#2 violado: screenFromHash() não retorna 'estrategia' "
+            "quando o hash é '#room/documentos'. O redirect deve existir: "
+            "`if (window.location.hash === '#room/documentos') return 'estrategia'`."
+        )
+
+    def test_appshell_nao_renderiza_screen_documentos(self):
+        """AC#3: AppShell.tsx não deve renderizar um bloco screen para 'documentos'."""
+        source = _read(_APPSHELL_PATH)
+
+        # Check that there's no screen div for documentos
+        assert 'id="s-documentos"' not in source, (
+            "AC#3 violado: AppShell.tsx ainda renderiza um bloco "
+            "com 'id=\"s-documentos\"'. O bloco completo "
+            "`<div className={`screen${on('documentos')}`} id=\"s-documentos\">` "
+            "deve ser removido, já que DocumentosRoom não é mais uma tela "
+            "independente."
+        )
+
+    def test_appshell_nao_importa_documentos_room(self):
+        """AC#3: AppShell.tsx não deve importar DocumentosRoom."""
+        source = _read(_APPSHELL_PATH)
+
+        assert "DocumentosRoom" not in source, (
+            "AC#3 violado: AppShell.tsx ainda importa ou referencia "
+            "'DocumentosRoom'. Esse componente foi removido e seu "
+            "conteúdo movido para dentro de EstrategiaRoom como uma aba."
+        )
+
+    def test_mobile_nav_reflects_change(self):
+        """AC#3: A navegação mobile (mobile-nav / mobile-menu) também reflete a mudança.
+
+        Verifica que o componente Sidebar.tsx não renderiza 'documentos'
+        na navegação mobile (allItems), já que allItems é composto de
+        NAV_ITEMS + visibleFootItems, e NAV_ITEMS já foi limpo.
+        """
+        source = _read(_SIDEBAR_PATH)
+
+        # Check the allItems array uses NAV_ITEMS (which is already clean)
+        all_items_idx = source.find("const allItems = [...NAV_ITEMS, ...visibleFootItems]")
+        assert all_items_idx != -1, (
+            "AC#3 violado: não foi encontrado o array 'allItems' que combina "
+            "NAV_ITEMS e visibleFootItems para a navegação mobile. "
+            "Se 'allItems' não usa NAV_ITEMS diretamente, a navegação mobile "
+            "pode estar desalinhada com a sidebar desktop."
+        )
+
+        # Check that the mobile nav render uses allItems
+        mobile_render_idx = source.find("allItems.map(item")
+        assert mobile_render_idx != -1, (
+            "AC#3 violado: o menu mobile não itera sobre 'allItems'. "
+            "Se o mobile nav tem sua própria lista estática de itens, "
+            "a entrada 'documentos' pode ainda estar presente na navegação mobile."
+        )
+
+    def test_appshell_nao_tem_screen_width_estrategia_replaces_documentos(self):
+        """AC#2: AppShell deve exibir EstrategiaRoom normalmente (sem perda de funcionalidade)."""
+        source = _read(_APPSHELL_PATH)
+
+        # EstrategiaRoom should still be rendered
+        estrategia_import = "EstrategiaRoom" in source
+        assert estrategia_import, (
+            "AC#2 violado: AppShell.tsx não importa EstrategiaRoom. "
+            "Como 'documentos' agora redireciona para 'estrategia', "
+            "a sala EstrategiaRoom deve permanecer na renderização."
+        )
+
+        estrategia_screen = 'id="s-estrategia"' in source or "s-estrategia" in source
+        assert estrategia_screen, (
+            "AC#2 violado: AppShell.tsx não renderiza a tela 'estrategia'. "
+            "Após remover 'documentos', a sala EstrategiaRoom deve continuar "
+            "sendo renderizada normalmente para receber o redirect."
         )

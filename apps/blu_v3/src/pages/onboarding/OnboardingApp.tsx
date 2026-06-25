@@ -71,6 +71,7 @@ const PRIMARY_FOCUS = [
   { id: 'estoque',    label: 'Estoque' },
   { id: 'outro',      label: 'Outro' },
 ]
+void PRIMARY_FOCUS
 
 // Canonical field names for manual mapping — must match CANONICAL_SCHEMAS.invoices in match-columns
 const CANONICAL_FIELDS = [
@@ -456,7 +457,7 @@ function formatCnpj(raw: string): string {
 function StepInfo({
   onNext, onBack, saveDraft,
   initialNome, initialEmpresa, initialWebsite, initialVertical, initialPorte,
-  initialPrimaryFocus, initialProdutoServico, initialCnpj,
+  initialProdutoServico, initialCnpj,
 }: {
   onNext: () => void
   onBack?: () => void
@@ -466,7 +467,6 @@ function StepInfo({
   initialWebsite: string
   initialVertical: string
   initialPorte: string
-  initialPrimaryFocus: string
   initialProdutoServico: string
   initialCnpj: string
 }) {
@@ -476,7 +476,6 @@ function StepInfo({
   const [website, setWebsite] = useState(initialWebsite)
   const [vertical, setVertical] = useState(initialVertical || '')
   const [teamSize, setTeamSize] = useState(initialPorte || '')
-  const [primaryFocus, setPrimaryFocus] = useState(initialPrimaryFocus || '')
   const [produtoServico, setProdutoServico] = useState(initialProdutoServico || '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -529,7 +528,6 @@ function StepInfo({
         website: website.trim(),
         vertical: VERTICAL_MAP[vertical] ?? null,
         porte: PORTE_MAP[teamSize] ?? teamSize,
-        primaryFocus: (primaryFocus as OnboardingDraft['primaryFocus']) || null,
         produtoServico: produtoServico.trim(),
       })
       onNext()
@@ -554,9 +552,25 @@ function StepInfo({
               <input type="text" placeholder="Carlos Lima" value={nome} onChange={e => setNome(e.target.value)} />
             </div>
             <div className="field">
-              <label>Nome da empresa *</label>
-              <input type="text" placeholder="Distribuidora Alvo" value={empresa} onChange={e => setEmpresa(e.target.value)} />
+              <label>Website <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(opcional)</span></label>
+              <input
+                type="url"
+                placeholder="https://suaempresa.com.br"
+                value={website}
+                onChange={e => { setWebsite(e.target.value); setSiteContext(null) }}
+                onBlur={handleWebsiteBlur}
+              />
+              {detecting && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 8, fontSize: 12.5, color: 'var(--muted2)' }}>
+                  <div className="spin-sm" />
+                  Seu agente está olhando seu site…
+                </div>
+              )}
             </div>
+          </div>
+          <div className="field">
+            <label>Nome da empresa *</label>
+            <input type="text" placeholder="Distribuidora Alvo" value={empresa} onChange={e => setEmpresa(e.target.value)} />
           </div>
           <div className="field">
             <label>
@@ -571,22 +585,6 @@ function StepInfo({
               inputMode="numeric"
               maxLength={18}
             />
-          </div>
-          <div className="field">
-            <label>Website <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(opcional)</span></label>
-            <input
-              type="url"
-              placeholder="https://suaempresa.com.br"
-              value={website}
-              onChange={e => { setWebsite(e.target.value); setSiteContext(null) }}
-              onBlur={handleWebsiteBlur}
-            />
-            {detecting && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 8, fontSize: 12.5, color: 'var(--muted2)' }}>
-                <div className="spin-sm" />
-                Seu agente está olhando seu site…
-              </div>
-            )}
           </div>
 
           {/* Scrape panel: shown after website-intel returns results */}
@@ -630,12 +628,9 @@ function StepInfo({
                 )}
               </div>
 
-              {/* Contextual questions — feed saveDraft via produtoServico + primaryFocus */}
+              {/* Contextual questions — feed saveDraft via produtoServico */}
               <div style={{ borderTop: '1px solid var(--gb)', paddingTop: 14, marginTop: 4 }}>
-                <div style={{ fontSize: 11.5, color: 'var(--muted)', marginBottom: 10 }}>
-                  Duas perguntas para calibrar seus agentes:
-                </div>
-                <div className="field" style={{ marginBottom: 10 }}>
+                <div className="field" style={{ marginBottom: 0 }}>
                   <label style={{ fontSize: 12 }}>Principal produto ou serviço</label>
                   <input
                     type="text"
@@ -644,16 +639,6 @@ function StepInfo({
                     onChange={e => setProdutoServico(e.target.value)}
                     style={{ marginTop: 4 }}
                   />
-                </div>
-                <div className="field" style={{ marginBottom: 0 }}>
-                  <label style={{ fontSize: 12 }}>Foco atual do negócio</label>
-                  <div className="radio-pills" style={{ marginTop: 4 }}>
-                    {PRIMARY_FOCUS.map(f => (
-                      <div key={f.id} className={`rp${primaryFocus === f.id ? ' on' : ''}`} onClick={() => setPrimaryFocus(f.id)}>
-                        {f.label}
-                      </div>
-                    ))}
-                  </div>
                 </div>
               </div>
             </div>
@@ -1896,7 +1881,6 @@ export default function OnboardingApp() {
         initialWebsite={draft.website}
         initialVertical={initialVertical}
         initialPorte={initialPorte}
-        initialPrimaryFocus={draft.primaryFocus ?? ''}
         initialProdutoServico={draft.produtoServico ?? ''}
       />
     )

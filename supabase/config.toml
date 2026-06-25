@@ -104,11 +104,6 @@ verify_jwt = false
 
 # ── Internal workers (verify_jwt=false, no user JWT) ─────────────────────────
 
-# enrich-metadata: metadata enrichment queue worker — invoked by pg_net from
-# the database scheduler. No user JWT; protected by network isolation only.
-[functions.enrich-metadata]
-verify_jwt = false
-
 # onboarding-website-intel: website scraping helper — invoked server-side
 # during onboarding flow; no direct user JWT required.
 [functions.onboarding-website-intel]

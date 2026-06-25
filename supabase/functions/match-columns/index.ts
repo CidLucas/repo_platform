@@ -6,13 +6,16 @@
 import { compareTwoStrings } from "https://esm.sh/string-similarity@4.0.4";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, json } from "../_shared/cors.ts";
+import { isSystemInvocation, requireAuth, AuthError } from "../_shared/blu_auth.ts";
 
 // =============================================================================
 // Supabase client (service role — reads public.canonical_columns)
 // =============================================================================
 
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const supabase = createClient(
-    Deno.env.get("SUPABASE_URL")!,
+    SUPABASE_URL,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 
@@ -435,6 +438,21 @@ Deno.serve(async (req) => {
 
     if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
     if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+
+    // Auth: accept service-role invocations (EF-to-EF, tool_pool_api) or
+    // a valid user JWT. Without this gate the endpoint is open to anyone
+    // with the function URL — see .hermes/plans/edge-functions-rationalization
+    // Phase 1.1 for context.
+    try {
+        if (!isSystemInvocation(req)) {
+            await requireAuth(req, SUPABASE_URL, SUPABASE_ANON_KEY);
+        }
+    } catch (err) {
+        if (err instanceof AuthError) {
+            return json({ error: err.message }, err.status);
+        }
+        throw err;
+    }
 
     try {
         const body = await req.json();

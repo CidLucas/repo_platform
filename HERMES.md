@@ -332,6 +332,8 @@ O que ainda falta na Polp:
 ### Edge functions (22 total) ✅
 get-agenda-events, save-api-token, google-calendar-events, polp-*, onboarding-*, run-*-etl, process-document, search-documents, upload-*, discover-bigquery-columns, match-columns, generate-context-report, website-context-builder, routine-builder
 
+> Rationalization plan in `.hermes/plans/edge-functions-rationalization/plan.md` — target: 12-14 EFs / 4.5k LOC after 5 waves of refactor.
+
 ---
 
 ## Próximos passos pendentes

@@ -1,4 +1,8 @@
 import { corsHeaders, json } from "../_shared/cors.ts";
+import { requireAuth, AuthError } from "../_shared/blu_auth.ts";
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
 function normalizeUrl(raw: string): string {
   const trimmed = raw.trim();
@@ -74,6 +78,19 @@ Deno.serve(async (req: Request) => {
   }
   if (req.method !== "POST") {
     return json({ error: "method not allowed" }, 405);
+  }
+
+  // Auth: validate user JWT. The wizard calls this from the frontend with
+  // the session token, so requireAuth covers the only live caller. Without
+  // this gate the endpoint is open to anyone with the function URL —
+  // see .hermes/plans/edge-functions-rationalization Phase 1.1.
+  try {
+    await requireAuth(req, SUPABASE_URL, SUPABASE_ANON_KEY);
+  } catch (err) {
+    if (err instanceof AuthError) {
+      return json({ error: err.message }, err.status);
+    }
+    throw err;
   }
 
   try {

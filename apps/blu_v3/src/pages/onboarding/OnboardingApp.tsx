@@ -432,6 +432,8 @@ interface SiteContext {
   company_name?: string
   cnpj?: string
   vertical?: string
+  cnpj?: string
+  telefone?: string
   confidence: number
   suggested_agents?: string[]
   telefone?: string
@@ -455,7 +457,7 @@ function formatCnpj(raw: string): string {
 function StepInfo({
   onNext, onBack, saveDraft,
   initialNome, initialEmpresa, initialWebsite, initialVertical, initialPorte,
-  initialProdutoServico, initialCnpj,
+  initialProdutoServico, initialCnpj, initialTelefone,
 }: {
   onNext: () => void
   onBack?: () => void
@@ -467,11 +469,12 @@ function StepInfo({
   initialPorte: string
   initialProdutoServico: string
   initialCnpj: string
+  initialTelefone: string
 }) {
   const [nome, setNome] = useState(initialNome)
   const [empresa, setEmpresa] = useState(initialEmpresa)
   const [cnpj, setCnpj] = useState(initialCnpj)
-  const [telefone, setTelefone] = useState('')
+  const [telefone, setTelefone] = useState(initialTelefone)
   const [website, setWebsite] = useState(initialWebsite)
   const [vertical, setVertical] = useState(initialVertical || '')
   const [teamSize, setTeamSize] = useState(initialPorte || '')
@@ -621,6 +624,26 @@ function StepInfo({
                     delay={250}
                   />
                 )}
+                {siteContext.cnpj && (
+                  <div key="cnpj" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <ScrapeField label="CNPJ" value={formatCnpj(siteContext.cnpj)} delay={250} />
+                    {siteContext.confidence >= 0.7 ? (
+                      <span style={{ color: '#16a34a', background: '#dcfce7', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança alta</span>
+                    ) : siteContext.confidence >= 0.3 ? (
+                      <span style={{ color: '#ca8a04', background: '#fef9c3', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança média</span>
+                    ) : null}
+                  </div>
+                )}
+                {siteContext.telefone && (
+                  <div key="telefone" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <ScrapeField label="Telefone" value={siteContext.telefone} delay={500} />
+                    {siteContext.confidence >= 0.7 ? (
+                      <span style={{ color: '#16a34a', background: '#dcfce7', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança alta</span>
+                    ) : siteContext.confidence >= 0.3 ? (
+                      <span style={{ color: '#ca8a04', background: '#fef9c3', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança média</span>
+                    ) : null}
+                  </div>
+                )}
                 {siteContext.suggested_agents && siteContext.suggested_agents.length > 0 && (
                   <ScrapeField
                     label="Agentes sugeridos"
@@ -655,7 +678,7 @@ function StepInfo({
                 <div style={{ fontSize: 11.5, color: 'var(--muted)', marginBottom: 10 }}>
                   Uma pergunta para calibrar seus agentes:
                 </div>
-                <div className="field" style={{ marginBottom: 10 }}>
+                <div className="field" style={{ marginBottom: 0 }}>
                   <label style={{ fontSize: 12 }}>Principal produto ou serviço</label>
                   <input
                     type="text"
@@ -2006,6 +2029,7 @@ export default function OnboardingApp() {
         initialNome={draft.nome}
         initialEmpresa={draft.empresa}
         initialCnpj={draft.cnpj ?? ''}
+        initialTelefone={''}
         initialWebsite={draft.website}
         initialVertical={initialVertical}
         initialPorte={initialPorte}

@@ -605,6 +605,7 @@ def test_b8_validate_cnpj_canary_executes_correct_algorithm():
     )
     invalid_cnpjs = (
         "11222333000182",
+        "00000000000000",
         "11111111111111",
         "12345678901234",
     )

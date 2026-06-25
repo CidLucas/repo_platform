@@ -18,48 +18,19 @@ function stripHtml(input: string): string {
     .trim();
 }
 
-function detectVertical(text: string): string | null {
-  const t = text.toLowerCase();
-  if (/(loja|e-commerce|ecommerce|checkout|carrinho|sku|produto)/.test(t)) return "ecommerce";
-  if (/(distribui|atacado|fornecedor|compras|estoque|supply)/.test(t)) return "industria";
-  if (/(cl[ií]nica|hospital|paciente|consult[oó]rio)/.test(t)) return "saude";
-  if (/(curso|aluno|escola|educa)/.test(t)) return "educacao";
-  if (/(contabil|financeir|banco|cr[eé]dito|invest)/.test(t)) return "financeiro";
-  if (/(servi[cç]o|ag[eê]ncia|consultoria|atendimento)/.test(t)) return "servicos";
-  if (/(design|gr[aá]fico|ux|ui)/.test(t)) return "design";
-  if (/(buffet|catering|evento)/.test(t)) return "alimentacao";
-  if (/(constru[cç]|construcao|obra|edifica)/.test(t)) return "construcao";
-  if (/(log[ií]stica|logistica|transportadora|frete|entregas?)/.test(t)) return "logistica";
-  if (/(consultoria|assessoria|consultor)/.test(t)) return "consultoria";
-  if (/(advocacia|advogado|jur[ií]dico|direito)/.test(t)) return "juridico";
-  if (/(imobili[aá]ri|imobiliari|corretor|im[oó]veis?)/.test(t)) return "imobiliario";
-  if (/(seguro|previd[eê]ncia)/.test(t)) return "financeiro";
-  if (/(turismo|viagem|hotel|passagem)/.test(t)) return "turismo";
-  if (/(alimenta|caf[eé]|restaurante|comida)/.test(t)) return "alimentacao";
-  if (/(transporte|traslado|mudan[cç]a|motorista)/.test(t)) return "logistica";
-  if (/(beleza|est[eé]tica|cabelo|maquiagem)/.test(t)) return "beleza";
-  if (/(fitness|academia|personal|treino)/.test(t)) return "fitness";
-  if (/(oficina|mec[aâ]nica|reparo|conserto)/.test(t)) return "automotivo";
-  if (/(engenharia|engenheiro|projeto|obra)/.test(t)) return "engenharia";
-  if (/(marketing|publicidade|propaganda|m[ií]dia)/.test(t)) return "marketing";
-  if (/(\bti\b|tecnologia|inform[aá]tica|software|desenvolvedor)/.test(t)) return "tecnologia";
-  return null;
-}
+function extractCNPJ(html: string): string | null {
+  const formatted = /\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/;
+  const plain = /\d{14}/;
 
-export function extractCNPJ(html: string): string | null {
-  // CNPJ format: \d{2}\d{3}\d{3}\d{4}\d{2} (14 digits) or \d{2}\.\d{3}\.\d{3}/\d{4}-\d{2} (formatted)
-  const cnpjRegex = new RegExp("\\d{2}\\.\\d{3}\\.\\d{3}/\\d{4}-\\d{2}");
-  const cnpjPlainRegex = /\d{2}\d{3}\d{3}\d{4}\d{2}/;
+  const directFormatted = html.match(formatted);
+  if (directFormatted) return directFormatted[0];
 
-  const direct = html.match(cnpjRegex);
-  if (direct) return direct[0];
-
-  const plain = html.match(cnpjPlainRegex);
-  if (plain) return plain[0];
+  const directPlain = html.match(plain);
+  if (directPlain) return directPlain[0];
 
   const metaContent = html.match(/<meta[^>]+content=["']([^"']+)["']/i);
   if (metaContent) {
-    const fromMeta = metaContent[1].match(cnpjRegex) || metaContent[1].match(cnpjPlainRegex);
+    const fromMeta = metaContent[1].match(formatted) || metaContent[1].match(plain);
     if (fromMeta) return fromMeta[0];
   }
 
@@ -71,7 +42,7 @@ export function extractCNPJ(html: string): string | null {
       const data = JSON.parse(ldJson[1]);
       const vatID = (data && (data.vatID || data["@id"])) || null;
       if (typeof vatID === "string") {
-        const fromLd = vatID.match(cnpjRegex) || vatID.match(cnpjPlainRegex);
+        const fromLd = vatID.match(formatted) || vatID.match(plain);
         if (fromLd) return fromLd[0];
       }
     } catch (_) {
@@ -83,16 +54,21 @@ export function extractCNPJ(html: string): string | null {
 }
 
 function extractPhone(html: string): string | null {
-  const formattedPattern = /\(\d{2}\)\s?\d{4,5}-?\d{4}/;
-  const formattedMatch = html.match(formattedPattern);
-  if (formattedMatch) return formattedMatch[0];
+  const brFormatted = /\(\d{2}\)\s?\d{4,5}-?\d{4}/;
+  const intl = /\+55\s?\d{10,11}/;
+  const plain = /\d{10,11}/;
 
-  const plainPattern = /\d{10,11}/;
-  const plainMatch = html.match(plainPattern);
+  const brMatch = html.match(brFormatted);
+  if (brMatch) return brMatch[0];
+
+  const intlMatch = html.match(intl);
+  if (intlMatch) return intlMatch[0];
+
+  const plainMatch = html.match(plain);
   return plainMatch ? plainMatch[0] : null;
 }
 
-function validateCNPJ(cnpj: string) {
+function validateCNPJ(cnpj) {
   const cleaned = cnpj.replace(/\D/g, "");
   if (cleaned.length !== 14) return false;
   if (/^(\d)\1+$/.test(cleaned)) return false;
@@ -117,7 +93,34 @@ function validateCNPJ(cnpj: string) {
   return dv1 === parseInt(cleaned[12]) && dv2 === parseInt(cleaned[13]);
 }
 
-function calcSourceConfidence(sourceCount: number): number {
+function detectVertical(text: string): string | null {
+  const t = text.toLowerCase();
+  if (/(loja|e-commerce|ecommerce|checkout|carrinho|sku|produto)/.test(t)) return "ecommerce";
+  if (/(distribui|atacado|fornecedor|compras|estoque|supply)/.test(t)) return "industria";
+  if (/(cl[ií]nica|hospital|paciente|consult[oó]rio)/.test(t)) return "saude";
+  if (/(curso|aluno|escola|educa)/.test(t)) return "educacao";
+  if (/(contabil|financeir|banco|cr[eé]dito|invest)/.test(t)) return "financeiro";
+  if (/(design|gr[aá]fico|ux|ui)/.test(t)) return "design";
+  if (/(buffet|catering|alimenta|caf[eé]|restaurante|comida|gastronomia)/.test(t)) return "alimentacao";
+  if (/(constru[cç][aã]o|construcao|edifica)/.test(t)) return "construcao";
+  if (/(log[ií]stica|logistica|transportadora|frete|entregas?)/.test(t)) return "logistica";
+  if (/(consultoria|assessoria|consultor)/.test(t)) return "consultoria";
+  if (/(advocacia|advogado|jur[ií]dico|direito)/.test(t)) return "juridico";
+  if (/(imobili[aá]ri|imobiliari|corretor|im[oó]veis?)/.test(t)) return "imobiliario";
+  if (/(seguro|previd[eê]ncia)/.test(t)) return "seguros";
+  if (/(turismo|viagem|hotel|passagem)/.test(t)) return "turismo";
+  if (/(transporte|traslado|mudan[cç]a|motorista)/.test(t)) return "transporte";
+  if (/(beleza|est[eé]tica|cabelo|maquiagem)/.test(t)) return "beleza";
+  if (/(fitness|academia|personal|treino)/.test(t)) return "fitness";
+  if (/(oficina|mec[aâ]nica|reparo|conserto)/.test(t)) return "automotivo";
+  if (/(engenharia|engenheiro|projeto|obra)/.test(t)) return "engenharia";
+  if (/(marketing|publicidade|propaganda|m[ií]dia)/.test(t)) return "marketing";
+  if (/(\bti\b|tecnologia|inform[aá]tica|software|desenvolvedor)/.test(t)) return "tecnologia";
+  if (/(servi[cç]o|ag[eê]ncia|atendimento)/.test(t)) return "servicos";
+  return null;
+}
+
+function calculateConfidence(sourceCount: number): number {
   if (sourceCount >= 3) return 0.7;
   if (sourceCount >= 2) return 0.5;
   return 0.3;
@@ -204,22 +207,6 @@ Deno.serve(async (req: Request) => {
       if (resp.ok) {
         html = await resp.text();
       }
-    } catch (fetchErr) {
-      console.warn("[onboarding-website-intel] fetch failed, returning SPA fallback", fetchErr);
-      return json({
-        company_name: null,
-        vertical: null,
-        suggested_size: null,
-        ...suggestFromVertical(null),
-        confidence: 0,
-        cnpj: null,
-        telefone: null,
-        confidence_details: {
-          cnpj_confidence: 0,
-          telefone_confidence: 0,
-          vertical_confidence: 0,
-        },
-      });
     } finally {
       clearTimeout(timeout);
     }
@@ -236,12 +223,12 @@ Deno.serve(async (req: Request) => {
     const vertical = detectVertical(summaryText);
     const suggestions = suggestFromVertical(vertical);
 
-    // Source counting for confidence scoring
     let sourceCount = 0;
     if (title) sourceCount++;
     if (metaDescMatch?.[1]) sourceCount++;
-    if (html.length > 0) sourceCount++;
-    const sourceConfidence = calcSourceConfidence(sourceCount);
+    if (cnpj) sourceCount++;
+    if (telefone) sourceCount++;
+    const sourceConfidence = calculateConfidence(sourceCount);
 
     const cnpj_confidence = cnpj ? sourceConfidence : 0;
     const telefone_confidence = telefone ? sourceConfidence : 0;
@@ -269,7 +256,7 @@ Deno.serve(async (req: Request) => {
       vertical: null,
       suggested_size: null,
       ...suggestFromVertical(null),
-      confidence: 0,
+      confidence: 0.35,
       cnpj: null,
       telefone: null,
       confidence_details: {

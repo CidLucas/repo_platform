@@ -58,6 +58,12 @@ interface PendingCredential {
 
 type Step = 'auth' | 'info' | 'data' | 'mapping' | 'launch'
 
+type CsvClassification = {
+  confirmed: boolean
+  schemaType: string
+  canceled: boolean
+}
+
 const STEP_ORDER: Step[] = ['auth', 'info', 'data', 'mapping', 'launch']
 const STEP_LABELS = ['Conta', 'Empresa', 'Dados', 'Mapeamento']
 
@@ -132,11 +138,11 @@ export type ColumnMappingResult = {
   details: MappingDetail[]
 }
 
-async function callMatchColumns(sourceColumns: string[]): Promise<ColumnMappingResult | null> {
+async function callMatchColumns(sourceColumns: string[], schemaType?: string): Promise<ColumnMappingResult | null> {
   if (sourceColumns.length === 0) return null
   try {
     const { data, error } = await supabase.functions.invoke('match-columns', {
-      body: { source_columns: sourceColumns, schema_type: 'invoices' },
+      body: { source_columns: sourceColumns, schema_type: schemaType || 'invoices' },
     })
     if (error) {
       console.warn('[onboarding] match-columns failed:', error.message)
@@ -942,7 +948,10 @@ function StepData({
   const [csvUploaded, setCsvUploaded] = useState(false)
   const [csvHeaders, setCsvHeaders] = useState<string[]>([])
   const [csvFileName, setCsvFileName] = useState<string>('')
+  const [csvClassification, setCsvClassification] = useState<CsvClassification | null>(null)
+  const [showClassificationModal, setShowClassificationModal] = useState(false)
   const csvRef = useRef<HTMLInputElement>(null)
+  const csvFileRef = useRef<File | null>(null)
   const [driveOpen, setDriveOpen] = useState(false)
   const [driveUrl, setDriveUrl] = useState('')
   const [driveConnected, setDriveConnected] = useState(false)
@@ -1057,11 +1066,13 @@ function StepData({
   async function handleCsvChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    setCsvUploaded(true)
+    // Only set file info, not csvUploaded — modal will confirm
     setCsvFileName(file.name)
     const { headers, sheetName } = await parseSpreadsheetHeaders(file)
     setCsvHeaders(headers)
-    onCsvFileReady(file, sheetName)
+    // Store file ref for later use
+    csvFileRef.current = file
+    setShowClassificationModal(true)
   }
 
   async function handleNext() {
@@ -1071,7 +1082,8 @@ function StepData({
     ]
     await saveDraft({ systems, csvUploaded })
     // Match CSV columns if uploaded; BQ columns are discovered in StepLaunch
-    const mappingResult = csvHeaders.length > 0 ? await callMatchColumns(csvHeaders) : null
+    const schemaType = csvClassification?.schemaType || 'invoices'
+    const mappingResult = csvHeaders.length > 0 ? await callMatchColumns(csvHeaders, schemaType) : null
     onMappingReady(mappingResult)
     onNext(mappingResult)
   }
@@ -1186,6 +1198,56 @@ function StepData({
                   Confirmar arquivo
                 </button>
               </div>
+            </div>
+          )}
+          {showClassificationModal && (
+            <div style={{ marginTop: 16, padding: 16, background: 'var(--surface)', border: '1px solid var(--gb)', borderRadius: 'var(--rl)' }}>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
+                Detectamos {csvHeaders.length} colunas que parecem ser de notas fiscais. Confirma?
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                <button className="btn btn-primary" onClick={() => {
+                  setCsvUploaded(true)
+                  setCsvClassification({ confirmed: true, schemaType: 'invoices', canceled: false })
+                  setShowClassificationModal(false)
+                  const file = csvFileRef.current
+                  if (file) onCsvFileReady(file, undefined)
+                }}>Sim, sao notas</button>
+                <button className="btn btn-ghost" onClick={() => {
+                  setCsvClassification(prev => prev ? { ...prev, schemaType: '' } : { confirmed: false, schemaType: '', canceled: false })
+                }}>Nao, e outro tipo</button>
+                <button className="btn btn-ghost" onClick={() => {
+                  setCsvFileName('')
+                  setCsvHeaders([])
+                  setCsvUploaded(false)
+                  setCsvClassification(null)
+                  setShowClassificationModal(false)
+                  csvFileRef.current = null
+                  onCsvFileReady(null)
+                }}>Cancelar</button>
+              </div>
+              {csvClassification && !csvClassification.confirmed && (
+                <div className="field">
+                  <label>schemaType:</label>
+                  <select value={csvClassification.schemaType} onChange={e => {
+                    setCsvClassification(prev => prev ? { ...prev, schemaType: e.target.value } : { confirmed: false, schemaType: e.target.value, canceled: false })
+                    if (e.target.value !== '') {
+                      setCsvUploaded(true)
+                      setCsvClassification({ confirmed: true, schemaType: e.target.value, canceled: false })
+                      setShowClassificationModal(false)
+                      const file = csvFileRef.current
+                      if (file) onCsvFileReady(file, undefined)
+                    }
+                  }}>
+                    <option value="">Selecione…</option>
+                    <option value="invoices">invoices</option>
+                    <option value="receipts">receipts</option>
+                    <option value="bank_statements">bank_statements</option>
+                    <option value="outros">outros</option>
+                    <option value="Nao sei">Nao sei (sugere via LLM)</option>
+                  </select>
+                </div>
+              )}
             </div>
           )}
           <input

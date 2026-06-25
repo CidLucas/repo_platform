@@ -16,161 +16,185 @@ max_rows = 1000
 
 # ── Edge Function auth policy ────────────────────────────────────────────────
 #
-# Two strategies are in use:
+# Functions are grouped below by auth model. Each group explains WHY its
+# functions use that auth model, and which shared helper validates the
+# request. The two strategies in use:
 #
 #  verify_jwt = true  (Supabase edge validates before invoking the function)
-#    → Used for pure-computation or service-key-called functions where the
-#      edge layer provides the first line of defence and ES256 is not required.
+#    → Used for functions called with a Supabase-issued user JWT. Edge
+#      gateway enforces HS256 + the apikey header. No custom-claim
+#      extraction at the edge layer.
 #
-#  verify_jwt = false + internal validation via /auth/v1/user
-#    → Used whenever functions need to:
-#        a) Support ES256 tokens (Supabase's newer JWT format) — the edge
-#           layer only handles HS256.
+#  verify_jwt = false  (function validates internally)
+#    → Required when the function needs to:
+#        a) Support ES256 tokens (Supabase's newer JWT format — the edge
+#           layer only handles HS256).
 #        b) Extract custom JWT claims (app_metadata.client_id, aal, etc.)
 #           for tenant scoping / MFA enforcement.
-#        c) Act as internal workers called by pg_net/pg_cron (no user JWT).
-#      All such functions import requireAuth() from _shared/blu_auth.ts which
-#      calls /auth/v1/user and returns a typed UserContext.
+#        c) Be called by another edge function or by a backend service
+#           with the service-role Bearer.
+#        d) Be called by an external service with a custom auth scheme
+#           (HMAC for polp-webhook, opaque state blob for oauth-callback).
+#      Such functions import requireAuth() and/or isSystemInvocation()
+#      from _shared/blu_auth.ts.
 #
 # ─────────────────────────────────────────────────────────────────────────────
 
 [functions]
 
-# ── User-facing: internal validation (verify_jwt=false + blu_auth) ────────────
+# ── User-facing: verify_jwt=true (edge-layer HS256) ─────────────────────────
+# Frontend calls these with the user's Supabase session. No tenant-
+# scoping custom claims needed at the edge — RLS handles it downstream.
 
-# run-sync-etl: user triggers BigQuery sync — validates JWT internally for ES256
-# support and to extract client_id from app_metadata before ownership check.
-[functions.run-sync-etl]
-verify_jwt = false
-
-# discover-bigquery-columns: user initiates BQ schema discovery — validates
-# JWT internally, cross-checks credential ownership via clientes_blu.
-[functions.discover-bigquery-columns]
-verify_jwt = false
-
-# onboarding-bootstrap: landing wizard provisioning — validates JWT internally,
-# all RPCs run under SECURITY INVOKER with the caller's JWT.
-[functions.onboarding-bootstrap]
-verify_jwt = false
-
-# onboarding-capture-drive-token: stores encrypted OAuth refresh token for the
-# authenticated tenant — validates JWT, resolves client_id from claims/DB.
-[functions.onboarding-capture-drive-token]
-verify_jwt = false
-
-# google-calendar-events: reads calendar for the authenticated tenant — validates
-# JWT internally, uses service client only for encrypted token decryption.
-[functions.google-calendar-events]
-verify_jwt = false
-
-# etl-bigquery-ingest: BigQuery → ingest_staging → fato_transacoes worker.
-# Invoked by analytics_v2.process_pending_jobs (pg_net) with the sb_secret_*
-# service key OR directly by an authenticated user. JWT validation is done
-# inside the function via _shared/blu_auth.isSystemInvocation + requireAuth.
-[functions.etl-bigquery-ingest]
-verify_jwt = false
-
-# ── User-facing: edge-layer validation (verify_jwt=true) ─────────────────────
-
-# match-columns: stateless fuzzy schema matcher — pure computation, no DB writes.
-# verify_jwt = false: called server-to-server from other edge functions and by the
-# frontend. No sensitive data accessed, so no auth gate needed.
-[functions.match-columns]
-verify_jwt = false
-
-# search-documents: hybrid vector search — called by Python backend (service key)
-# or authenticated frontend. Edge validates the token in both cases.
-[functions.search-documents]
-verify_jwt = true
-
-# process-document: document ingestion pipeline — called with service key from
-# backend. Edge validates; no user JWT inside the function body.
-[functions.process-document]
-verify_jwt = true
-
-# run-csv-etl: CSV sync orchestrator — validates JWT internally via blu_auth for
-# ES256 support and client_id extraction from app_metadata.
-[functions.run-csv-etl]
-verify_jwt = false
-
-# upload-csv-source: CSV/XLSX upload and schema matching — validates JWT internally.
-[functions.upload-csv-source]
-verify_jwt = false
-
-# ── Internal workers (verify_jwt=false, no user JWT) ─────────────────────────
-
-# onboarding-website-intel: website scraping helper — invoked server-side
-# during onboarding flow; no direct user JWT required.
-[functions.onboarding-website-intel]
-verify_jwt = false
-
-# get-monday-subitems: lazy-fetch subitems for a specific Monday item (Gantt 4th level).
+# google-oauth-start: builds the Google OAuth authorization URL with a
+# one-shot state blob. Frontend redirects the browser to the returned URL.
 [functions.google-oauth-start]
 verify_jwt = true
 
-[functions.google-oauth-callback]
-verify_jwt = false
-
-[functions.get-monday-subitems]
-verify_jwt = true
-
-# get-agenda-events: unified Google Calendar + Monday + Notion events for Gantt.
-# Requires user JWT (tenant isolation via auth.uid).
+# get-agenda-events: unified Calendar + Monday + Notion feed for the
+# Gantt/Agenda view.
 [functions.get-agenda-events]
 verify_jwt = true
 
-# polp-webhook: endpoint público server-to-server (Polp/Pluggy). Não usa JWT;
-# valida origem por assinatura HMAC (X-Polp-Signature / X-Pluggy-Signature)
-# e fallback legado X-Secret.
-[functions.polp-webhook]
+# get-monday-subitems: lazy-load 4th-level subitems of a Monday item.
+[functions.get-monday-subitems]
+verify_jwt = true
+
+# polp-connect: initiates a Polp/Pluggy Open Finance connection.
+[functions.polp-connect]
+verify_jwt = true
+
+# search-documents: hybrid vector + keyword retrieval for the RAG factory.
+[functions.search-documents]
+verify_jwt = true
+
+# process-document: document ingestion pipeline. Called with service key
+# from backend OR with a user JWT from frontend; edge-layer validation
+# covers both paths.
+[functions.process-document]
+verify_jwt = true
+
+# upload-csv-source: CSV/XLSX multipart upload + auto schema match.
+[functions.upload-csv-source]
+verify_jwt = true
+
+# upload-drive-source: Google Drive file intake. Same auth model as
+# upload-csv-source.
+[functions.upload-drive-source]
+verify_jwt = true
+
+
+# ── User-facing: verify_jwt=false + requireAuth (ES256 + custom claims) ───
+# These need either ES256 tokens or access to app_metadata.client_id /
+# aal claims. All import requireAuth() from _shared/blu_auth.ts.
+
+# run-sync-etl: user triggers BigQuery sync; client_id from app_metadata.
+[functions.run-sync-etl]
 verify_jwt = false
 
-# ── User-facing: internal validation (verify_jwt=false + blu_auth) ────────────
+# discover-bigquery-columns: user initiates BQ schema discovery;
+# cross-checks credential ownership via clientes_blu.
+[functions.discover-bigquery-columns]
+verify_jwt = false
 
-# polp-sync: manual full sync triggered by user — validates JWT internally via
-# blu_auth.requireAuth for ES256 support and client_id extraction.
+# onboarding-bootstrap: landing wizard provisioning. RPCs run under
+# SECURITY INVOKER with the caller's JWT.
+[functions.onboarding-bootstrap]
+verify_jwt = false
+
+# onboarding-capture-drive-token: stores encrypted OAuth refresh token
+# for the authenticated tenant.
+[functions.onboarding-capture-drive-token]
+verify_jwt = false
+
+# google-calendar-events: reads Calendar events for the authenticated
+# tenant; uses service client only for Fernet token decryption.
+[functions.google-calendar-events]
+verify_jwt = false
+
+# onboarding-website-intel: lightweight website scrape (vertical
+# detection, CNPJ, phone extraction). Auth gate added in Phase 1.1
+# of the rationalization plan.
+[functions.onboarding-website-intel]
+verify_jwt = false
+
+# polp-sync: manual full sync triggered by the AdminScreen ↻ button.
 [functions.polp-sync]
 verify_jwt = false
 
-# routine-builder: AI-assisted routine creation chat — validates JWT internally
-# via blu_auth.requireAuth; extracts client_id from app_metadata.
+# routine-builder: AI-assisted routine creation chat.
 [functions.routine-builder]
 verify_jwt = false
 
-# save-api-token: saves encrypted third-party API tokens (Slack, Monday, etc.)
-# — validates JWT inline via /auth/v1/user; resolves client_id from clientes_blu.
+# save-api-token: saves encrypted third-party API tokens (Slack, Monday,
+# Notion, Asana, Linear, ClickUp).
 [functions.save-api-token]
 verify_jwt = false
 
-# ── Backend-only: system invocation guard (verify_jwt=false + service_role check) ──
+# run-csv-etl: CSV/XLSX ETL orchestrator. (Note: this function does
+# inline ETL — see comment in the function body — not just orchestration.)
+[functions.run-csv-etl]
+verify_jwt = false
+
+
+# ── Dual auth: user JWT OR service role (isSystemInvocation + requireAuth) ─
+# These are called both by the frontend (user JWT) AND by other edge
+# functions / Python backend (service role). The isSystemInvocation check
+# routes service-role callers to a fast path; requireAuth is the fallback
+# for user-JWT callers.
+
+# match-columns: fuzzy schema matcher. Called server-to-server from
+# upload-csv-source, upload-drive-source, and the tool_pool_api
+# context_module (service role). Frontend can also call it directly
+# with a user JWT. Note: does have an internal auth gate (added in
+# Phase 1.1) — the function body checks isSystemInvocation first, then
+# requireAuth.
+[functions.match-columns]
+verify_jwt = false
+
+# etl-bigquery-ingest: BigQuery → ingest_staging → fato_transacoes
+# worker. Invoked by analytics_v2.process_pending_jobs (pg_net) with
+# the sb_secret_* service key OR directly by an authenticated user.
+# Same dual-auth pattern as match-columns.
+[functions.etl-bigquery-ingest]
+verify_jwt = false
+
+
+# ── External (no JWT): custom auth (state blob / HMAC) ──────────────────────
+# These are called by external services or browser redirects, not by
+# the Supabase client. They use custom auth schemes instead of JWT.
+
+# google-oauth-callback: receives the OAuth `code` from Google (browser
+# redirect). Validates the opaque `state` blob created by
+# google-oauth-start (10-min TTL). Not user-facing directly.
+[functions.google-oauth-callback]
+verify_jwt = false
+
+# polp-webhook: server-to-server endpoint from Polp/Pluggy. Validates
+# HMAC-SHA256 signature (X-Polp-Signature or legacy X-Pluggy-Signature
+# / X-Secret fallback).
+[functions.polp-webhook]
+verify_jwt = false
+
+
+# ── Internal workers: system-only (no user JWT, no external caller) ───────
+# These run in the background — fired by pg_net, pg_cron, or as
+# waitUntil children of other edge functions. Only the service role
+# can invoke them. The function body checks isSystemInvocation() to
+# reject anything else.
 
 # etl-refresh-dashboards: dashboard materialized-view refresh worker.
-# Invoked by analytics_v2.process_pending_jobs (pg_net) via service_role Bearer.
-# Auth guard: isSystemInvocation() in _shared/blu_auth + admin.auth.getUser fallback.
-# verify_jwt=false because Supabase edge layer only validates HS256; the function
-# validates the Bearer token internally against SUPABASE_SERVICE_ROLE_KEY.
+# Invoked by analytics_v2.process_pending_jobs (pg_net).
 [functions.etl-refresh-dashboards]
 verify_jwt = false
 
 # generate-context-report: builds AI context report for a tenant.
-# Invoked server-to-server with service_role Bearer token.
-# Auth guard: authHeader.includes(SUPABASE_SERVICE_ROLE_KEY) at function entry.
+# Fire-and-forget from onboarding-bootstrap (service_role) and from
+# pg_cron on monthly reg_jobs completion.
 [functions.generate-context-report]
 verify_jwt = false
 
-# website-context-builder: scrapes and stores website context during onboarding.
-# Called by onboarding flow with service_role Bearer.
-# Auth guard: service_role key check at function entry (index.ts L211-212).
+# website-context-builder: scrapes and stores website context during
+# onboarding. Fire-and-forget from onboarding-bootstrap.
 [functions.website-context-builder]
 verify_jwt = false
-
-# ── User-facing: edge-layer validation (verify_jwt=true) ─────────────────────
-
-# polp-connect: initiates Polp/Pluggy Open Finance connection — edge validates
-# user JWT before function body executes.
-[functions.polp-connect]
-verify_jwt = true
-
-# upload-drive-source: Google Drive document ingestion — edge validates user JWT.
-[functions.upload-drive-source]
-verify_jwt = true

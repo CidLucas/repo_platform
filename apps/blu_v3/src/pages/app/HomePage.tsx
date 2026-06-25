@@ -323,7 +323,16 @@ export default function HomePage() {
   }
 
   return (
-    <div className="home-grid">
+    <div>
+      <div className="rh">
+        <div className="rav">🏠</div>
+        <div><div className="rn">Home</div><div className="rd">Visão geral do Blu</div></div>
+        <div className="ra">
+          <button className="btn bs" style={{ fontSize: 11 }} onClick={() => go('home', 'Início')}>← Início</button>
+          <button className="btn bp" style={{ fontSize: 11 }} onClick={() => openChatWith('Quero criar uma nova missão')}>+ Nova Missão</button>
+        </div>
+      </div>
+      <div className="home-grid">
 
       <div className="panel" style={{ gridColumn: 1, gridRow: 1 }} data-spotlight-target="decisions">
         <div className="ph">
@@ -578,6 +587,7 @@ export default function HomePage() {
         />
       )}
 
+      </div>
     </div>
   )
 }

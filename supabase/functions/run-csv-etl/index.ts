@@ -6,8 +6,6 @@
  * 1. Auth + ownership check
  * 2. Persists confirmed column_mapping + user_column_changes to client_data_sources
  * 3. Downloads CSV from Storage, parses rows, stages them in csv_import_staging
- * 4. Creates reg_jobs record (job_type='csv_sync', status='pending')
- * 5. Returns job_id — pg_cron dispatches sincronizar_csv_cliente within ~1 min
  */
 
 import {
@@ -32,10 +30,8 @@ interface RunCsvEtlRequest {
   ignored_columns?: string[];
 }
 
-// =============================================================================
-// Handler
-// =============================================================================
-
+// ======================================================================// Handler
+// ======================================================================
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -93,7 +89,7 @@ Deno.serve(async (req: Request) => {
     // ── 3. Fetch and validate data source ─────────────────────────────────────
     const { data: dataSource, error: dsErr } = await svc
       .from("client_data_sources")
-      .select("id, storage_location, storage_type, auto_column_mapping, sync_status")
+      .select("id, storage_location, storage_type, auto_column_mapping, sync_status, schema_type")
       .eq("id", source_id)
       .eq("client_id", client_id)
       .maybeSingle();
@@ -260,7 +256,83 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Failed to stage CSV rows for processing" }, 500);
     }
 
-    // ── 8. Create sync job — pg_cron dispatches within ~1 min ─────────────────
+    // ── 8. Inline ETL: stage → dim/fact sync ─────────────────────────────────
+    // Read the just-staged rows back and project them into dim_clientes and
+    // fato_transacoes. This replaces the previous pg_cron + sincronizar_csv_cliente
+    // path so that the handler is the single source of truth for ETL.
+    const { data: staged, error: stageReadErr } = await svc
+      .from("csv_import_staging")
+      .select("rows")
+      .eq("client_id", client_id)
+      .eq("source_id", source_id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (stageReadErr) {
+      console.error(`[run-csv-etl] ${requestId} Staging read failed:`, stageReadErr);
+    }
+
+    const stagedRows = (staged?.rows ?? []) as Record<string, string>[];
+
+    // dim_clientes upsert — extract client dimension fields from Brazilian
+    // invoice column names (cpf_cnpj / cnpj / cpf, nome / cliente, telefone, etc.)
+    const dimClientesRows = stagedRows
+      .filter((r) => r.cpf_cnpj || r.cnpj || r.cpf)
+      .map((r) => ({
+        client_id,
+        cpf_cnpj: String(r.cpf_cnpj ?? r.cnpj ?? r.cpf ?? "").trim() || null,
+        nome: String(r.nome ?? r.cliente ?? r.razao_social ?? "").trim() || null,
+        telefone: String(r.telefone ?? r.celular ?? r.fone ?? "").trim() || null,
+        endereco_cidade: String(r.cidade ?? r.municipio ?? r.endereco_cidade ?? "").trim() || null,
+        endereco_uf: String(r.uf ?? r.estado ?? r.endereco_uf ?? "").trim() || null,
+      }));
+
+    if (dimClientesRows.length > 0) {
+      const { error: dimErr } = await svc
+        .from("dim_clientes")
+        .upsert(dimClientesRows, { onConflict: "client_id,cpf_cnpj", ignoreDuplicates: false });
+      if (dimErr) {
+        console.error(`[run-csv-etl] ${requestId} dim_clientes upsert failed:`, dimErr);
+      }
+    }
+
+    // fato_transacoes insert — one fact row per staged invoice/transaction.
+    const fatoRows = stagedRows.map((r, idx) => ({
+      transacao_id: String(
+        r.transacao_id ?? r.documento ?? r.numero_nota ?? `${source_id}-${idx}-${Date.now()}`,
+      ),
+      client_id,
+      documento: String(r.documento ?? r.numero_nota ?? r.nota_fiscal ?? "").trim() || null,
+      quantidade: Number(r.quantidade ?? r.qty ?? 1) || 1,
+      valor_unitario: Number(r.valor_unitario ?? r.preco_unitario ?? 0) || 0,
+      valor: Number(r.valor ?? r.valor_total ?? r.total ?? 0) || 0,
+      status: String(r.status ?? r.situacao ?? "processed").trim() || "processed",
+      created_at: now,
+    }));
+
+    if (fatoRows.length > 0) {
+      const { error: fatoErr } = await svc
+        .schema("analytics_v2")
+        .from("fato_transacoes")
+        .insert(fatoRows);
+      if (fatoErr) {
+        console.error(`[run-csv-etl] ${requestId} fato_transacoes insert failed:`, fatoErr);
+      }
+    }
+
+    // Staging cleanup — drop the batch now that dim/fact have been populated.
+    const { error: cleanupErr } = await svc
+      .from("csv_import_staging")
+      .delete()
+      .eq("client_id", client_id)
+      .eq("source_id", source_id);
+
+    if (cleanupErr) {
+      console.error(`[run-csv-etl] ${requestId} Staging cleanup failed:`, cleanupErr);
+    }
+
+    // ── 9. Create sync job — pg_cron no longer drives ETL ────────────────────
     const { data: job, error: jobErr } = await svc
       .schema("analytics_v2")
       .from("reg_jobs")
@@ -279,6 +351,8 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Failed to create sync job" }, 500);
     }
 
+    }
+
     const initDuration = Date.now() - startTime;
     console.log(
       `[run-csv-etl] ${requestId} Queued job=${job.job_id} rows=${rows.length} in ${initDuration}ms`,
@@ -289,7 +363,6 @@ Deno.serve(async (req: Request) => {
       job_id: job.job_id,
       request_id: requestId,
       row_count: rows.length,
-      message: "CSV sync job queued. ETL will start within ~1 minute.",
     }, 200, {
       "X-Request-Id": requestId,
       "X-Duration-Ms": String(initDuration),

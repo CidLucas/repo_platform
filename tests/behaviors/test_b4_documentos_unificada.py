@@ -452,3 +452,119 @@ def test_ac5_fluxo_rascunho_publicar():
             "  4. Documento muda de status 'draft' para 'published'\n\n"
             f"Arquivo: {ESTRATEGIA_ROOM_PATH}"
         )
+
+
+def test_ac6_legado_agent_slug_documentos():
+    """AC#6 — Documentos do agent_slug 'documentos' (legado) ainda aparecem.
+
+    RED: O EstrategiaRoom.tsx atual não importa nada de '../../api/documents'
+    e não contém nenhuma referência a agent_slug que inclua 'documentos'. A
+    query de listagem (fetchRecentDocuments / fetchDraftDocuments) hoje filtra
+    apenas 'estrategia' (ou o agente da room), o que faz com que documentos
+    antigos salvos com agent_slug='documentos' (legado) desapareçam da nova
+    aba Documentos unificada.
+
+    GREEN esperado: durante a transição da aba Documentos, a query (no próprio
+    EstrategiaRoom.tsx ou via constants/queries importados) precisa incluir
+    AMBOS os agent_slugs:
+
+        agent_slug IN ('documentos', 'estrategia')
+
+    Aceita qualquer uma das formas equivalentes (array, IN, constantes,
+    imports de api/documents etc.) desde que ambos os slugs coexistam na
+    mesma expressão de filtro.
+    """
+    source = _read_source()
+
+    # 1) Tem que existir alguma menção a 'documentos' como agent_slug no arquivo
+    #    (string literal 'documentos' ou "documentos").
+    tem_slug_documentos = bool(re.search(
+        r"['\"]documentos['\"]",
+        source,
+    ))
+
+    # 2) Tem que existir alguma menção a 'estrategia' como agent_slug.
+    tem_slug_estrategia = bool(re.search(
+        r"['\"]estrategia['\"]",
+        source,
+    ))
+
+    # 3) Tem que existir um token 'agent_slug' (ou 'agent_slugs') no arquivo —
+    #    a string sozinha não basta, pois pode aparecer em UI/rotação/etc.
+    tem_token_agent_slug = bool(re.search(
+        r"\bagent_slug[s]?\b",
+        source,
+    ))
+
+    # 4) Os DOIS slugs precisam estar juntos na mesma expressão/linha/bloco
+    #    referenciando agent_slug. Procuramos padrões como:
+    #      agent_slug IN ('documentos', 'estrategia')
+    #      agent_slug: ['documentos', 'estrategia']
+    #      agent_slugs = ['documentos', 'estrategia']
+    #    Aceitando qualquer ordem (documentos antes OU depois de estrategia).
+    filtro_unificado = bool(re.search(
+        r"\bagent_slug[s]?\b[^;\n]*['\"]documentos['\"][^;\n]*['\"]estrategia['\"]",
+        source,
+    )) or bool(re.search(
+        r"\bagent_slug[s]?\b[^;\n]*['\"]estrategia['\"][^;\n]*['\"]documentos['\"]",
+        source,
+    ))
+
+    if not tem_token_agent_slug:
+        pytest.fail(
+            "AC#6 não atendida — O termo 'agent_slug' não aparece em "
+            "EstrategiaRoom.tsx.\n\n"
+            "Durante a unificação da aba Documentos, a query precisa ser\n"
+            "construída em EstrategiaRoom.tsx (ou via constants/queries\n"
+            "importados) referenciando agent_slug para filtrar 'documentos'\n"
+            "e 'estrategia' em conjunto.\n\n"
+            "Hoje o componente não importa nada de '../../api/documents' e\n"
+            "não menciona agent_slug, então a aba unificada não tem como\n"
+            "incluir os documentos do agent legado 'documentos'.\n\n"
+            f"Arquivo: {ESTRATEGIA_ROOM_PATH}"
+        )
+
+    if not tem_slug_documentos:
+        pytest.fail(
+            "AC#6 não atendida — agent_slug 'documentos' (legado) não é "
+            "mencionado em EstrategiaRoom.tsx.\n\n"
+            "Documentos antigos foram salvos com agent_slug='documentos'\n"
+            "(antes da unificação). Para que continuem aparecendo na nova\n"
+            "aba Documentos, a query precisa incluir explicitamente o slug\n"
+            "legado junto com 'estrategia'.\n\n"
+            "Exemplos de uso esperado:\n"
+            "  .in('agent_slug', ['documentos', 'estrategia'])\n"
+            "  agent_slug IN ('documentos', 'estrategia')\n"
+            "  const DOC_AGENT_SLUGS = ['documentos', 'estrategia']\n\n"
+            f"Arquivo: {ESTRATEGIA_ROOM_PATH}"
+        )
+
+    if not tem_slug_estrategia:
+        pytest.fail(
+            "AC#6 não atendida — agent_slug 'estrategia' não é mencionado "
+            "em EstrategiaRoom.tsx.\n\n"
+            "A unificação precisa manter os documentos do agent 'estrategia'\n"
+            "juntos com os legados de 'documentos'. Sem 'estrategia' no\n"
+            "filtro, a nova aba perderia os documentos do próprio agente\n"
+            "estratégia.\n\n"
+            f"Arquivo: {ESTRATEGIA_ROOM_PATH}"
+        )
+
+    if not filtro_unificado:
+        pytest.fail(
+            "AC#6 não atendida — Os agent_slugs 'documentos' e 'estrategia' "
+            "aparecem no arquivo, mas NÃO estão juntos na mesma expressão\n"
+            "de filtro de agent_slug.\n\n"
+            "Para a transição funcionar, ambos precisam coexistir em um\n"
+            "único filtro (IN, array, constante) referenciando agent_slug.\n\n"
+            "Padrões aceitos (qualquer ordem):\n"
+            "  .in('agent_slug', ['documentos', 'estrategia'])\n"
+            "  .in('agent_slug', ['estrategia', 'documentos'])\n"
+            "  agent_slug IN ('documentos', 'estrategia')\n"
+            "  const DOC_AGENT_SLUGS = ['documentos', 'estrategia']\n"
+            "  const DOC_AGENT_SLUGS = ['estrategia', 'documentos']\n\n"
+            "Sem o filtro conjunto, a aba unificada ou mostra apenas o\n"
+            "legado OU apenas os documentos do agent estratégia — nunca os\n"
+            "dois ao mesmo tempo.\n\n"
+            f"Arquivo: {ESTRATEGIA_ROOM_PATH}"
+        )

@@ -66,10 +66,11 @@ function isTimedOut(doc: KBDocument): boolean {
 
 // ── Document card (grid view) ─────────────────────────────────────────────────
 
-function DocCard({ doc, onRemove, onRetry }: {
+function DocCard({ doc, onRemove, onRetry, onDownload }: {
   doc: KBDocument
   onRemove: (id: string, path: string | null) => Promise<void>
   onRetry: (doc: KBDocument) => Promise<void>
+  onDownload: (doc: KBDocument) => void
 }) {
   const { label, color } = kbStatusBadge(doc.status)
   const tag = fileTypeIcon(doc.file_name)
@@ -191,6 +192,13 @@ function DocCard({ doc, onRemove, onRetry }: {
           </button>
         )}
         <button
+          className="btn bs"
+          style={{ fontSize: 9.5, padding: '2px 7px' }}
+          onClick={() => onDownload(doc)}
+        >
+          ⬇ Download
+        </button>
+        <button
           className="btn brd"
           style={{ fontSize: 9.5, padding: '2px 7px', marginLeft: 'auto' }}
           onClick={() => onRemove(doc.id, doc.storage_path)}
@@ -204,10 +212,11 @@ function DocCard({ doc, onRemove, onRetry }: {
 
 // ── Document row (list view) ──────────────────────────────────────────────────
 
-function DocRow({ doc, onRemove, onRetry }: {
+function DocRow({ doc, onRemove, onRetry, onDownload }: {
   doc: KBDocument
   onRemove: (id: string, path: string | null) => Promise<void>
   onRetry: (doc: KBDocument) => Promise<void>
+  onDownload: (doc: KBDocument) => void
 }) {
   const { label, color } = kbStatusBadge(doc.status)
   const tag = fileTypeIcon(doc.file_name)
@@ -259,7 +268,70 @@ function DocRow({ doc, onRemove, onRetry }: {
       {(doc.status === 'failed' || doc.status === 'partially_failed' || isTimedOut(doc)) && (
         <button className="btn bs" style={{ fontSize: 9.5, padding: '2px 7px' }} onClick={() => onRetry(doc)}>↻</button>
       )}
+      <button className="btn bs" style={{ fontSize: 9.5, padding: '2px 7px' }} onClick={() => onDownload(doc)} title="Baixar arquivo original">⬇</button>
       <button className="btn brd" style={{ fontSize: 9.5, padding: '2px 7px' }} onClick={() => onRemove(doc.id, doc.storage_path)}>×</button>
+    </div>
+  )
+}
+
+// ── Preview modal (TXT / MD) ──────────────────────────────────────────────────
+
+function PreviewModal({ title, text, onClose }: {
+  title: string
+  text: string
+  onClose: () => void
+}) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.55)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 9999,
+        padding: 24,
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: 'var(--bg, #0e0e10)',
+          border: '1px solid var(--gb)',
+          borderRadius: 'var(--r)',
+          width: 'min(820px, 100%)',
+          maxHeight: '85vh',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}
+      >
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '10px 14px',
+          borderBottom: '1px solid var(--gb)',
+          fontSize: 12,
+          fontWeight: 600,
+        }}>
+          <span>👁 {title}</span>
+          <button className="btn brd" style={{ fontSize: 10, padding: '2px 8px' }} onClick={onClose}>Fechar</button>
+        </div>
+        <pre style={{
+          margin: 0,
+          padding: '14px 16px',
+          overflow: 'auto',
+          fontSize: 12,
+          lineHeight: 1.55,
+          fontFamily: 'var(--mono)',
+          color: 'var(--fg)',
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+        }}>{text}</pre>
+      </div>
     </div>
   )
 }
@@ -280,6 +352,7 @@ export default function BibliotecaRoom() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [kbCategory, setKbCategory] = useState<KBCategory>(KB_CATEGORIES[0].value)
   const [dragging, setDragging] = useState(false)
+  const [previewContent, setPreviewContent] = useState<{ title: string; text: string } | null>(null)
 
   const filtered = useMemo(() => {
     return kb.documents.filter(doc => {
@@ -328,6 +401,34 @@ export default function BibliotecaRoom() {
     setDragging(false)
     const file = e.dataTransfer.files[0]
     if (file) await handleUpload(file)
+  }
+
+  function handleDownload(doc: KBDocument) {
+    if (!doc.storage_path) return
+    kb.getDownloadUrl(doc).then(url => {
+      window.open(url, '_blank')
+    }).catch(err => {
+      console.error('Download failed:', err)
+    })
+  }
+
+  async function handlePreview(doc: KBDocument) {
+    if (!doc.storage_path) return
+    const url = await kb.getDownloadUrl(doc)
+    const ext = doc.file_name.split('.').pop()?.toLowerCase() ?? ''
+    if (ext === 'pdf') {
+      window.open(url, '_blank')
+      return
+    }
+    if (ext === 'txt' || ext === 'md') {
+      try {
+        const res = await fetch(url)
+        const text = await res.text()
+        setPreviewContent({ title: doc.file_name, text })
+      } catch {
+        setPreviewContent({ title: doc.file_name, text: 'Falha ao carregar preview.' })
+      }
+    }
   }
 
   return (
@@ -507,13 +608,13 @@ export default function BibliotecaRoom() {
                 gap: 8,
               }}>
                 {sorted.map(doc => (
-                  <DocCard key={doc.id} doc={doc} onRemove={kb.remove} onRetry={kb.retry} />
+                  <DocCard key={doc.id} doc={doc} onRemove={kb.remove} onRetry={kb.retry} onDownload={handleDownload} />
                 ))}
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {sorted.map(doc => (
-                  <DocRow key={doc.id} doc={doc} onRemove={kb.remove} onRetry={kb.retry} />
+                  <DocRow key={doc.id} doc={doc} onRemove={kb.remove} onRetry={kb.retry} onDownload={handleDownload} />
                 ))}
               </div>
             )}
@@ -629,6 +730,14 @@ export default function BibliotecaRoom() {
           )}
         </div>
       </div>
+
+      {previewContent && (
+        <PreviewModal
+          title={previewContent.title}
+          text={previewContent.text}
+          onClose={() => setPreviewContent(null)}
+        />
+      )}
     </div>
   )
 }

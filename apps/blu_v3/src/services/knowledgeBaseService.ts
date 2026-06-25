@@ -119,6 +119,17 @@ export async function deleteDocument(documentId: string, storagePath: string | n
   if (error) throw new Error(`Erro ao deletar documento: ${error.message}`)
 }
 
+export async function getDocumentDownloadUrl(storagePath: string): Promise<string> {
+  const { data, error } = await supabase.storage
+    .from('knowledge-base')
+    .createSignedUrl(storagePath, 60)
+
+  if (error) throw new Error(`Erro ao gerar URL de download: ${error.message}`)
+  if (!data?.signedUrl) throw new Error('URL de download indisponível.')
+
+  return data.signedUrl
+}
+
 export async function getDocumentProgress(documentId: string): Promise<EmbeddingProgress> {
   const [rpcResult, docResult] = await Promise.all([
     supabase

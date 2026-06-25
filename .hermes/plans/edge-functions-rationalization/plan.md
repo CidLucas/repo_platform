@@ -1,512 +1,545 @@
-# Plano: Racionalização das Edge Functions do Supabase
+# Plano: Racionalização de Edge Functions e Higiene de Auth
 
-**Status:** Draft v1
+**Status:** Draft v2 (reescrito após merge da main em `53a9bbc1`)
 **Owner:** TBD
-**Prazo:** Sem prazo firme — qualidade > velocidade
-**Estratégia:** Em ondas (cada fase mergeável e rollbackável independentemente)
-**Estimativa total:** ~3.580 LOC afetadas (de 8.115 LOC = 44%), distribuídos em ~5 fases de 1 dia a 2 semanas cada.
+**Branch base:** `main`
+**Data baseline:** 2026-06-25
 
 ---
 
-## 0. Contexto e problema
+## 0. TL;DR
 
-`sus supabase/functions/` contém **26 edge functions e 8.115 LOC**. A análise estática (ver `docs/plans/edge-functions-rationalization-context.md` se criado, ou reler o relatório exploratório completo) identificou 4 problemas:
+A racionalização original propôs ~3.580 LOC de redução em 5 ondas. **~30% já foi feita** (Fases 1.1, 1.2, 2.1, 2.4 minhas + 3.2 via BKL-197/199/210 + BKL-038/041 etc. suas). O que sobra são **2 categorias de trabalho**:
 
-1. **Código morto** — referência a um EF (`enrich-metadata`) que foi absorvido por `process-document` mas continua no `config.toml` (L107-110).
-2. **Duplicação interna** — 6 funções compartilham o mesmo helper Fernet (~250 LOC copiadas); 2 pares de funções (BQ discover/preview, sync-etl/run-csv-etl) compartilham 80–100% do código.
-3. **Duplicação cross-runtime** — 2 implementações paralelas da mesma integração Polp/Open Finance (TS com vocabulário Polp atual + Python com vocabulário legado Pluggy) e do mesmo context report (TS EF + Python routine).
-4. **Edge functions usadas por hábito** — funções que rodam por minutos (BQ ETL), funções de pura computação (match-columns), ou funções que só servem como wrapper SQL+1 chamada externa (etl-refresh-dashboards, search-documents).
+1. **Auth fix P0 (bloqueante de produção):** 7 testes RED em `tests/integration/test_sequential_signups.py` + `tests/behaviors/test_b1_*.py` esperam um fix que ainda não foi aplicado ao código. O plano de fix existe em `docs/observability/auth-second-signup-root-cause.md` mas o código em `packages/blu-auth/src/AuthContext.tsx:233-240` ainda chama `signUp` sem `signOut` prévio.
+2. **Higiene + 5 pendências de runtime:** trigger DB órfão, M7 (kill `generate-context-report`), Polp webhook consolidation, e 3 movimentos para Python/SQL.
 
-**Princípio orientador** (herdado da skill `.github/skills/supabase`):
-- Edge functions são apropriadas para: tempo < 60s, runtime isolated, validação JWT antes do body, ou URL pública como `redirect_uri` OAuth.
-- Edge functions são **inadequadas** para: ETL longo, computação que poderia ser SQL, computação cliente, lógica de negócio em Python que já tem framework.
+**Princípio orientador** (herdado de `.github/skills/supabase`):
+- EFs são para tempo < 60s, validação JWT, ou URL pública como `redirect_uri`
+- EFs são inadequados para: ETL longo, computação que deveria ser SQL, lógica de negócio Python já em framework
+- Toda EF user-facing deve usar `requireAuth` de `_shared/blu_auth.ts` ou `verify_jwt=true` — **não pode ser aberta sem justificativa**
 
 ---
 
-## 1. Decisões já tomadas
+## 1. Estado atual (baseline: `main` @ 53a9bbc1)
+
+### Inventário de EFs (25 deployed, 8.494 LOC)
+
+| # | EF | LOC | `verify_jwt` | Trigger | Auth gate real |
+|---|---|---|---|---|---|
+| 1 | discover-bigquery-columns | 207 | false | frontend | `requireAuth` + ownership check |
+| 2 | etl-bigquery-ingest | 491 | false | pg_net (service role) | `isSystemInvocation` + `requireAuth` fallback |
+| 3 | etl-refresh-dashboards | 132 | false | pg_net (service role) | `isSystemInvocation` only |
+| 4 | generate-context-report | 610 | false | waitUntil from onboarding-bootstrap | service role only |
+| 5 | get-agenda-events | 1009 | true | frontend | edge-layer (HS256) |
+| 6 | get-monday-subitems | 162 | true | frontend | edge-layer (HS256) |
+| 7 | google-calendar-events | 348 | false | frontend | `requireAuth` |
+| 8 | google-oauth-callback | 186 | false | external (Google redirect) | state-blob 10min TTL |
+| 9 | google-oauth-start | 85 | true | frontend | edge-layer (HS256) |
+| 10 | match-columns | 505 | false | EF-to-EF (service role) + frontend | `isSystemInvocation` + `requireAuth` |
+| 11 | onboarding-bootstrap | 228 | false | frontend | `requireAuth` |
+| 12 | onboarding-capture-drive-token | 139 | false | frontend | `requireAuth` |
+| 13 | onboarding-website-intel | 221 | false | frontend | `requireAuth` |
+| 14 | polp-connect | 136 | true | frontend | edge-layer (HS256) |
+| 15 | polp-sync | 147 | false | frontend | `requireAuth` |
+| 16 | polp-webhook | 375 | false | external (Polp HMAC) | HMAC-SHA256 |
+| 17 | process-document | 751 | true | EF-to-EF (service role) + frontend | edge-layer (HS256) |
+| 18 | routine-builder | 190 | false | frontend | `requireAuth` |
+| 19 | run-csv-etl | 378 | false | frontend | `requireAuth` |
+| 20 | run-sync-etl | 184 | false | frontend | `requireAuth` |
+| 21 | save-api-token | 269 | false | frontend | `requireAuth` |
+| 22 | search-documents | 212 | true | frontend + service role | edge-layer (HS256) |
+| 23 | upload-csv-source | 252 | true | frontend | edge-layer (HS256) |
+| 24 | upload-drive-source | 324 | true | frontend | edge-layer (HS256) |
+| 25 | website-context-builder | 486 | false | waitUntil from onboarding-bootstrap | service role only |
+
+### Helpers em `_shared/` (8 files, 1.728 LOC)
+
+| Helper | LOC | Função | Usado por |
+|---|---|---|---|
+| `bigquery_auth.ts` | 434 | RS256 JWT → access token, BigQuery paginated query | discover-bq, etl-bq-ingest |
+| `blu_auth.ts` | 258 | JWT validation, system-key detection, MFA, client resolution | 18 EFs |
+| `cors.ts` | 37 | CORS + JSON helper | todos os EFs |
+| `fernet.ts` | 194 | AES-128-CBC + HMAC-SHA256, Web Crypto, interop Python | 4 EFs (3 readers + store_google_token) |
+| `fernet.test.ts` | 130 | 10 Deno test blocks (round-trip, cross-compat) | (test file) |
+| `google_drive.ts` | 292 | Refresh token exchange, Drive metadata + export | upload-drive-source |
+| `sheet_intake.ts` | 196 | Sheet scoring, type inference, CSV parser | run-csv-etl, upload-csv/drive |
+| `store_google_token.ts` | 128 | Encrypt + upsert Google token pair | google-oauth-callback, capture-drive |
+
+### Tests
+
+- `tests/behaviors/`: 123 test files
+- `tests/integration/`: 4 files (incl. `test_sequential_signups.py` com 4 RED tests)
+- `tests/unit/`: 5 files
+- `supabase/functions/*/index_test.ts`: 1 (apenas `onboarding-website-intel/index_test.ts`, 11 tests)
+- `supabase/functions/_shared/fernet.test.ts`: 1 (10 Deno tests)
+- `supabase/functions/onboarding-bootstrap/tests/mappers_test.ts`: 1 (pure module test, 84 LOC)
+
+### Migrations
+
+- Root: 4 files (5.398 LOC, inclui `baseline_v2.sql` com 5.196 LOC)
+- Applied: 23 files (2.557 LOC)
+- Total schema: 27 migrations, 7.955 LOC
+
+---
+
+## 2. Decisões tomadas
 
 | ID | Decisão | Origem |
 |---|---|---|
-| D1 | Formato do plano: `docs/plans/edge-functions-rationalization.md` | Resposta do usuário |
-| D2 | Execução em ondas (não big-bang, não vertical slice) | Resposta do usuário |
-| D3 | **M6 (Polp webhook):** consolidar as 2 implementações da integração Polp/Open Finance em 1 runtime canônico; investigar logs do Polp dashboard antes de escolher | Resposta do usuário |
-| D4 | **M7 (context-report):** manter Python `context_report.py`, **matar o EF** `generate-context-report` | Resposta do usuário |
-| D5 | Sem prazo; cada fase revisada e testada antes de avançar | Resposta do usuário |
+| D1 | Plano em `.hermes/plans/edge-functions-rationalization/plan.md` | D1 do plano original |
+| D2 | **Reescrito do zero** após merge com main (519 commits à frente) | Feedback do usuário |
+| D3 | **Auth fix é P0** — precede qualquer outra fase | 7 RED tests em `test_sequential_signups.py` + `b1_fluxo_signup.py` |
+| D4 | Phases 2.2 e 2.3 do plano original **descartadas** (BKL-038/041 fazem polling e unificação de upload, respectivamente) | Conflito no merge |
+| D5 | Phase 3.2 (website-intel → client-side) **parcialmente feita** (PRs #197/#199/#210) — manter como expansão do EF, não mover para client-side | O usuário expandiu o EF (CNPJ, phone, 17 verticals) em vez de mover |
+| D6 | Phase 4.1 (M7) **bloqueada** — tentativa foi revertida em `cf33ffd1` | Commit `73c7080c` → `cf33ffd1` |
+| D7 | Estratégia de execução: em ondas, cada fase mergeável independentemente | D2 do plano original |
 
 ---
 
-## 2. Fases
+## 3. Issues conhecidos (não estavam no plano original)
 
-Cada fase é um conjunto de PRs pequenos (1-3 PRs) que pode ser mergeada e revertida de forma independente. A numeração abaixo é a **ordem de execução**, não de dependência rígida — fases dentro de uma mesma onda podem ser paralelizadas entre pessoas.
+### Issue 3.1 — AuthContext contamination no signup (P0)
 
-### Onda 1 — Quick wins + auth fixes (~1-2 dias, zero risco de runtime)
+**Sintoma:** `carolina@test → lucia@test → joao@test` em sequência, 2º e 3º falham estruturalmente.
 
-#### Fase 1.1 — Fechar buracos de auth e remover código morto
+**Root cause confirmado** (em `docs/observability/auth-second-signup-root-cause.md`, mas **NÃO aplicado**):
+- `packages/blu-auth/src/AuthContext.tsx:233-240` `signUp()` não chama `supabase.auth.signOut()` antes
+- `OnboardingApp.tsx:316-336` `handleSubmit()` não verifica sessão existente
+- `packages/blu-auth/src/index.ts` não expõe `onSignUp` lifecycle hook
 
-**Justificativa:** 2 funções estão completamente abertas (sem auth) e 1 referência morta no config. Tudo isso é hygiene sem mudança de comportamento para usuários legítimos.
+**7 RED tests esperando:** `tests/integration/test_sequential_signups.py` (4 tests) + `tests/behaviors/test_b1_fluxo_signup.py` (3 tests).
+
+**Evidência:** o `git log` mostra o doc criado mas o código não foi tocado depois. Plano de fix em section 5 do doc (B-1 + B-2 + B-3).
+
+### Issue 3.2 — Trigger `on_auth_user_created` ausente (P0)
+
+**Sintoma:** `public.handle_new_auth_user()` (baseline L2975) é código morto. Nunca é chamada.
+
+**Root cause:** o trigger `CREATE TRIGGER on_auth_user_created ON auth.users AFTER INSERT EXECUTE FUNCTION public.handle_new_auth_user()` **não existe em nenhuma migration**. Existia no schema pré-baseline (provavelmente Supabase Auth webhook); foi perdido no corte do baseline.
+
+**Impacto:**
+- `clientes_blu` row só é criado via `ensure_tenant_row()` SECURITY DEFINER (chamado por `onboarding-bootstrap` L84)
+- O trigger morto é uma "rede de segurança" que nunca dispara
+- O comment de `onboarding-bootstrap` admite: "if the handle_new_auth_user trigger missed it (e.g. some OAuth flows)"
+
+**Evidência:** `tests/behaviors/test_b1_trigger_on_auth_user_created.py` (326 lines, AC#1 explícita: "O comando `CREATE TRIGGER on_auth_user_created ON auth.users AFTER INSERT EXECUTE FUNCTION public.handle_new_auth_user()` existe em `supabase/migrations/20260523999999_baseline_v2.sql`.")
+
+### Issue 3.3 — `run-csv-etl` faz ETL inline (não apenas orquestração)
+
+**Sintoma:** o nome sugere "orquestrador" mas o body faz stages + `dim_clientes` upsert + `fato_transacoes` insert + cleanup + `reg_jobs` insert. O `reg_jobs` row é então um record do que já foi feito.
+
+**Comentário no código (L1-12):** "this replaces the previous pg_cron + sincronizar_csv_cliente path so that the handler is the single source of truth for ETL."
+
+**Impacto:** o nome é enganoso. Não bloqueia produção mas dificulta entendimento.
+
+### Issue 3.4 — `etl-bigquery-ingest` daisy-chain complexo
+
+**Sintoma:** 491 LOC, dos quais ~40 (L343-373) são lógica de self-daisy-chain via `BLU_SYSTEM_INVOKE_KEY` Bearer token, com `chain_attempts` capped em 50 e `input_params.bq_resume_cursor` shape complexa.
+
+**Impacto:** workaround para o cap de 60s do edge runtime. Complexo de debugar e manter.
+
+### Issue 3.5 — `generate-context-report` é supostamente monthly via pg_cron mas não há schedule SQL
+
+**Sintoma:** comment no código (L11) diz "pg_cron mensal". Não encontrei `net.http_post` para essa EF em applied migrations.
+
+**Impacto:** se o monthly report realmente roda, está por outro caminho (provavelmente Python routine `context_report` chamado via `agent_api/core/routine_functions.py:223` — `analytics.generate_context_report`).
+
+### Issue 3.6 — `config.toml` `match-columns` comment enganoso
+
+**Sintoma:** `match-columns` tem `verify_jwt = false` mas o comment do config diz "No sensitive data accessed, so no auth gate is needed". A função REALMENTE tem `isSystemInvocation` + `requireAuth` (L447-449).
+
+**Impacto:** comentário enganoso dificulta auditoria de segurança.
+
+### Issue 3.7 — `google-oauth-start` sob header errado
+
+**Sintoma:** `google-oauth-start` está sob o section header "Internal workers" no `config.toml`, mas tem `verify_jwt = true` e é user-facing. O callback (`google-oauth-callback`) está num section diferente.
+
+**Impacto:** auditoria visual confusa.
+
+### Issue 3.8 — Polp webhook: 2 implementações
+
+**Sintoma:** `supabase/functions/polp-webhook/` (TS, vocabulário Polp atual) + `services/tool_pool_api/.../polp_webhook_router.py` (Python, vocabulário Pluggy legado). Total: 642 LOC. Polp é integração live com Open Finance (não código morto — D3 do plano original).
+
+**Status:** plano de consolidação depende de investigação de logs (Fase 3.0 original) para decidir qual é canônico.
+
+---
+
+## 4. Estado das fases do plano original
+
+| Fase | Título | Status | Notas |
+|---|---|---|---|
+| 1.1 | Auth gap (match-columns, onboarding-website-intel) | ✅ **feito** (commit `02f2a4c5`) | Sobreviveu ao merge |
+| 1.2 | Fernet helper compartilhado | ✅ **feito** (commit `eb77db58`) | Sobreviveu ao merge, 4 EFs o usam |
+| 2.1 | BQ discover/preview merge | ✅ **feito** (commit `a06f8292`) | `preview-bigquery-columns` deletado |
+| 2.2 | enqueue_sync_job helper | ❌ **dropado** | BKL-038 mudou o padrão de polling |
+| 2.3 | intake_file helper | ❌ **dropado** | BKL-041 unificou upload via process-document |
+| 2.4 | store_google_token helper | ✅ **feito** (commit `b443555c`) | 2 EFs o usam |
+| 3.0 | Investigar logs Polp | ⏸️ **pendente** | Bloqueador da 3.1 |
+| 3.1 | Consolidar Polp webhook | ⏸️ **pendente** | Depende de 3.0 |
+| 3.2 | website-intel → client-side | ⚠️ **parcial** | PRs #197/#199/#210 expandiram o EF (CNPJ, phone, 17 verticals). EF ainda existe, mas com mais funcionalidade. Decisão: manter como EF ou re-avaliar |
+| 3.3 | etl-refresh-dashboards → pg_cron | ⏸️ **pendente** | |
+| 3.4 | match-columns → Python service | ⏸️ **pendente** | |
+| 3.5 | search-documents → direct SQL + Cohere | ⏸️ **pendente** | |
+| 4.1 | Matar generate-context-report EF (M7) | ⚠️ **bloqueada** | Tentativa `73c7080c` revertida em `cf33ffd1`. Re-avaliar contexto antes de retentar |
+| 4.2 | etl-bigquery-ingest → Python | ⏸️ **pendente** (opcional) | |
+| 4.3 | routine-builder → agent_api | ⏸️ **pendente** (opcional) | |
+| 4.4 | polp-sync → Python | ⏸️ **pendente** (opcional) | |
+| 5.1 | Unificar agenda endpoints (3→1) | ⏸️ **pendente** (opcional) | |
+
+**LOC economizado até agora:** ~280 LOC (Phase 2.1 BQ merge).
+**LOC em helpers compartilhados:** ~1.728 LOC (`_shared/`).
+**LOC de EFs:** 8.494 (era 8.115 no plano original — cresceu por causa da expansão BKL-019/024/028/029/037/038/039/040/041).
+
+---
+
+## 5. Fases propostas (reorganizadas)
+
+### Onda 0 — Auth P0 (CRÍTICO, bloqueia produção)
+
+#### Fase 0.1 — Fix AuthContext contamination
+
+**Justificativa:** 7 RED tests em `tests/integration/test_sequential_signups.py` + `tests/behaviors/test_b1_fluxo_signup.py`. Bloqueador de produção — qualquer novo usuário falha no signup após o primeiro em um mesmo browser.
+
+**Origem do plano:** `docs/observability/auth-second-signup-root-cause.md` section 5 (B-1 + B-2 + B-3).
 
 | # | Tarefa | Arquivos | LOC |
 |---|---|---|---|
-| 1.1.1 | Adicionar `requireAuth` em `match-columns/index.ts` (validar Bearer + `verify_jwt=true` para chamadas frontend; service-role para EF-to-EF) | `supabase/functions/match-columns/index.ts`, `supabase/config.toml` (L78) | ~+15 |
-| 1.1.2 | Adicionar `requireAuth` em `onboarding-website-intel/index.ts` (ou mover para client-side — ver Fase 3.2) | `supabase/functions/onboarding-website-intel/index.ts` | ~+5 |
-| 1.1.3 | Remover bloco `[functions.enrich-metadata]` do `supabase/config.toml` (L107-110) | `supabase/config.toml` | -4 |
-| 1.1.4 | Atualizar `HERMES.md` L333 para remover `enrich-metadata` e adicionar nota sobre match-columns agora autenticado | `HERMES.md` | ~±5 |
+| 0.1.1 | B-1: Em `packages/blu-auth/src/AuthContext.tsx:233-240`, antes de `supabase.auth.signUp`, fazer `await supabase.auth.signOut()` + reset de state (`session=null, user=null, clientId=null, tier=null, loading=false`) | 1 | +5 |
+| 0.1.2 | B-2: Em `apps/blu_v3/src/pages/onboarding/OnboardingApp.tsx:316-336`, `handleSubmit`, adicionar check no topo: se já há sessão, chamar `signOut()` antes de `signUp` | 1 | +3 |
+| 0.1.3 | B-3: Exportar `onSignUp` lifecycle hook em `packages/blu-auth/src/index.ts` para que consumers possam resetar cache pós-signup (analytics identify, etc.) | 1 | +10 |
+| 0.1.4 | Validar que os 7 RED tests viraram GREEN | (test files) | 0 |
 
 **Critérios de done:**
-- `supabase functions deploy` aceita o config sem warnings.
-- `match-columns` retorna 401 para chamadas sem Bearer; chamadas com Bearer de service-role ou user JWT continuam funcionando.
-- `onboarding-website-intel` retorna 401 para chamadas sem Bearer; wizard do frontend (`OnboardingApp.tsx:491`) continua funcionando (usa o user JWT).
-- CI verde.
+- Os 7 RED tests viraram GREEN
+- `tests/integration/test_sequential_signups.py` passa com 3+ signups em sequência
+- `tests/behaviors/test_b1_fluxo_signup.py` (3 tests) passam
 
-**Risco:** Mínimo. Mudanças em auth são testáveis com curl.
+**Risco:** Baixo. Mudança isolada em 3 arquivos.
 
 ---
 
-#### Fase 1.2 — Helper Fernet compartilhado (M8)
+#### Fase 0.2 — Recriar trigger `on_auth_user_created` (B-1 do test_b1_trigger_on_auth_user_created.py)
 
-**Justificativa:** O helper Fernet (Web-Crypto base64url + encrypt) está copiado verbatim em 6 arquivos. Extrair para `_shared/fernet.ts` é refactor puro — zero mudança de comportamento, ~250 LOC a menos.
+**Justificativa:** `handle_new_auth_user` está órfão desde o baseline. Sem o trigger, `clientes_blu` só é criado via `ensure_tenant_row()` (SECURITY DEFINER) que é chamado tarde demais pelo `onboarding-bootstrap`. Recriar o trigger garante que o tenant é criado no momento do INSERT em `auth.users`, não dependendo do frontend.
+
+**Origem do plano:** `tests/behaviors/test_b1_trigger_on_auth_user_created.py` AC#1.
 
 | # | Tarefa | Arquivos | LOC |
 |---|---|---|---|
-| 1.2.1 | Criar `supabase/functions/_shared/fernet.ts` com `fernetEncrypt`, `fernetDecrypt`, `base64urlEncode`, `base64urlDecode`, `concatBytes` | `supabase/functions/_shared/fernet.ts` (novo) | +200 |
-| 1.2.2 | Substituir implementações locais em: `google-oauth-callback`, `onboarding-capture-drive-token`, `save-api-token`, `google-calendar-events`, `get-monday-subitems`, `get-agenda-events` | 6 arquivos | -250 |
-| 1.2.3 | Adicionar smoke test em `tests/` que cifra e decifra um payload em ambos os formatos (Web-Crypto custom + `npm:fernet`) | `tests/test_fernet_helper.py` ou `tests/edge-functions/fernet.test.ts` | +60 |
+| 0.2.1 | Nova migration: `supabase/migrations/applied/20260625_p14_recreate_on_auth_user_created_trigger.sql` com `CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION public.handle_new_auth_user();` | 1 | +5 |
+| 0.2.2 | Validar que `test_b1_trigger_on_auth_user_created.py` AC#1 (existence) e AC#2 (fires correctly) viraram GREEN | (test files) | 0 |
 
 **Critérios de done:**
-- `fernetEncrypt("secret", "plaintext")` produz output idêntico à implementação antiga.
-- Tokens de integração já gravados em `integration_tokens.encrypted_token` continuam decifrando sem migração.
-- Os 6 callers passam no smoke test.
+- O trigger existe no schema
+- Novo INSERT em `auth.users` cria automaticamente a row em `clientes_blu` (com `external_user_id`, `api_key`, `nome_empresa`)
+- `tests/behaviors/test_b1_trigger_on_auth_user_created.py` passa
 
-**Risco:** Baixo. Compatibilidade de output é o único invariante crítico.
+**Risco:** Médio. O trigger pode duplicar o que `ensure_tenant_row` faz. Mitigação: o `handle_new_auth_user` já usa `ON CONFLICT (external_user_id) DO NOTHING`, então é idempotente.
 
 ---
 
-### Onda 2 — Merges internos (~1-2 semanas)
+### Onda 1 — Higiene de runtime (baixo risco, qualidade)
 
-#### Fase 2.1 — Merge BQ discover/preview (M2)
+#### Fase 1.1 — Limpar `config.toml`
 
-**Justificativa:** `discover-bigquery-columns` (175 LOC) e `preview-bigquery-columns` (78 LOC) chamam o mesmo `getBigQuerySchema` com 95% do código idêntico. Diferença: `discover` escreve em DB, `preview` é read-only. Unificar com `?preview=true`.
+**Justificativa:** comentários enganosos dificultam auditoria de segurança.
 
-| # | Tarefa | Arquivos | LOC |
-|---|---|---|---|
-| 2.1.1 | Adicionar `?preview=true` em `discover-bigquery-columns`; quando `preview=true`, pular writes em `client_data_sources` e `bigquery_foreign_tables` e não chamar `create_bigquery_foreign_table_from_schema` | `supabase/functions/discover-bigquery-columns/index.ts` | +30 |
-| 2.1.2 | Atualizar `OnboardingApp.tsx:287` para chamar `discover-bigquery-columns?preview=true` no passo "Mapear colunas" | `apps/blu_v3/src/api/connectors.ts` | -10 |
-| 2.1.3 | Atualizar `OnboardingApp.tsx:1583` para chamar `discover-bigquery-columns` (sem flag) no passo final | idem | -5 |
-| 2.1.4 | Deletar `supabase/functions/preview-bigquery-columns/` inteira (incluindo `config.toml`) | deletar | -78 |
-| 2.1.5 | Remover bloco `[functions.preview-bigquery-columns]` em `supabase/config.toml` (L62-66) | `supabase/config.toml` | -5 |
+| # | Tarefa | LOC |
+|---|---|---|
+| 1.1.1 | Corrigir comment de `match-columns`: remover "No sensitive data accessed, so no auth gate is needed" (errado — a função TEM auth gate interno) | -2 |
+| 1.1.2 | Mover `[functions.google-oauth-start]` para o section "User-facing" (está sob "Internal workers" — errado) | 0 (reordenação) |
+| 1.1.3 | Adicionar `[auth]` section mínima se houver config relevante (atualmente não há) | 0 ou +5 |
 
-**Critérios de done:**
-- Wizard completa o passo "Mapear colunas" usando apenas `discover-bigquery-columns`.
-- Nenhuma regressão em `client_data_sources` ou `bigquery_foreign_tables`.
-
-**Risco:** Baixo. É uma refatoração 1:1.
+**Risco:** Mínimo. Mudança só em config.
 
 ---
 
-#### Fase 2.2 — Extrair `enqueue_sync_job` (M3)
+#### Fase 1.2 — Renomear `run-csv-etl` ou documentar o ETL inline
 
-**Justificativa:** `run-sync-etl` (184 LOC) e `run-csv-etl` (305 LOC) compartilham 80% do fluxo: auth → ownership → duplicate-guard → persist mapping → enqueue `reg_jobs` row → return `job_id`. Diferença: `run-csv-etl` baixa o arquivo de Storage e faz parse (CSV/XLSX) para staging.
+**Justificativa:** o nome sugere "orquestrador" mas o body faz ETL completo. Decisão: ou renomear para `csv-etl-pipeline` (mais preciso) ou apenas documentar melhor no header.
 
-| # | Tarefa | Arquivos | LOC |
-|---|---|---|---|
-| 2.2.1 | Criar `supabase/functions/_shared/enqueue_sync_job.ts` com `enqueueSyncJob({jobType, clientId, sourceId, columnMapping, forceFull})` retornando `{job_id, status: 'pending'}` ou erro 409 | `_shared/enqueue_sync_job.ts` (novo) | +60 |
-| 2.2.2 | Reescrever `run-sync-etl/index.ts` para chamar o helper (sobram só auth + ownership) | `supabase/functions/run-sync-etl/index.ts` | -100 |
-| 2.2.3 | Reescrever `run-csv-etl/index.ts` para chamar o helper depois do parse + staging | `supabase/functions/run-csv-etl/index.ts` | -50 |
+| # | Tarefa | LOC |
+|---|---|---|
+| 1.2.1 | Adicionar nota clara no header do arquivo: "This function does the FULL ETL pipeline inline, not just orchestration. The `reg_jobs` row it creates is a record of the work, not a trigger for downstream processing." | +5 |
+| 1.2.2 | Considerar renomear para `csv-etl-pipeline` (mudança breaking — atualizar todos os callers) | 0 ou -10 |
 
-**Critérios de done:**
-- Comportamento de duplicate-guard preservado (409 quando já existe `pending|running` job para o mesmo `(client_id, source_id)`).
-- Mapeamento de colunas persistido antes do enqueue.
-- `reg_jobs.input_params` schema idêntico ao atual.
-
-**Risco:** Baixo. Não toca dispatcher nem SQL.
+**Risco:** Mínimo (mudança só de doc) ou médio (rename).
 
 ---
 
-#### Fase 2.3 — Merge upload-csv + upload-drive (M4)
+#### Fase 1.3 — Decidir sobre `generate-context-report` monthly cron
 
-**Justificativa:** `upload-csv-source` (251 LOC) e `upload-drive-source` (323 LOC) compartilham parse → upload Storage → upsert `client_data_sources` → chamar `match-columns`. Diff é só o `fetch_fn` (multipart vs. Drive export).
+**Justificativa:** comment diz "monthly pg_cron" mas não há schedule SQL. Provavelmente o monthly report roda via `agent_api/core/routine_functions.py:223` (`analytics.generate_context_report` routine function). O EF só é fire-and-forget de `onboarding-bootstrap`.
 
-| # | Tarefa | Arquivos | LOC |
-|---|---|---|---|
-| 2.3.1 | Criar `supabase/functions/_shared/intake_file.ts` com `intakeFile({fetchFn, fileMeta, sourceType, resourceType})` retornando `{sourceId, suggestedMapping, needsReview}` | `_shared/intake_file.ts` (novo) | +180 |
-| 2.3.2 | Reescrever `upload-csv-source/index.ts` para usar `intakeFile` com `fetchFn = multipart` | `supabase/functions/upload-csv-source/index.ts` | -150 |
-| 2.3.3 | Reescrever `upload-drive-source/index.ts` para usar `intakeFile` com `fetchFn = driveExportOrDownload` | `supabase/functions/upload-drive-source/index.ts` | -200 |
+| # | Tarefa | LOC |
+|---|---|---|
+| 1.3.1 | Investigar: o monthly report roda pelo Python routine ou pelo EF? | 0 |
+| 1.3.2 | Se for via Python: corrigir o comment enganoso no EF | 0 |
+| 1.3.3 | Se for via EF: adicionar a migration pg_cron que está faltando | 0 a +20 |
 
-**Critérios de done:**
-- Wizard "Enviar CSV" e "Conectar Google Drive" completam end-to-end.
-- `client_data_sources` schema preservado (`source_type` ainda discrimina csv vs google_drive).
-- Drive cap de 20MB mantido.
-
-**Risco:** Baixo-médio. Drive tem mais edge cases (Sheets → XLSX export).
+**Risco:** Baixo (só doc) ou médio (adicionar SQL).
 
 ---
 
-#### Fase 2.4 — Merge google-oauth-callback + onboarding-capture-drive-token (M1)
+### Onda 2 — Investigação Polp e consolidação
 
-**Justificativa:** Ambos fazem Fernet encrypt + upsert `integration_tokens` + enable `calendar_settings`. Diff: um é OAuth-redirect (com `state` blob), outro é wizard-paste (com `requireAuth`).
+#### Fase 2.0 — Investigar qual webhook Polp é canônico
 
-| # | Tarefa | Arquivos | LOC |
-|---|---|---|---|
-| 2.4.1 | Criar `supabase/functions/_shared/store_google_token.ts` com `storeGoogleToken({clientId, provider, accountEmail, refreshToken, accessToken, scope})` | `_shared/store_google_token.ts` (novo) | +60 |
-| 2.4.2 | Reescrever `google-oauth-callback` para usar o helper (mantém o `state` blob + token exchange) | `supabase/functions/google-oauth-callback/index.ts` | -60 |
-| 2.4.3 | Reescrever `onboarding-capture-drive-token` para usar o helper (mantém o `requireAuth` + ownership check) | `supabase/functions/onboarding-capture-drive-token/index.ts` | -80 |
+**Justificativa:** Plano original pendente. Duas implementações paralelas (TS + Python) de webhook do Polp. Polp é live (D3 do plano original), então o canônico é o que o Polp dashboard está apontando.
 
-**Critérios de done:**
-- OAuth roundtrip Google continua funcionando (smoke test manual ou Playwright).
-- Wizard landing com paste de refresh_token continua funcionando.
-- Tokens gravados são decifráveis por `google-calendar-events` e outros.
+| # | Tarefa | Quem |
+|---|---|---|
+| 2.0.1 | Logs do Supabase Edge runtime: `polp-webhook` (últimos 30 dias) | Eng |
+| 2.0.2 | Logs do `tool_pool_api` FastAPI: `/webhooks/polp` (últimos 30 dias) | Eng |
+| 2.0.3 | `SELECT event_type, COUNT(*) FROM polp_webhook_events GROUP BY event_type` — contar vocabulário Pluggy (`item/updated`) vs Polp (`integrations.updated`) | Eng |
+| 2.0.4 | Checar config do Polp dashboard: qual URL está registrada? | Ops |
+| 2.0.5 | Decidir canônico | Owner |
 
-**Risco:** Médio. Fluxo OAuth é difícil de testar de forma totalmente automatizada.
-
----
-
-### Onda 3 — Eliminações e movimentos para o runtime certo (~2-3 semanas)
-
-#### Fase 3.1 — Consolidar as 2 implementações do webhook Polp/Open Finance (M6)
-
-**Contexto:** Polp é a integração live com Open Finance (não código morto). Hoje ela tem 2 implementações paralelas:
-- `supabase/functions/polp-webhook/index.ts` — vocabulário Polp atual (`integrations.updated`, `accounts.synchronized`, `transactions.created/updated/deleted`, `bills.created/updated`), segredo `POLP_WEBHOOK_SECRET`, header `X-Polp-Signature`.
-- `services/tool_pool_api/src/tool_pool_api/api/polp_webhook_router.py` — vocabulário legado do Pluggy (`item/updated`, `transaction/created`, `account/updated`), segredo `PLUGGY_WEBHOOK_SECRET`, header `X-Pluggy-Signature`. Provavelmente é resíduo da migração Pluggy → Polp.
-
-**Pré-requisito:** Investigação de logs. Ver seção 3.
-
-**Tarefas (após decisão):**
-- Se **TS polp-webhook vence** (esperado — vocabulário atual): deletar `services/tool_pool_api/src/tool_pool_api/api/polp_webhook_router.py` (~267 LOC), remover import de `services/tool_pool_api/src/tool_pool_api/main.py`, remover segredo `PLUGGY_WEBHOOK_SECRET` da env, deletar documentação/menções em `HERMES.md`.
-- Se **Python polp_webhook_router vence** (improvável): deletar `supabase/functions/polp-webhook/` (~375 LOC), remover bloco `[functions.polp-webhook]` do config, reescrever configuração do Polp dashboard para apontar para `https://<tool_pool_api>/webhooks/polp`.
-
-**Critérios de done:**
-- Polp dashboard aponta para 1 único webhook canônico.
-- Tabela `polp_webhook_events` continua sendo populada pelo webhook sobrevivente.
-- Nenhum log de `404 webhook not found` nas últimas 24h em produção.
-- A integração Polp/Open Finance continua funcionando (criar conexão de teste, ver eventos chegarem).
-
-**Risco:** Médio. Mudança de URL no Polp dashboard; precisa de janela de manutenção se ambos forem atingidos por um tempo durante a transição.
+**Critério de parada:** se ambos receberem eventos, investigar por que (redirect, config pendente).
 
 ---
 
-#### Fase 3.2 — Mover `onboarding-website-intel` para client-side
+#### Fase 2.1 — Consolidar Polp webhook (depende de 2.0)
 
-**Justificativa:** É 100ms de regex + fetch + 1 JSON de retorno. Não toca DB, não toca secrets, não precisa de auth. Pode ser uma util de 50 linhas no `apps/landing/` (ou `apps/blu_v3/` se for consumido por ambos).
-
-| # | Tarefa | Arquivos | LOC |
-|---|---|---|---|
-| 3.2.1 | Portar `normalizeUrl`, `stripHtml`, `detectVertical`, `suggestFromVertical` para `apps/blu_v3/src/lib/onboarding-website-intel.ts` (ou `apps/landing/src/lib/`) | novo arquivo | +120 |
-| 3.2.2 | Atualizar `OnboardingApp.tsx:491` para chamar a util local em vez de `supabase.functions.invoke` | `apps/blu_v3/src/pages/onboarding/OnboardingApp.tsx` | -3 |
-| 3.2.3 | Deletar `supabase/functions/onboarding-website-intel/` | deletar | -136 |
-| 3.2.4 | Adicionar teste unitário da util (input HTML → vertical detection) | `apps/blu_v3/src/lib/__tests__/onboarding-website-intel.test.ts` | +50 |
-
-**Critérios de done:**
-- Wizard "Conte sobre seu negócio" completa usando a util client-side.
-- Vertical detection tem a mesma accuracy (smoke test com 3-5 sites reais).
-- Fetch com timeout de 5s.
-
-**Risco:** Baixo. Lógica determinística.
+| Cenário | Ação | LOC economizado |
+|---|---|---|
+| TS vence (esperado) | Deletar `services/tool_pool_api/.../polp_webhook_router.py` + import + `PLUGGY_WEBHOOK_SECRET` env | -267 |
+| Python vence | Deletar `supabase/functions/polp-webhook/` + config block + reconfigurar Polp dashboard | -375 |
 
 ---
 
-#### Fase 3.3 — Mover `etl-refresh-dashboards` para `pg_cron`
+### Onda 3 — Movimentos para runtime melhor
 
-**Justificativa:** É 1 chamada RPC `refresh_client_dashboards(p_client_id)`. Edge function é overhead puro.
+#### Fase 3.1 — `etl-refresh-dashboards` → pg_cron
 
-| # | Tarefa | Arquivos | LOC |
-|---|---|---|---|
-| 3.3.1 | Nova migration: estender `analytics_v2.process_pending_jobs` para também processar `job_type='refresh_dashboards'` (chamar `refresh_client_dashboards(reg_jobs.client_id)`) | `supabase/migrations/<ts>_refresh_dashboards_in_dispatcher.sql` | +30 |
-| 3.3.2 | Garantir que `pg_cron` agenda a função atualizada (já está, ver `20260526090000_g1_dispatcher_tuning.sql`) | nenhum | 0 |
-| 3.3.3 | Deletar `supabase/functions/etl-refresh-dashboards/` | deletar | -132 |
-| 3.3.4 | Remover bloco `[functions.etl-refresh-dashboards]` do config | `supabase/config.toml` | -6 |
+**Justificativa:** 132 LOC de EF para chamar 1 RPC. Overhead puro. Pode ser um `pg_cron` job que chama `analytics_v2.refresh_client_dashboards(client_id)` direto, eliminando a EF.
 
-**Critérios de done:**
-- `REFRESH MATERIALIZED VIEW CONCURRENTLY` continua rodando para os 4 MVs.
-- `reg_jobs` rows de tipo `refresh_dashboards` são processados pelo dispatcher SQL.
-- Logs do `process_pending_jobs` mostram a chamada RPC.
+| # | Tarefa | LOC |
+|---|---|---|
+| 3.1.1 | Estender `analytics_v2.process_pending_jobs` para também processar `job_type='refresh_dashboards'` (já está parcialmente no dispatcher) | 0 a +20 |
+| 3.1.2 | Deletar `supabase/functions/etl-refresh-dashboards/` | -132 |
+| 3.1.3 | Remover bloco `[functions.etl-refresh-dashboards]` do config | -6 |
 
-**Risco:** Baixo. Mudança é puramente SQL.
+**Risco:** Baixo. Mudança puramente SQL + delete.
 
 ---
 
-#### Fase 3.4 — Mover `match-columns` para `services/` Python
+#### Fase 3.2 — `match-columns` → Python service
 
-**Justificativa:** Dice coefficient + alias table é CPU-bound trivial. Movê-lo para Python remove a necessidade de deploy edge function para essa lógica e elimina a dependência `npm:string-similarity`.
+**Justificativa:** Dice coefficient + alias table é CPU-bound trivial. Pode ser um módulo Python em `services/blu_schema_matcher/`. Hoje é chamado por 2 EFs + 1 serviço Python — 3 callers, todos podem chamar direto.
 
-| # | Tarefa | Arquivos | LOC |
-|---|---|---|---|
-| 3.4.1 | Criar `services/blu_schema_matcher/` (ou módulo dentro de `tool_pool_api`) com `match_columns(source_columns, target_table)` retornando `{matched, unmatched, needs_review, confidence_scores, detected_context}` | novo | +500 |
-| 3.4.2 | Reescrever `upload-csv-source` e `upload-drive-source` (já refatorados na Fase 2.3) para chamar `services/blu_schema_matcher` via HTTP em vez de `supabase.functions.invoke('match-columns')` | 2 EFs | -10 |
-| 3.4.3 | Atualizar `services/tool_pool_api/.../context_module.py:521` para usar o módulo local em vez de chamar o EF | 1 arquivo Python | -5 |
-| 3.4.4 | Deletar `supabase/functions/match-columns/` | deletar | -487 |
-| 3.4.5 | Adicionar testes unitários em `tests/test_schema_matcher.py` | novo | +200 |
-
-**Critérios de done:**
-- Wizard completa o passo "Mapear colunas" usando o serviço Python.
-- Output idêntico ao EF anterior (testes comparativos com 20+ fontes reais).
-- Aliases e context-specific mappings preservados.
+| # | Tarefa | LOC |
+|---|---|---|
+| 3.2.1 | Criar `services/blu_schema_matcher/` com `match_columns(source_columns, target_table)` | +500 |
+| 3.2.2 | Reescrever callers para chamar o serviço Python | -10 |
+| 3.2.3 | Deletar `supabase/functions/match-columns/` | -505 |
 
 **Risco:** Médio. Precisa de cobertura de teste ampla para garantir equivalência de output.
 
 ---
 
-#### Fase 3.5 — Mover `search-documents` para direct SQL + Cohere no Python RAG
+#### Fase 3.3 — `search-documents` → direct SQL + Cohere
 
-**Justificativa:** É wrapper fino sobre `vector_db.match_documents` / `vector_db.hybrid_match_documents` + 1 chamada Cohere. Pode ser inlined no `services/blu_rag_factory/.../retriever.py`.
+**Justificativa:** 212 LOC de wrapper sobre 2 RPCs SQL + 1 chamada Cohere. `blu_rag_factory` Python pode chamar Cohere direto + RPC direto.
 
-| # | Tarefa | Arquivos | LOC |
-|---|---|---|---|
-| 3.5.1 | Em `services/blu_rag_factory/src/.../retriever.py`: substituir a chamada `supabase.functions.invoke('search-documents')` por `cohere.embed()` direto + `supabase.rpc('vector_db.hybrid_match_documents', {...})` | 1 arquivo Python | ±20 |
-| 3.5.2 | Verificar que o SQL RPC `hybrid_match_documents` aceita todos os filtros que o EF repassava (scope, categories, document_ids, themes) | revisão | 0 |
-| 3.5.3 | Deletar `supabase/functions/search-documents/` | deletar | -212 |
-| 3.5.4 | Remover bloco `[functions.search-documents]` do config | `supabase/config.toml` | -5 |
+| # | Tarefa | LOC |
+|---|---|---|
+| 3.3.1 | Em `services/blu_rag_factory/.../retriever.py`: substituir `supabase.functions.invoke('search-documents')` por `cohere.embed()` + `supabase.rpc('vector_db.hybrid_match_documents', {...})` | ±20 |
+| 3.3.2 | Deletar `supabase/functions/search-documents/` | -212 |
+| 3.3.3 | Remover bloco `[functions.search-documents]` do config | -5 |
 
-**Critérios de done:**
-- `services/blu_rag_factory` continua retornando os mesmos documentos.
-- Latência p95 dentro de ±10% do EF anterior.
-- Teste comparativo com 5 queries reais em 3 clientes.
-
-**Risco:** Médio. SQL RPC precisa ter grants corretos para o service-role do RAG factory.
+**Risco:** Médio. SQL RPC precisa ter grants corretos para service-role do RAG factory.
 
 ---
 
-### Onda 4 — M7 + movimentos longos (várias semanas)
+#### Fase 3.4 — `onboarding-website-intel` → client-side (REAVALIAR)
 
-#### Fase 4.1 — Matar EF `generate-context-report` (M7)
+**Justificativa original:** 100ms de regex + fetch + JSON, sem DB / sem secrets. Era candidata natural para client-side.
 
-**Justificativa (D4):** Python `libs/blu_agent_framework/.../context_report.py` é o original auditado, tem jinja2 templating, tem shared-memory write-back, e tem audit log. O EF é um port verbatim. Manter o Python e matar o EF.
+**Estado atual:** PRs #197/#199/#210 expandiram o EF para incluir CNPJ extraction (mod-11 check digit), phone, 17 verticals (era 11), confidence dinâmico. O teste Deno (`index_test.ts`, 11 tests) cobre esses casos. Mover para client-side perde esses testes e o backend precisa ser reescrito.
 
-**Callers atuais do EF:**
-- `supabase/migrations/20260523999999_baseline_v2.sql:4147` — `schedule_monthly_context_reports` (pg_cron mensal) → `net.http_post` para o EF
-- `supabase/functions/onboarding-bootstrap/index.ts:159-179` — `EdgeRuntime.waitUntil` (best-effort, no submit do wizard)
-- `HERMES.md:333` — doc
-
-**O `agent_api` já tem o routine function wired:**
-- `services/agent_api/src/agent_api/core/routine_functions.py:223` chama `run_for_client` do `context_report.py` via `analytics.generate_context_report`.
-
-| # | Tarefa | Arquivos | LOC |
-|---|---|---|---|
-| 4.1.1 | Adicionar endpoint `POST /v1/internal/context-report/run` em `services/agent_api/src/agent_api/api/routines_router.py` (aceita `{client_id}`, requer Bearer service-role) | 1 arquivo | +30 |
-| 4.1.2 | Nova migration: reescrever `schedule_monthly_context_reports` (do `baseline_v2.sql:4127-4157`) para chamar o novo endpoint via `net.http_post` (com URL configurada em `app.agent_api_url` setting) | `supabase/migrations/<ts>_context_report_via_agent_api.sql` | +30 |
-| 4.1.3 | Atualizar `supabase/functions/onboarding-bootstrap/index.ts:159-179` para chamar `${AGENT_API_URL}/v1/internal/context-report/run` em vez do EF | 1 arquivo | -5 |
-| 4.1.4 | Adicionar setting `app.agent_api_url` via nova migration (similar ao `app.supabase_url` que já existe) | nova migration | +15 |
-| 4.1.5 | Adicionar `app.agent_api_url` à config de produção (env var `AGENT_API_URL`) | `supabase/config.toml` + env | 0 |
-| 4.1.6 | Deletar `supabase/functions/generate-context-report/` | deletar | -610 |
-| 4.1.7 | Remover bloco `[functions.generate-context-report]` do config | `supabase/config.toml` | -6 |
-| 4.1.8 | Atualizar `HERMES.md` L333 para remover `generate-context-report` e listar o endpoint Python | `HERMES.md` | ~±5 |
-
-**Critérios de done:**
-- Relatório mensal continua sendo gerado e aparecendo no Storage + vector DB.
-- Wizard onboarding dispara o relatório via agent_api (best-effort, mesmo comportamento de skip).
-- `reg_jobs.input_params` com `client_id` chega corretamente.
-- Shared memory e audit log do Python continuam sendo escritos.
-- `tests/test_context_report.py` continua passando.
-
-**Risco:** Médio. Mudança na URL base do cron, precisa de:
-- Validação que `net.http_post` no Postgres pode chamar o agent_api (CORS, network).
-- Validação que o `app.agent_api_url` setting é propagado para o Postgres runtime.
+**Recomendação:** MANTER COMO EF. A expansão justificou a permanência. Marcar Fase 3.2 do plano original como **não-aplicável** dado o estado atual.
 
 ---
 
-#### Fase 4.2 — Mover `etl-bigquery-ingest` para Python worker
+#### Fase 3.5 — `etl-bigquery-ingest` → Python worker (OPCIONAL)
 
-**Justificativa:** BQ scans podem levar 2-10 minutos. O cap de 60s do edge runtime força a complexidade do daisy-chain (40 LOC de `EdgeRuntime.waitUntil` + `chain_attempts` em `etl-bigquery-ingest/index.ts:338-376`). Python em `services/etl_worker/` elimina isso.
+**Justificativa:** BQ scans podem levar 2-10min. Cap de 60s do edge runtime força a complexidade do daisy-chain (~40 LOC de `EdgeRuntime.waitUntil` + `chain_attempts` bookkeeping).
 
-| # | Tarefa | Arquivos | LOC |
-|---|---|---|---|
-| 4.2.1 | Criar `services/etl_worker/` com consumer que puxa `reg_jobs` rows tipo `bigquery_sync` | novo | +200 |
-| 4.2.2 | Portar `queryBigQueryPaginated` para Python (`google-cloud-bigquery`) | novo módulo | +200 |
-| 4.2.3 | Portar lógica de staging → `apply_staging_to_facts` para Python (mantendo md5 + ON CONFLICT) | novo | +150 |
-| 4.2.4 | Reescrever `analytics_v2.process_pending_jobs` para chamar o worker Python (HTTP) em vez do EF | migration | +20 |
-| 4.2.5 | Deletar `supabase/functions/etl-bigquery-ingest/` | deletar | -491 |
-| 4.2.6 | Remover bloco `[functions.etl-bigquery-ingest]` do config | `supabase/config.toml` | -6 |
-
-**Critérios de done:**
-- BQ sync end-to-end completa sem daisy-chain.
-- `reg_jobs` status transitions (`pending → running → completed/failed`) preservados.
-- Idempotência de `apply_staging_to_facts` preservada (testes comparativos).
-- 119k-row Polen dataset completa em < 10min (atualmente bounded por daisy-chain).
-
-**Risco:** Alto. É o EF mais complexo. Mudança grande de runtime. **Avaliar se vale a pena — se o daisy-chain atual funciona, talvez a dívida técnica não justifique o trabalho.**
+**Risco:** Alto. EF mais complexo do codebase. Mudança grande de runtime. **Avaliar ROI antes de retentar** — se o daisy-chain atual funciona, a dívida pode não justificar o trabalho.
 
 ---
 
-#### Fase 4.3 — Mover `routine-builder` para `services/agent_api/`
+#### Fase 3.6 — `routine-builder` → `agent_api` (OPCIONAL)
 
-**Justificativa:** SSE + Anthropic + chat history são first-class Python concerns. O `agent_api` já tem o pattern de streaming chat.
+**Justificativa:** SSE + Anthropic + chat history são first-class Python concerns. `agent_api` já tem o pattern de streaming chat.
 
-| # | Tarefa | Arquivos | LOC |
-|---|---|---|---|
-| 4.3.1 | Adicionar endpoint streaming `POST /v1/agents/routine-builder/chat` em `services/agent_api/.../agents_router.py` (ou novo router) | 1 arquivo | +200 |
-| 4.3.2 | Portar system prompt (carrega `agent_catalog` + `agent_action_catalog`) | 1 arquivo | +30 |
-| 4.3.3 | Atualizar frontend para usar o endpoint streaming do agent_api em vez de `supabase.functions.invoke('routine-builder')` | `apps/...` | ~±20 |
-| 4.3.4 | Deletar `supabase/functions/routine-builder/` | deletar | -190 |
-| 4.3.5 | Remover bloco `[functions.routine-builder]` do config | `supabase/config.toml` | -5 |
-
-**Critérios de done:**
-- UX do chat streaming idêntica.
-- JSON `routine` block extraído corretamente da resposta do Claude.
-- AAL2 enforcement preservado.
+| # | Tarefa | LOC |
+|---|---|---|
+| 3.6.1 | Adicionar endpoint streaming `POST /v1/agents/routine-builder/chat` em `services/agent_api/.../agents_router.py` | +200 |
+| 3.6.2 | Portar system prompt (carrega `agent_catalog` + `agent_action_catalog`) | +30 |
+| 3.6.3 | Atualizar frontend | ±20 |
+| 3.6.4 | Deletar `supabase/functions/routine-builder/` | -190 |
 
 **Risco:** Médio. Mudança de protocolo (SSE over fetch vs `supabase.functions.invoke`).
 
 ---
 
-#### Fase 4.4 — Mover `polp-sync` para Python ou reusar webhook (Opcional)
+#### Fase 3.7 — `polp-sync` → Python ou reusar webhook (OPCIONAL)
 
 **Justificativa:** Loop sequencial de 750+ chamadas HTTP. Python async seria mais rápido. Alternativa: o webhook já faz a sync em `accounts.synchronized`; o botão "↻" no AdminScreen poderia disparar um evento sintético.
 
-| # | Tarefa | Arquivos | LOC |
-|---|---|---|---|
-| 4.4.1 (A) | Reescrever `polp-sync` em Python em `services/polp_sync/`, fazer chamadas paralelas | novo | +200 |
-| OU 4.4.1 (B) | Botão "↻" chama endpoint que dispara evento sintético `accounts.synchronized` para o webhook | refactor frontend | +30 |
-| 4.4.2 | Deletar `supabase/functions/polp-sync/` | deletar | -147 |
-| 4.4.3 | Remover bloco `[functions.polp-sync]` do config | `supabase/config.toml` | -5 |
-
-**Critérios de done:**
-- Botão "↻" completa full sync em < 30s para um cliente típico.
-- Polp rate limits respeitados.
+| # | Tarefa | LOC |
+|---|---|---|
+| 3.7.1 (A) | Reescrever em Python async, fazer chamadas paralelas | +200 |
+| OU 3.7.1 (B) | Disparar evento sintético `accounts.synchronized` para o webhook | +30 |
+| 3.7.2 | Deletar `supabase/functions/polp-sync/` | -147 |
 
 **Risco:** Médio. (A) tem risco de Python async mal calibrado; (B) requer Polp aceitar eventos sintéticos (pode não ser o caso).
 
 ---
 
-### Onda 5 — Last mile: agenda merge (M5, opcional)
+### Onda 4 — M7 e Fase 5.1 (REAVALIAR)
 
-#### Fase 5.1 — Unificar `get-agenda-events` + `google-calendar-events` + `get-monday-subitems`
+#### Fase 4.1 — M7 (kill `generate-context-report` EF) — REAVALIAR
 
-**Justificativa:** Os 3 endpoints servem o mesmo "feed unificado de eventos" mas em escopos diferentes. Maior economia de LOC (~700), mas é o refactor mais arriscado porque o frontend chama os 3 endpoints separadamente em lugares diferentes (`apps/blu_v3/src/api/agenda.ts:264, 276` e `apps/blu_v3/src/api/analytics.ts:294`).
+**Estado:** Tentativa em `73c7080c` foi revertida em `cf33ffd1`. A reversão indica que matar o EF causou regressão (provavelmente o dispatcher pg_cron não estava atualizado, ou o agent_api ainda não tem o endpoint equivalente).
 
-| # | Tarefa | Arquivos | LOC |
-|---|---|---|---|
-| 5.1.1 | Adicionar `?sources=calendar,monday,notion&include_subitems=true&lazy_subitem_id=...` em `get-agenda-events` | 1 arquivo | +50 |
-| 5.1.2 | Mover `fetchGoogleCalendarEvents` e `fetchMondaySubitems` para `_shared/agenda_sources.ts` | `_shared/agenda_sources.ts` (novo) | +200 |
-| 5.1.3 | Reescrever `google-calendar-events` e `get-monday-subitems` como thin shims que chamam o helper e reformatam | 2 arquivos | -250 |
-| 5.1.4 | Frontend: unificar as 3 chamadas em 1 (com params), preservar comportamento lazy-load do Gantt | `apps/...` | ~±40 |
-| 5.1.5 | Deletar `google-calendar-events/` e `get-monday-subitems/` (depois de 1 release de shim) | deletar | -529 |
-| 5.1.6 | Remover blocos do config | `supabase/config.toml` | -10 |
+**Recomendação:** Investigar por que a tentativa anterior falhou antes de retentar. Hipótese: faltou adicionar endpoint `/v1/internal/context-report/run` no `agent_api` (que era o plano da Fase 4.1 original).
 
-**Critérios de done:**
-- Agenda card renderiza igual.
-- MonthlyGantt lazy-load ainda funciona (subitems carregam sob demanda).
-- analytics.ts:294 (`google-calendar-events` chamado do analytics page) continua funcionando.
+| # | Tarefa | LOC |
+|---|---|---|
+| 4.1.1 | Investigar `git revert -m 1 cf33ffd1` ou ler o PR revertido para entender o que quebrou | 0 |
+| 4.1.2 | Se for falta de endpoint no `agent_api`: criar `POST /v1/internal/context-report/run` (chama `run_for_client` de `context_report.py`) | +30 |
+| 4.1.3 | Reescrever `schedule_monthly_context_reports` SQL para chamar o endpoint | +30 |
+| 4.1.4 | Deletar `supabase/functions/generate-context-report/` | -610 |
+
+**Risco:** Médio (precisa entender por que a tentativa anterior falhou).
+
+---
+
+#### Fase 4.2 — Unificar agenda endpoints (3 → 1) — OPCIONAL
+
+**Estado atual:** 3 EFs (get-agenda-events 1009 LOC, get-monday-subitems 162, google-calendar-events 348) = 1.519 LOC. Maior concentração de LOC em agenda.
 
 **Risco:** Alto. 3 endpoints consumidos em 4+ lugares no frontend. Regressão silenciosa fácil.
 
-**Recomendação:** Avaliar se vale a pena. Se a separação atual for útil (ex.: Gantt só quer Monday, agenda quer tudo), os shims são fine. **Pular esta fase se as outras entregarem valor suficiente.**
+**Recomendação:** Pular a menos que a Onda 3 entregue valor suficiente sem essa fase.
 
 ---
 
-## 3. Investigação pré-Fase 3.1 (M6 — escolher runtime canônico do webhook Polp)
+## 6. Métricas de sucesso (targets após todas as ondas)
 
-**Objetivo:** Determinar qual das 2 implementações do webhook Polp/Open Finance está recebendo eventos em produção. A integração Polp em si é live; a questão é qual runtime (Supabase Edge ou Python FastAPI em `tool_pool_api`) é o canônico.
-
-| # | Tarefa | Como | Quem |
-|---|---|---|---|
-| 3.0.1 | Buscar logs do Supabase Edge runtime para `polp-webhook` (últimos 30 dias) | Supabase dashboard → Edge Functions → Logs | Eng |
-| 3.0.2 | Buscar logs do `services/tool_pool_api` (FastAPI access log) para `/webhooks/polp` (últimos 30 dias) | Fly/Render logs, ou `journalctl` no host | Eng |
-| 3.0.3 | Contar `event_type` distintos recebidos em cada um (`integrations.updated` vs `item/updated`) | `SELECT event_type, COUNT(*) FROM polp_webhook_events WHERE ... GROUP BY event_type` | Eng |
-| 3.0.4 | Checar config no Polp dashboard: qual URL está registrada? | Painel Polp | Ops |
-| 3.0.5 | Decidir: TS (esperado) ou Python vence | baseado em 3.0.1-3.0.4 | Owner |
-
-**Critério de parada:** Se ambos receberem eventos nos últimos 30 dias, investigar por que (pode ser redirect ou re-configuração pendente do Polp).
-
----
-
-## 4. Métricas de sucesso globais
-
-| Métrica | Baseline | Target após todas as fases |
+| Métrica | Baseline | Target |
 |---|---|---|
-| Total de edge functions | 26 | 12-14 |
-| Total LOC em `supabase/functions/` | 8.115 | ~4.500 |
-| Funções com `verify_jwt=false` sem auth | 2 (`match-columns`, `onboarding-website-intel`) | 0 |
-| Helper Fernet duplicado | 6 cópias | 1 |
-| Edge functions > 500 LOC | 4 | ≤1 (`process-document`) |
-| Webhook Polp/Open Finance implementations | 2 | 1 (mesma integração live consolidada em 1 runtime) |
-| Context report implementations | 2 (TS + Python) | 1 (Python) |
-| Daisy-chain complex code (etl-bigquery-ingest) | ~40 LOC | 0 (se Fase 4.2 executada) |
+| Total de EFs | 25 | 18-20 |
+| LOC de EFs | 8.494 | ~5.500 |
+| Auth gaps abertos | 2 (match-columns + website-intel **FECHADOS** mas trigger DB ausente) | 0 |
+| Funções com daisy-chain | 1 (`etl-bigquery-ingest`) | 0 (ou movido para Python) |
+| Webhooks Polp | 2 | 1 |
+| Comentários enganosos em config.toml | 1 (`match-columns` no auth gate) | 0 |
+| Helpers em `_shared/` | 8 | 9-10 (adicionar `blu_schema_matcher` se Fase 3.2) |
+| `reg_jobs` jobs sem propósito | 1 (refresh_dashboards EF) | 0 (mover para pg_cron) |
+| EFs com `verify_jwt=false` + auth gate | 14 | 14 (manter — é o padrão) |
+| RED tests no auth | 7 | 0 |
 
 ---
 
-## 5. Riscos e mitigações globais
+## 7. Riscos globais
 
-| Risco | Probabilidade | Impacto | Mitigação |
+| Risco | Prob. | Impacto | Mitigação |
 |---|---|---|---|
-| Quebrar fluxo OAuth Google em produção | Média | Alto | Smoke test manual após cada fase OAuth; manter ability de rollback por 1 release |
-| Regressão em dispatcher ETL | Baixa | Crítico | Migration com `BEGIN; ... ROLLBACK` se teste falhar; rodar dispatcher 1x manualmente antes de deletar EF |
-| Mover lógica para runtime errado criar nova dívida | Média | Médio | Cada movimento de runtime precisa de PR separado com justificativa de capacidade (60s edge vs Python) |
-| Mudança de URL Polp webhook durante transição M6 | Média | Alto | Investigar logs PRIMEIRO (Fase 3.0); janelão de manutenção se necessário |
-| Testes de carga revelarem que `process-document` também precisa de worker Python | Baixa | Médio | Avaliar após Fase 4.2; se acontecer, abrir Fase 4.5 |
-| _shared/ refactor quebrar compat de tokens Fernet já gravados | Baixa | Crítico | Smoke test obrigatório na Fase 1.2 (round-trip com 1 token real de produção) |
+| Auth fix 0.1 quebra fluxos OAuth (Google, Microsoft, Apple) | Média | Alto | Adicionar teste E2E que cobre todos os 4 fluxos antes de mergir |
+| Trigger 0.2 duplica criação de `clientes_blu` (race com `ensure_tenant_row`) | Baixa | Médio | `ON CONFLICT (external_user_id) DO NOTHING` no `handle_new_auth_user` já é idempotente |
+| Mover match-columns para Python quebra frontend (Fase 3.2) | Média | Médio | Testes comparativos com 20+ fontes reais antes de mergir |
+| Polp webhook consolidation quebra live (Fase 2.1) | Baixa | Crítico | Janela de manutenção, dual-write por 1 release |
+| Renomear `run-csv-etl` (Fase 1.2) quebra callers | Média | Baixo | Grep todos os callers antes, atualizar todos atomicamente |
+| Daisychain do `etl-bigquery-ingest` refator causa regression | Alta | Alto | NÃO fazer sem antes validar com o dataset de 119k Polen rows |
 
 ---
 
-## 6. Não-objetivos (out of scope)
+## 8. Não-objetivos
 
-- Migração completa para Python de **todos** os EFs.
-- Reescrita de qualquer um dos serviços Python existentes.
-- Mudanças em RLS, `get_my_client_id`, ou no schema de DB (a não ser migrations explícitas mencionadas).
-- Reorganização dos `services/` em microsserviços.
-- Mudança de auth (MFA, ES256) — fora do escopo deste plano.
-
----
-
-## 7. Próximos passos imediatos
-
-1. **Revisar este plano com o time** — owner + 1 reviewer.
-2. **Criar issues no GitHub linkando as fases** — 1 issue por fase, labels `refactor`, `edge-functions`.
-3. **Abrir PR da Fase 1.1** (quick wins) — primeiro a ser mergeado.
-4. **Executar Fase 3.0 (investigação Polp)** em paralelo — bloqueador da Fase 3.1.
-5. **Estimativa por fase** — owner de cada fase quebra em sub-tasks (½ dia a 2 semanas cada).
+- Migração completa para Python de todos os EFs
+- Reescrita de qualquer serviço Python existente
+- Mudanças em RLS, `get_my_client_id`, ou schema de DB (exceto a migration do trigger da Fase 0.2)
+- Reorganização dos `services/` em microsserviços
+- Mudança de auth (MFA, ES256) — fora do escopo deste plano
 
 ---
 
-## Apêndice A — Inventário completo das 26 funções
+## 9. Sequência de execução recomendada
 
-| # | Função | LOC | Decisão |
-|---|---|---|---|
-| 1 | `google-oauth-start` | 85 | Manter (entrada OAuth) |
-| 2 | `google-oauth-callback` | 252 | Merge na Fase 2.4 |
-| 3 | `onboarding-capture-drive-token` | 237 | Merge na Fase 2.4 |
-| 4 | `save-api-token` | 333 | Manter; absorve helper Fernet (Fase 1.2) |
-| 5 | `onboarding-bootstrap` | 228 | Manter; redireciona context-report (Fase 4.1) |
-| 6 | `onboarding-website-intel` | 136 | Mover para client-side (Fase 3.2) |
-| 7 | `website-context-builder` | 486 | Manter |
-| 8 | `generate-context-report` | 610 | **Matar** (Fase 4.1) |
-| 9 | `discover-bigquery-columns` | 175 | Merge com `preview-` (Fase 2.1) |
-| 10 | `preview-bigquery-columns` | 78 | Deletado na Fase 2.1 |
-| 11 | `run-sync-etl` | 184 | Extrai helper (Fase 2.2) |
-| 12 | `etl-bigquery-ingest` | 491 | Mover para Python (Fase 4.2) — opcional/avaliar |
-| 13 | `etl-refresh-dashboards` | 132 | Mover para pg_cron (Fase 3.3) |
-| 14 | `run-csv-etl` | 305 | Extrai helper (Fase 2.2) |
-| 15 | `upload-csv-source` | 251 | Extrai helper (Fase 2.3) |
-| 16 | `upload-drive-source` | 323 | Extrai helper (Fase 2.3) |
-| 17 | `process-document` | 715 | Manter (choke point RAG) |
-| 18 | `search-documents` | 212 | Mover para direct SQL+Python (Fase 3.5) |
-| 19 | `polp-connect` | 136 | Manter |
-| 20 | `polp-sync` | 147 | Mover para Python (Fase 4.4) — opcional |
-| 21 | `polp-webhook` | 375 | Polp/Open Finance webhook (TS, vocabulário atual). Consolidar (Fase 3.0 + 3.1) |
-| — | `services/.../polp_webhook_router.py` | 267 | Polp/Open Finance webhook (Python, vocabulário legado Pluggy). Consolidar (Fase 3.0 + 3.1) |
-| 22 | `google-calendar-events` | 360 | Unificar (Fase 5.1) — opcional |
-| 23 | `get-monday-subitems` | 169 | Unificar (Fase 5.1) — opcional |
-| 24 | `get-agenda-events` | 1018 | Unificar (Fase 5.1) — opcional |
-| 25 | `match-columns` | 487 | Mover para Python (Fase 3.4) |
-| 26 | `routine-builder` | 190 | Mover para agent_api (Fase 4.3) |
-
-**LOC total:** 8.115 (EFs TS) + 267 (Python polp_webhook) = **8.382 LOC**.
-**LOC após plano (excluindo Fase 5.1):** ~4.800 EF TS.
-**LOC após plano (incluindo Fase 5.1):** ~4.300 EF TS.
+1. **Fase 0.1** — Auth fix (P0, 1 PR pequeno) — destrava 7 RED tests
+2. **Fase 0.2** — Trigger recreation (P0, 1 migration + 1 PR pequeno) — destrava 1 RED test
+3. **Fase 1.1** — Limpar config.toml (hygiene, 1 PR trivial)
+4. **Fase 1.2-1.3** — Docs/rename das funções enganosas (1-2 PRs triviais)
+5. **Fase 2.0-2.1** — Polp consolidation (depende de investigação manual)
+6. **Fase 3.1** — etl-refresh-dashboards → pg_cron (1 PR pequeno)
+7. **Fase 3.2-3.3** — match-columns e search-documents para Python (2 PRs médios)
+8. **Fase 3.4** — website-intel reavaliação (decisão, não mudança)
+9. **Fase 3.5-3.7** — Movimentos longos (opcional, ROI-dependent)
+10. **Fase 4.1-4.2** — M7 retry e unificação agenda (alto risco, baixo ROI)
 
 ---
 
-## Apêndice B — Convenções e padrões a manter
+## 10. Próximos passos imediatos
 
-Estas convenções estão em `.github/skills/supabase/SKILL.md` e devem ser respeitadas em qualquer movimento:
-
-1. `verify_jwt = true` é a postura segura padrão; `verify_jwt = false` é exceção e precisa de justificativa no comentário do config.
-2. Edge functions com `verify_jwt = false` que atendem user-facing devem usar `requireAuth` de `_shared/blu_auth.ts`.
-3. Service-role só depois de auth check confirmado.
-4. `get_my_client_id()` no SQL para tenant scoping; nunca confiar em `client_id` do payload.
-5. Edge functions de sistema (chamadas por pg_net/cron) usam `isSystemInvocation` + `BLU_SYSTEM_INVOKE_KEY` ou `SUPABASE_SERVICE_ROLE_KEY`.
-6. SECURITY INVOKER para RPCs user-facing; SECURITY DEFINER só para admin.
-7. Toda migration de RLS ou `reg_jobs` schema precisa rodar `supabase db advisors` antes de commit.
+1. **Code review** deste plano (1 reviewer)
+2. **Aplicar Fase 0.1** (auth fix) — maior ROI do plano, destrava 7 tests
+3. **Aplicar Fase 0.2** (trigger recreation) — 1 migration
+4. **Iniciar Fase 2.0** (investigação Polp) em paralelo
 
 ---
 
-**Última atualização:** 2026-06-25
-**Próxima revisão:** Após merge da Fase 1.1.
+## Apêndice A — Inventário de migrations (4 root + 23 applied = 27)
+
+### Root (`supabase/migrations/`)
+
+| File | LOC | Summary |
+|---|---|---|
+| `20260523999999_baseline_v2.sql` | 5196 | BASELINE v2 — schema completo (9 extensions, ~80 tables, 200+ RPCs, RLS, MVs). Inclui `handle_new_auth_user` (L2975) sem trigger. |
+| `20260602000000_agent_lists.sql` | 72 | Generic persistent list store (replaces ad-hoc tables) |
+| `20260604_onboarding_complete_fix.sql` | 36 | Fix `onboarding_complete` routine step 3 (on_failure=continue) + step 4 (knowledge.fill_masterprompt) |
+| `20260625000001_fix_finance_indicators.sql` | 94 | BKL-024: implement `analytics_v2.get_finance_indicators` RPC body |
+
+### Applied (`supabase/migrations/applied/`)
+
+23 files, 2.557 LOC total. Highlights:
+- `20260525_p0_fix_integration_tokens_rls.sql` — P0 fix
+- `20260525_p3_2_drop_dead_password_auth.sql` — drop dead `verify_tenant_password`
+- `20260525_p3_lockdown_secdef.sql` — lockdown SECURITY DEFINER functions
+- `20260525_p4_rls_remaining_tables.sql` — RLS hardening
+- `20260525_p11_tenant_wipe_worker.sql` — async paginated tenant deletion
+- `20260525_p12_split_onboarding_completion.sql` — bootstrap ≠ finalize
+- `20260601_agent_sessions_table.sql` — agent_sessions for agent_api
+- `20260625_p13_is_onboarded_client.sql` — `is_onboarded_client()` RPC + backfill
+
+---
+
+## Apêndice B — Test inventory
+
+- `tests/behaviors/`: **123 files** (incluindo 14+ específicos do auth: `b1_fluxo_signup`, `b1_trigger_on_auth_user_created`, `b2_signup_sessao_ativa`, `b2_reproduzir_erro_capturar_logs`, etc.)
+- `tests/integration/`: 4 files (`test_sequential_signups.py` é o mais crítico — 4 RED tests esperando Fase 0.1)
+- `tests/unit/`: 5 files
+- `supabase/functions/onboarding-website-intel/index_test.ts`: 11 Deno tests (added in PR #210)
+- `supabase/functions/_shared/fernet.test.ts`: 10 Deno tests
+- `supabase/functions/onboarding-bootstrap/tests/mappers_test.ts`: 84 LOC Deno (pure module)
+
+---
+
+## Apêndice C — Convenções e padrões a manter (de `.github/skills/supabase`)
+
+1. `verify_jwt = true` é a postura segura padrão; `verify_jwt = false` é exceção e precisa de justificativa
+2. EFs com `verify_jwt = false` que atendem user-facing devem usar `requireAuth` de `_shared/blu_auth.ts`
+3. Service-role só depois de auth check confirmado
+4. `get_my_client_id()` no SQL para tenant scoping
+5. EFs de sistema (chamadas por pg_net/cron) usam `isSystemInvocation` + `BLU_SYSTEM_INVOKE_KEY` ou `SUPABASE_SERVICE_ROLE_KEY`
+6. SECURITY INVOKER para RPCs user-facing; SECURITY DEFINER só para admin
+7. Toda migration de RLS ou `reg_jobs` schema precisa rodar `supabase db advisors` antes de commit
+
+---
+
+**Última atualização:** 2026-06-25 (após merge da main)
+**Próxima revisão:** após merge da Fase 0.1

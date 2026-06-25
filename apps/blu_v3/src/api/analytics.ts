@@ -499,7 +499,12 @@ export const getInventoryIndicators = async (period: string = '30d'): Promise<In
 }
 
 export const getSupplyIndicators = async (period: string = '30d'): Promise<SupplyIndicators> => {
-  const r = await callDimensionRpc<Record<string, unknown>>('get_supply_indicators', period)
+  let r: Record<string, unknown>
+  try {
+    r = await callDimensionRpc<Record<string, unknown>>('get_supply_indicators', period)
+  } catch (_) {
+    r = { period }
+  }
   return {
     rfqs_abertas: num(r?.rfqs_abertas),
     rfqs_enviadas: num(r?.rfqs_enviadas),

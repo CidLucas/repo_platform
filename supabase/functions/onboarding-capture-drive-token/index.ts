@@ -17,12 +17,11 @@
 //   4xx { connected: false, error }
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { fernetEncrypt } from "../_shared/fernet.ts";
+import { storeGoogleToken } from "../_shared/store_google_token.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const CREDENTIALS_ENCRYPTION_KEY = Deno.env.get("CREDENTIALS_ENCRYPTION_KEY");
 
 const DEFAULT_SCOPES = [
   "https://www.googleapis.com/auth/drive.readonly",
@@ -102,16 +101,6 @@ Deno.serve(async (req: Request) => {
     const clientId = await resolveClientId(ctx);
     if (!clientId) return jsonResp({ connected: false, error: "no clientes_blu row for this user" }, 403);
 
-    if (!CREDENTIALS_ENCRYPTION_KEY) {
-      console.error("[capture-drive-token] CREDENTIALS_ENCRYPTION_KEY not set");
-      return jsonResp({ connected: false, error: "server misconfiguration: encryption key missing" }, 500);
-    }
-
-    const refreshEncrypted = await fernetEncrypt(CREDENTIALS_ENCRYPTION_KEY, refreshToken);
-    const accessEncrypted = body.provider_token?.trim()
-      ? await fernetEncrypt(CREDENTIALS_ENCRYPTION_KEY, body.provider_token.trim())
-      : "";
-
     const accountEmail = (body.account_email?.trim() || ctx.email || "default@unknown.com").toLowerCase();
     const scopes = Array.isArray(body.scopes) && body.scopes.length > 0 ? body.scopes : DEFAULT_SCOPES;
 
@@ -119,46 +108,23 @@ Deno.serve(async (req: Request) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const { error: upsertError } = await admin
-      .from("integration_tokens")
-      .upsert(
-        {
-          client_id: clientId,
-          provider: "google",
-          account_email: accountEmail,
-          access_token_encrypted: accessEncrypted,
-          refresh_token_encrypted: refreshEncrypted,
-          token_type: "Bearer",
-          scopes,
-          is_default: true,
-          metadata: { source: "landing-onboarding" },
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "client_id,provider,account_email" },
-      );
-
-    if (upsertError) {
-      console.error("[capture-drive-token] integration_tokens upsert failed:", upsertError);
+    const stored = await storeGoogleToken({
+      admin,
+      clientId,
+      refreshToken,
+      accessToken: body.provider_token?.trim() || undefined,
+      accountEmail,
+      scopes,
+      metadataSource: "landing-onboarding",
+      // Landing wizard does not have a friendly calendar name yet — the
+      // user can rename it from the Admin Integrations page.
+      includeCalendarName: false,
+    });
+    if (!stored.ok) {
+      if (stored.error === "encryption_key_missing") {
+        return jsonResp({ connected: false, error: "server misconfiguration: encryption key missing" }, 500);
+      }
       return jsonResp({ connected: false, error: "failed to persist token" }, 500);
-    }
-
-    // Enable calendar so google-calendar-events serves events immediately after OAuth.
-    const { error: settingsError } = await admin
-      .from("calendar_settings")
-      .upsert(
-        {
-          client_id: clientId,
-          enabled: true,
-          provider: "google",
-          calendar_id: "primary",
-          range_days: 7,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "client_id" },
-      );
-
-    if (settingsError) {
-      console.warn("[capture-drive-token] calendar_settings upsert failed:", settingsError);
     }
 
     return jsonResp({ connected: true, account_email: accountEmail });

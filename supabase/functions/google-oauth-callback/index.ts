@@ -8,12 +8,11 @@
 // After saving, redirects back to the app.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { fernetEncrypt } from "../_shared/fernet.ts";
+import { storeGoogleToken } from "../_shared/store_google_token.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const CREDENTIALS_ENCRYPTION_KEY = Deno.env.get("CREDENTIALS_ENCRYPTION_KEY")!;
 
 const REDIRECT_URI = `${SUPABASE_URL}/functions/v1/google-oauth-callback`;
 
@@ -164,46 +163,24 @@ Deno.serve(async (req: Request) => {
     return redirectTo(`${returnBase}&google_error=email_unresolved`);
   }
 
-  const refreshEncrypted = await fernetEncrypt(CREDENTIALS_ENCRYPTION_KEY, refreshToken);
-  const accessEncrypted = await fernetEncrypt(CREDENTIALS_ENCRYPTION_KEY, accessToken);
   const scopes = String(stateData.scope).split(" ").filter(Boolean);
 
-  const { error: upsertErr } = await admin
-    .from("integration_tokens")
-    .upsert(
-      {
-        client_id: clientRow.client_id,
-        provider: "google",
-        account_email: accountEmail,
-        access_token_encrypted: accessEncrypted,
-        refresh_token_encrypted: refreshEncrypted,
-        token_type: "Bearer",
-        scopes,
-        is_default: true,
-        metadata: { source: "admin-oauth" },
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "client_id,provider,account_email" },
-    );
-
-  if (upsertErr) {
-    return redirectTo(`${returnBase}&google_error=db_error`);
+  const stored = await storeGoogleToken({
+    admin,
+    clientId: clientRow.client_id,
+    refreshToken,
+    accessToken,
+    accountEmail,
+    scopes,
+    metadataSource: "admin-oauth",
+    includeCalendarName: true,
+  });
+  if (!stored.ok) {
+    if (stored.error === "integration_tokens_upsert_failed") {
+      return redirectTo(`${returnBase}&google_error=db_error`);
+    }
+    return redirectTo(`${returnBase}&google_error=server_misconfig`);
   }
-
-  await admin
-    .from("calendar_settings")
-    .upsert(
-      {
-        client_id: clientRow.client_id,
-        enabled: true,
-        provider: "google",
-        calendar_id: "primary",
-        calendar_name: accountEmail,
-        range_days: 7,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "client_id" },
-    );
 
   return redirectTo(`${returnBase}&google_connected=1`);
 });

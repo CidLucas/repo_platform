@@ -1,11 +1,33 @@
 /**
- * run-csv-etl — CSV sync orchestrator
+ * run-csv-etl — CSV/XLSX ingest with inline ETL
  *
- * Mirrors run-sync-etl but for CSV sources (source_type='csv').
+ * Despite the name, this function does the FULL ETL pipeline inline —
+ * it is not just an orchestrator. The flow is:
  *
- * 1. Auth + ownership check
- * 2. Persists confirmed column_mapping + user_column_changes to client_data_sources
- * 3. Downloads CSV from Storage, parses rows, stages them in csv_import_staging
+ *  1. Auth + ownership check (per-client_id)
+ *  2. Fetch and validate the data source (must be storage_type='csv_file')
+ *  3. Duplicate-job guard (reg_jobs with csv_sync + source_id already
+ *     pending/running → 409)
+ *  4. Persist confirmed column_mapping + user-vs-auto diff to
+ *     client_data_sources
+ *  5. Download the file from `csv_datasets` Storage; parse CSV (delimiter
+ *     detection) or XLSX (sheet scoring + header-row detection)
+ *  6. Stage the parsed rows in `csv_import_staging` (JSONB, one row per
+ *     source row)
+ *  7. **Inline ETL**: read the staged rows back, project to
+ *     `analytics_v2.dim_clientes` (upsert by `cpf_cnpj`) and
+ *     `analytics_v2.fato_transacoes` (insert one fact per row), then
+ *     delete the staging rows. This replaces the legacy pg_cron +
+ *     `sincronizar_csv_cliente` RPC path — the function IS the source
+ *     of truth for the ETL, not a queue dispatcher.
+ *  8. Create a `reg_jobs` row of type `csv_sync` for audit / observability.
+ *     The job is mostly a record of work that already happened; the
+ *     dispatcher in `analytics_v2.process_pending_jobs` is a no-op
+ *     for jobs whose ETL completed inline.
+ *
+ * If you need the function to behave as a pure orchestrator (queue a
+ * job and let the dispatcher do the ETL), look at `run-sync-etl` for
+ * the BQ equivalent.
  */
 
 import {

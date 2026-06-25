@@ -2,6 +2,7 @@ import asyncio
 import logging
 import secrets
 from datetime import datetime, timedelta
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
@@ -573,16 +574,134 @@ async def send_inbox_reply(
 # ─────────────────────────────────────────────────────────────────────────
 
 
-@router.get("/connections")
-async def list_connections(client_id: str = Query(...)):
-    return []
+class ConnectionCreate(BaseModel):
+    nome_servico: str
+    tipo_servico: str
+    credentials: dict[str, Any] | None = None
 
 
-@router.post("/connections")
-async def create_connection(client_id: str = Query(...)):
-    return {"status": "created"}
+class ConnectionResponse(BaseModel):
+    id: str
+    client_id: str
+    nome_servico: str
+    tipo_servico: str
+    status: str | None = None
+    connection_metadata: dict[str, Any] | None = None
+    created_at: str | None = None
 
 
-@router.delete("/connections/{credential_id}")
-async def delete_connection(credential_id: str, client_id: str = Query(...)):
-    return {"status": "deleted"}
+@router.get("/connections", response_model=list[ConnectionResponse])
+async def list_connections(
+    auth: AuthResult = Depends(_get_auth_result),
+):
+    """List external-service credentials for the authenticated cliente."""
+    from blu_supabase_client import get_supabase_client
+
+    db = get_supabase_client()
+    try:
+        resp = (
+            db.table("credencial_servico_externo")
+            .select("id, client_id, nome_servico, tipo_servico, status, connection_metadata, created_at")
+            .eq("client_id", str(auth.client_id))
+            .order("created_at", desc=True)
+            .execute()
+        )
+    except Exception as exc:
+        logger.exception("connections.list failed for client=%s", auth.client_id)
+        raise HTTPException(status_code=500, detail=str(exc))
+    rows = getattr(resp, "data", None) or []
+    return [
+        ConnectionResponse(
+            id=str(r.get("id")),
+            client_id=str(r.get("client_id")),
+            nome_servico=r.get("nome_servico") or "",
+            tipo_servico=r.get("tipo_servico") or "",
+            status=r.get("status"),
+            connection_metadata=r.get("connection_metadata"),
+            created_at=r.get("created_at"),
+        )
+        for r in rows
+    ]
+
+
+@router.post("/connections", response_model=ConnectionResponse, status_code=201)
+async def create_connection(
+    payload: ConnectionCreate,
+    auth: AuthResult = Depends(_get_auth_result),
+):
+    """Create a new external-service credential for the authenticated cliente."""
+    if not payload.nome_servico or not payload.tipo_servico:
+        raise HTTPException(
+            status_code=400, detail="nome_servico and tipo_servico are required"
+        )
+
+    from blu_supabase_client import get_supabase_client
+
+    db = get_supabase_client()
+    try:
+        resp = (
+            db.table("credencial_servico_externo")
+            .insert(
+                {
+                    "client_id": str(auth.client_id),
+                    "nome_servico": payload.nome_servico,
+                    "tipo_servico": payload.tipo_servico,
+                    "status": "active",
+                    "ativo": True,
+                    "connection_metadata": payload.credentials or {},
+                }
+            )
+            .select("id, client_id, nome_servico, tipo_servico, status, connection_metadata, created_at")
+            .single()
+            .execute()
+        )
+    except Exception as exc:
+        logger.exception("connections.create failed for client=%s", auth.client_id)
+        raise HTTPException(status_code=500, detail=str(exc))
+    r = getattr(resp, "data", None) or {}
+    return ConnectionResponse(
+        id=str(r.get("id")),
+        client_id=str(r.get("client_id")),
+        nome_servico=r.get("nome_servico") or "",
+        tipo_servico=r.get("tipo_servico") or "",
+        status=r.get("status"),
+        connection_metadata=r.get("connection_metadata"),
+        created_at=r.get("created_at"),
+    )
+
+
+@router.delete("/connections/{credential_id}", status_code=204)
+async def delete_connection(
+    credential_id: str,
+    auth: AuthResult = Depends(_get_auth_result),
+):
+    """Delete a credential after verifying the authenticated cliente owns it."""
+    from blu_supabase_client import get_supabase_client
+
+    db = get_supabase_client()
+    try:
+        existing = (
+            db.table("credencial_servico_externo")
+            .select("id, client_id")
+            .eq("id", credential_id)
+            .maybe_single()
+            .execute()
+        )
+    except Exception as exc:
+        logger.exception("connections.delete lookup failed for cred=%s", credential_id)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    row = getattr(existing, "data", None)
+    if not row:
+        raise HTTPException(status_code=404, detail="Connection not found")
+    if str(row.get("client_id")) != str(auth.client_id):
+        raise HTTPException(status_code=403, detail="Not authorized to delete this connection")
+
+    try:
+        db.table("credencial_servico_externo").delete().eq("id", credential_id).eq(
+            "client_id", str(auth.client_id)
+        ).execute()
+    except Exception as exc:
+        logger.exception("connections.delete failed for cred=%s", credential_id)
+        raise HTTPException(status_code=500, detail=str(exc))
+    return None

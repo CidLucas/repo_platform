@@ -193,14 +193,35 @@ function RoutinesHomeChip({ clientId }: { clientId: string }) {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function HomePage() {
-  const hasNoData = !localStorage.getItem("blu_has_data")
-  if (hasNoData) return (<PostBoardingEmptyState />)
+  const { clientId } = useAuth()
+  const [dismissedData, setDismissedData] = useState(false)
+  const [dismissedIntro, setDismissedIntro] = useState(false)
 
-  const hasNoAgentIntro = !localStorage.getItem("blu_has_agent_intro")
-  if (hasNoAgentIntro) return (<PostBoardingIntroductoryAgent />)
+  const hasNoData = !dismissedData && !!clientId && !localStorage.getItem(`blu_has_data:${clientId}`)
+  if (hasNoData) {
+    return (
+      <PostBoardingEmptyState
+        onAddConnection={() => {
+          if (clientId) localStorage.setItem(`blu_has_data:${clientId}`, "true")
+          setDismissedData(true)
+        }}
+      />
+    )
+  }
+
+  const hasNoAgentIntro = !dismissedIntro && !!clientId && !localStorage.getItem(`blu_has_agent_intro:${clientId}`)
+  if (hasNoAgentIntro) {
+    return (
+      <PostBoardingIntroductoryAgent
+        onDismiss={() => {
+          if (clientId) localStorage.setItem(`blu_has_agent_intro:${clientId}`, "true")
+          setDismissedIntro(true)
+        }}
+      />
+    )
+  }
 
   const { go, openChatWith, addToast } = useAppStore()
-  const { clientId } = useAuth()
   const qc = useQueryClient()
   const { track } = useTracking()
 

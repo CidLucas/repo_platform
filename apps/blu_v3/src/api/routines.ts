@@ -372,14 +372,6 @@ export async function activateRoutine(
   if (error) throw error
 }
 
-export async function renameRoutine(
-  id: string,
-  clientId: string,
-  newName: string
-): Promise<void> {
-  return updateCustomRoutine(id, clientId, { name: newName })
-}
-
 export async function updateRoutineTrigger(
   id: string,
   clientId: string,

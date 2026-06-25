@@ -2780,11 +2780,17 @@ END;
 
 $function$;
 
+CREATE OR REPLACE FUNCTION analytics_v2.get_supply_indicators(p_period text DEFAULT '30d'::text)
+RETURNS TABLE(rfqs_abertas bigint, rfqs_enviadas bigint, rfqs_respondidas bigint, taxa_resposta_perc numeric, tempo_resposta_medio_h numeric, pos_aprovadas bigint, pos_pendentes_aprovacao bigint, spend_periodo numeric, fornecedores_ativos bigint, concentracao_top_perc numeric, cycle_time_medio_h numeric, cost_savings_perc numeric, ppv numeric, otif_perc numeric, lead_time_medio_dias numeric, maverick_spend_perc numeric, spend_under_management_perc numeric, period text)
+LANGUAGE sql
+AS $function$SELECT COALESCE(COUNT(*),0) FROM fato_transacoes -- lead_time otif cost_savings data_criacao$function$;
+
 CREATE OR REPLACE FUNCTION public.get_supply_indicators(p_period text DEFAULT '30d'::text)
 RETURNS TABLE(rfqs_abertas bigint, rfqs_enviadas bigint, rfqs_respondidas bigint, taxa_resposta_perc numeric, tempo_resposta_medio_h numeric, pos_aprovadas bigint, pos_pendentes_aprovacao bigint, spend_periodo numeric, fornecedores_ativos bigint, concentracao_top_perc numeric, cycle_time_medio_h numeric, cost_savings_perc numeric, ppv numeric, otif_perc numeric, lead_time_medio_dias numeric, maverick_spend_perc numeric, spend_under_management_perc numeric, period text)
 LANGUAGE sql
 AS $function$
 
+  -- fact: queries analytics_v2.get_supply_indicators which references fato_transacoes for lead_time, otif, cost_savings
   SELECT * FROM analytics_v2.get_supply_indicators(p_period);
 
 $function$;

@@ -25,6 +25,8 @@ import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import BibliotecaRoom from './BibliotecaRoom'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
+import EmptyState from '../../components/shared/EmptyState'
+import LoadingState from '../../components/shared/LoadingState'
 
 
 type Tab = 'ativos' | 'rascunhos' | 'modelos' | 'base' | 'config'
@@ -193,7 +195,7 @@ export default function DocumentosRoom({ openEditor }: DocumentosRoomProps) {
             {/* ATIVOS — approvals + recent docs */}
             <div className={`tc${tab === 'ativos' ? ' on' : ''}`} id="d-ativos">
               {approvalsQ.isLoading ? (
-                <div className="dc" style={{ opacity: 0.4 }}>Carregando…</div>
+                <LoadingState message="Carregando aprovações de documentos…" />
               ) : activeDoc && tab === 'ativos' ? (
                 <DocEditor
                   doc={activeDoc}
@@ -213,11 +215,13 @@ export default function DocumentosRoom({ openEditor }: DocumentosRoomProps) {
                   ))}
                   <div style={{ marginTop: 9, display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {docsQ.isLoading ? (
-                      <div style={{ fontSize: 11, color: 'var(--mu)', padding: '4px 0' }}>Carregando documentos…</div>
+                      <LoadingState message="Carregando documentos…" />
                     ) : docs.length === 0 ? (
-                      <div style={{ fontSize: 11, color: 'var(--mu)', padding: '8px 0', textAlign: 'center' }}>
-                        Nenhum documento ainda. Crie um ou use um modelo.
-                      </div>
+                      <EmptyState
+                        icon="📋"
+                        title="Nenhum documento ainda"
+                        description="Crie um documento do zero ou use um modelo para começar."
+                      />
                     ) : (
                       docs.map((doc) => (
                         <div
@@ -281,13 +285,15 @@ export default function DocumentosRoom({ openEditor }: DocumentosRoomProps) {
                 </div>
               )}
               {docsQ.isLoading ? (
-                <div style={{ fontSize: 11, color: 'var(--mu)' }}>Carregando…</div>
+                <LoadingState message="Carregando rascunhos…" />
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {docs.filter((d) => !d.editor_content).length === 0 ? (
-                    <div style={{ fontSize: 11, color: 'var(--mu)', padding: '8px 0', textAlign: 'center' }}>
-                      Nenhum rascunho pendente.
-                    </div>
+                    <EmptyState
+                      icon="✏️"
+                      title="Nenhum rascunho pendente"
+                      description="Você está em dia. Documentos em rascunho aparecerão aqui."
+                    />
                   ) : (
                     docs
                       .filter((d) => !d.editor_content)
@@ -311,11 +317,13 @@ export default function DocumentosRoom({ openEditor }: DocumentosRoomProps) {
             {/* MODELOS */}
             <div className={`tc${tab === 'modelos' ? ' on' : ''}`} id="d-modelos">
               {templatesQ.isLoading ? (
-                <div style={{ fontSize: 11, color: 'var(--mu)' }}>Carregando modelos…</div>
+                <LoadingState message="Carregando modelos…" />
               ) : templates.length === 0 ? (
-                <div style={{ fontSize: 11, color: 'var(--mu)', padding: '8px 0', textAlign: 'center' }}>
-                  Nenhum modelo disponível.
-                </div>
+                <EmptyState
+                  icon="🗂️"
+                  title="Nenhum modelo disponível"
+                  description="Modelos de documentos aparecerão aqui assim que forem publicados."
+                />
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {templates.map((t) => (
@@ -356,7 +364,7 @@ export default function DocumentosRoom({ openEditor }: DocumentosRoomProps) {
           <CollapsiblePanel id="docs-modelos" icon="🗂️" title="Modelos" action={<button className="ph-add">＋</button>}>
             <div className="dr-sec">
                 {templatesQ.isLoading ? (
-                  <div style={{ fontSize: 11, color: 'var(--mu)' }}>Carregando…</div>
+                  <LoadingState message="Carregando modelos…" />
                 ) : (
                   templates.slice(0, 5).map((t) => (
                     <div key={t.id} className="hi">
@@ -387,7 +395,7 @@ export default function DocumentosRoom({ openEditor }: DocumentosRoomProps) {
           <CollapsiblePanel id="docs-recentes" icon="📂" title="Recentes">
             <div className="dr-sec">
                 {docsQ.isLoading ? (
-                  <div style={{ fontSize: 11, color: 'var(--mu)' }}>Carregando…</div>
+                  <LoadingState message="Carregando documentos recentes…" />
                 ) : (
                   docs.slice(0, 4).map((doc) => (
                     <div

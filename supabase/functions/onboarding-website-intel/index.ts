@@ -31,6 +31,23 @@ function detectVertical(text: string): string | null {
   if (/(logistica|frete|transporte|entregas|frota)/.test(t)) return "logistica";
   if (/(consultoria|assessoria|mentoria|treinamento)/.test(t)) return "consultoria";
   if (/(servi[cç]o|ag[eê]ncia|consultoria|atendimento)/.test(t)) return "servicos";
+  if (/(design|gr[aá]fico|ux|ui)/.test(t)) return "design";
+  if (/(buffet|catering|evento)/.test(t)) return "alimentacao";
+  if (/(constru[cç]|construcao|obra|edifica)/.test(t)) return "construcao";
+  if (/(log[ií]stica|logistica|transportadora|frete|entregas?)/.test(t)) return "logistica";
+  if (/(consultoria|assessoria|consultor)/.test(t)) return "consultoria";
+  if (/(advocacia|advogado|jur[ií]dico|direito)/.test(t)) return "juridico";
+  if (/(imobili[aá]ri|imobiliari|corretor|im[oó]veis?)/.test(t)) return "imobiliario";
+  if (/(seguro|previd[eê]ncia)/.test(t)) return "financeiro";
+  if (/(turismo|viagem|hotel|passagem)/.test(t)) return "turismo";
+  if (/(alimenta|caf[eé]|restaurante|comida)/.test(t)) return "alimentacao";
+  if (/(transporte|traslado|mudan[cç]a|motorista)/.test(t)) return "logistica";
+  if (/(beleza|est[eé]tica|cabelo|maquiagem)/.test(t)) return "beleza";
+  if (/(fitness|academia|personal|treino)/.test(t)) return "fitness";
+  if (/(oficina|mec[aâ]nica|reparo|conserto)/.test(t)) return "automotivo";
+  if (/(engenharia|engenheiro|projeto|obra)/.test(t)) return "engenharia";
+  if (/(marketing|publicidade|propaganda|m[ií]dia)/.test(t)) return "marketing";
+  if (/(\bti\b|tecnologia|inform[aá]tica|software|desenvolvedor)/.test(t)) return "tecnologia";
   return null;
 }
 
@@ -161,6 +178,9 @@ Deno.serve(async (req: Request) => {
     const cnpj = extractCNPJ(html);
     const phone = extractPhone(html);
 
+    const rawCnpj = extractCNPJ(html);
+    const cnpj = rawCnpj && validateCNPJ(rawCnpj) ? rawCnpj : null;
+    const telefone = extractPhone(html);
     const vertical = detectVertical(summaryText);
     const suggestions = suggestFromVertical(vertical);
 
@@ -194,7 +214,14 @@ Deno.serve(async (req: Request) => {
       cnpj: null,
       phone: null,
       ...suggestFromVertical(null),
-      confidence: 0.35,
+      confidence: 0,
+      cnpj: null,
+      telefone: null,
+      confidence_details: {
+        cnpj_confidence: 0,
+        telefone_confidence: 0,
+        vertical_confidence: 0,
+      },
     });
   }
 });

@@ -621,7 +621,10 @@ function StepInfo({
 
               {/* Contextual questions — feed saveDraft via produtoServico */}
               <div style={{ borderTop: '1px solid var(--gb)', paddingTop: 14, marginTop: 4 }}>
-                <div className="field" style={{ marginBottom: 0 }}>
+                <div style={{ fontSize: 11.5, color: 'var(--muted)', marginBottom: 10 }}>
+                  Uma pergunta para calibrar seus agentes:
+                </div>
+                <div className="field" style={{ marginBottom: 10 }}>
                   <label style={{ fontSize: 12 }}>Principal produto ou serviço</label>
                   <input
                     type="text"

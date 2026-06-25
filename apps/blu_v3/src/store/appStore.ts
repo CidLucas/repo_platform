@@ -5,7 +5,6 @@ export type Screen =
   | 'compras'
   | 'financeiro'
   | 'agenda'
-  | 'documentos'
   | 'estrategia'
   | 'clientes'
   | 'atividade'
@@ -69,7 +68,7 @@ export interface AppState {
 // --- Browser history sync helpers ---
 const SCREEN_LABELS: Record<Screen, string> = {
   home: 'Início', compras: 'Compras', financeiro: 'Financeiro',
-  agenda: 'Agenda', documentos: 'Documentos', estrategia: 'Estratégia',
+  agenda: 'Agenda', estrategia: 'Estratégia',
   clientes: 'Clientes', atividade: 'Atividade', admin: 'Admin',
   biblioteca: 'Biblioteca', blu_ops: 'BluOps',
 }
@@ -82,6 +81,8 @@ function screenFromHash(): Screen {
     const candidate = hash.slice(6)
     if (VALID_SCREENS.has(candidate)) return candidate as Screen
   }
+  // Legacy: 'documentos' was a screen; the room now lives as a tab inside EstrategiaRoom
+  if (window.location.hash === '#room/documentos') return 'estrategia'
   return 'home'
 }
 

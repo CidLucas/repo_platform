@@ -75,12 +75,38 @@ function validateCNPJ(cnpj: string): boolean {
 }
 
 function extractCNPJ(html: string): string | null {
-  const regex = /(\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2})/g;
-  const matches = html.match(regex);
-  if (!matches) return null;
-  for (const m of matches) {
-    if (validateCNPJ(m)) return m;
+  // CNPJ format: \d{2}\d{3}\d{3}\d{4}\d{2} (14 digits) or \d{2}\.\d{3}\.\d{3}/\d{4}-\d{2} (formatted)
+  const cnpjRegex = new RegExp("\\d{2}\\.\\d{3}\\.\\d{3}/\\d{4}-\\d{2}");
+  const cnpjPlainRegex = /\d{2}\d{3}\d{3}\d{4}\d{2}/;
+
+  const direct = html.match(cnpjRegex);
+  if (direct) return direct[0];
+
+  const plain = html.match(cnpjPlainRegex);
+  if (plain) return plain[0];
+
+  const metaContent = html.match(/<meta[^>]+content=["']([^"']+)["']/i);
+  if (metaContent) {
+    const fromMeta = metaContent[1].match(cnpjRegex) || metaContent[1].match(cnpjPlainRegex);
+    if (fromMeta) return fromMeta[0];
   }
+
+  const ldJson = html.match(
+    /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/i,
+  );
+  if (ldJson) {
+    try {
+      const data = JSON.parse(ldJson[1]);
+      const vatID = (data && (data.vatID || data["@id"])) || null;
+      if (typeof vatID === "string") {
+        const fromLd = vatID.match(cnpjRegex) || vatID.match(cnpjPlainRegex);
+        if (fromLd) return fromLd[0];
+      }
+    } catch (_) {
+      // ignore JSON parse errors
+    }
+  }
+
   return null;
 }
 
@@ -88,6 +114,12 @@ function extractPhone(html: string): string | null {
   const regex = /\(\d{2}\)\s?(?:9\d{4}-\d{4}|\d{4}-\d{4})/g;
   const match = html.match(regex);
   return match ? match[0] : null;
+}
+
+function calcSourceConfidence(sourceCount: number): number {
+  if (sourceCount >= 3) return 0.7;
+  if (sourceCount >= 2) return 0.5;
+  return 0.3;
 }
 
 function suggestFromVertical(vertical: string | null) {
@@ -146,9 +178,15 @@ Deno.serve(async (req: Request) => {
         vertical: null,
         suggested_size: null,
         cnpj: null,
-        phone: null,
         ...suggestFromVertical(null),
-        confidence: 0.3,
+        confidence: 0,
+        cnpj: null,
+        telefone: null,
+        confidence_details: {
+          cnpj_confidence: 0,
+          telefone_confidence: 0,
+          vertical_confidence: 0,
+        },
       });
     }
 
@@ -191,35 +229,37 @@ Deno.serve(async (req: Request) => {
 
     const title = titleMatch ? stripHtml(titleMatch[1]) : null;
     const summaryText = stripHtml([title ?? "", metaDescMatch?.[1] ?? "", html.slice(0, 3000)].join(" "));
-    const cnpj = extractCNPJ(html);
-    const phone = extractPhone(html);
-
     const rawCnpj = extractCNPJ(html);
     const cnpj = rawCnpj && validateCNPJ(rawCnpj) ? rawCnpj : null;
     const telefone = extractPhone(html);
     const vertical = detectVertical(summaryText);
     const suggestions = suggestFromVertical(vertical);
 
-    const sourceCount =
-      (title ? 1 : 0) +
-      (metaDescMatch ? 1 : 0) +
-      (cnpj ? 1 : 0) +
-      (phone ? 1 : 0) +
-      (summaryText.length > 0 ? 1 : 0);
+    // Source counting for confidence scoring
+    let sourceCount = 0;
+    if (title) sourceCount++;
+    if (metaDescMatch?.[1]) sourceCount++;
+    if (html.length > 0) sourceCount++;
+    const sourceConfidence = calcSourceConfidence(sourceCount);
 
-    let confidence: number;
-    if (sourceCount >= 3) confidence = 0.7;
-    else if (sourceCount === 2) confidence = 0.5;
-    else confidence = 0.3;
+    const cnpj_confidence = cnpj ? sourceConfidence : 0;
+    const telefone_confidence = telefone ? sourceConfidence : 0;
+    const vertical_confidence = vertical ? sourceConfidence : 0;
+    const confidence = (cnpj_confidence + telefone_confidence + vertical_confidence) / 3;
 
     return json({
       company_name: title,
       vertical,
       suggested_size: null,
       cnpj,
-      phone,
+      telefone,
       ...suggestions,
       confidence,
+      confidence_details: {
+        cnpj_confidence,
+        telefone_confidence,
+        vertical_confidence,
+      },
     });
   } catch (err) {
     console.warn("[onboarding-website-intel] fallback due to error", err);
@@ -228,7 +268,6 @@ Deno.serve(async (req: Request) => {
       vertical: null,
       suggested_size: null,
       cnpj: null,
-      phone: null,
       ...suggestFromVertical(null),
       confidence: 0,
       cnpj: null,

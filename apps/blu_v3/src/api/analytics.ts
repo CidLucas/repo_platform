@@ -454,7 +454,12 @@ export const getFinanceIndicators = async (period: string = '30d'): Promise<Fina
 }
 
 export const getCommercialIndicators = async (period: string = '30d'): Promise<CommercialIndicators> => {
-  const r = await callDimensionRpc<Record<string, unknown>>('get_commercial_indicators', period)
+  let r: Record<string, unknown>
+  try {
+    r = await callDimensionRpc<Record<string, unknown>>('get_commercial_indicators', period)
+  } catch (_) {
+    r = { period }
+  }
   return {
     pedidos_periodo: num(r?.pedidos_periodo),
     receita_periodo: num(r?.receita_periodo),

@@ -2268,8 +2268,11 @@ END;
 
 $function$;
 
-CREATE OR REPLACE FUNCTION public.get_commercial_top_clients()
-RETURNS TABLE(client_id bigint, cliente_nome text, total_volume numeric, total_revenue numeric, last_purchase timestamp with time zone)
+CREATE OR REPLACE FUNCTION public.get_commercial_top_clients(
+  p_period text DEFAULT '30d',
+  p_limit integer DEFAULT 10
+)
+RETURNS TABLE(client_id bigint, nome text, receita numeric, pedidos bigint, share_perc numeric, period text)
 LANGUAGE plpgsql
 AS $function$
 
@@ -2278,17 +2281,22 @@ BEGIN
   SELECT
     dc.customer_id,
     dc.nome::TEXT,
-    COUNT(ft.transacao_id)::NUMERIC AS total_volume,
-    SUM(ft.valor)::NUMERIC          AS total_revenue,
-    MAX(ft.created_at)              AS last_purchase
+    SUM(ft.valor)::NUMERIC AS receita,
+    COUNT(ft.transacao_id)::BIGINT AS pedidos,
+    ROUND(
+      SUM(ft.valor) / NULLIF(SUM(SUM(ft.valor)) OVER (), 0) * 100,
+      2
+    ) AS share_perc,
+    p_period AS period
   FROM analytics_v2.fato_transacoes ft
   LEFT JOIN analytics_v2.dim_clientes dc
     ON ft.customer_id = dc.customer_id
    AND ft.client_id   = dc.client_id
   WHERE ft.client_id = public.get_my_client_id()
+    AND ft.created_at >= now() - p_period::interval
   GROUP BY dc.customer_id, dc.nome
-  ORDER BY total_revenue DESC
-  LIMIT 10;
+  ORDER BY receita DESC
+  LIMIT p_limit;
 END;
 
 $function$;

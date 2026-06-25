@@ -826,3 +826,276 @@ class TestLoadingState:
             "functionally equivalent but is out of contract for "
             "this shared component."
         )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# AC#3 — every room page consumes the shared `EmptyState` and `LoadingState`
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# GOAL:
+#     The shared `EmptyState` and `LoadingState` components only deliver
+#     value if the room pages actually adopt them. Each of the 8 rooms
+#     in `apps/blu_v3/src/pages/app/` (Compras, Financeiro, Clientes,
+#     Estratégia, Documentos, Biblioteca, AgentOps, Agenda) must:
+#
+#         (a) import `EmptyState` from
+#             `../../components/shared/EmptyState`,
+#         (b) import `LoadingState` from
+#             `../../components/shared/LoadingState`,
+#         (c) render `<EmptyState ... />` JSX in its tree, and
+#         (d) render `<LoadingState ... />` JSX in its tree.
+#
+#     Today none of the rooms do — they all roll their own ad-hoc empty
+#     and loading blocks inline. The shared components are the new
+#     source of truth; the rooms must migrate to them one by one.
+#
+# BEHAVIOR:
+#     For each of the 8 rooms, four guards fire:
+#
+#         1. `import_empty_state`    — the room file imports
+#             `EmptyState` from a path that ends in
+#             `shared/EmptyState` (so the import resolves to the
+#             canonical shared component, not a local copy).
+#         2. `import_loading_state`  — the room file imports
+#             `LoadingState` from a path that ends in
+#             `shared/LoadingState`.
+#         3. `render_empty_state`    — the room file's JSX contains
+#             an `<EmptyState … />` element (self-closing or with
+#             children — both are valid).
+#         4. `render_loading_state`  — the room file's JSX contains
+#             a `<LoadingState … />` element.
+#
+# AC (Acceptance Criteria):
+#     AC#1 — `ComprasRoom.tsx` imports + renders both shared
+#            components.
+#     AC#2 — `FinanceiroRoom.tsx` imports + renders both shared
+#            components.
+#     AC#3 — `ClientesRoom.tsx` imports + renders both shared
+#            components.
+#     AC#4 — `EstrategiaRoom.tsx` imports + renders both shared
+#            components.
+#     AC#5 — `DocumentosRoom.tsx` imports + renders both shared
+#            components.
+#     AC#6 — `BibliotecaRoom.tsx` imports + renders both shared
+#            components.
+#     AC#7 — `AgentOpsRoom.tsx` imports + renders both shared
+#            components.
+#     AC#8 — `AgendaRoom.tsx` imports + renders both shared
+#            components.
+#
+# DECISION:
+#     Estratégia: migrate — every room must swap its inline empty
+#                 and loading blocks for the new shared components.
+#                 The shared component is the source of truth;
+#                 rooms no longer hand-roll their own markup.
+#     Arquivos alvo: the 8 `*Room.tsx` files under
+#                    `apps/blu_v3/src/pages/app/`.
+#
+# Estado atual: RED — none of the 8 rooms imports the shared
+# components, so all 8 × 4 = 32 guards fail. The migration must
+# touch every room before the suite goes GREEN.
+#
+# Anti-Goals (must NOT be violated):
+#     1. NÃO criar cópias locais de `EmptyState` ou `LoadingState`
+#        dentro de um room — a fonte da verdade é o componente
+#        shared, e o teste exige que o `import … from …` aponte
+#        para `…/shared/EmptyState` / `…/shared/LoadingState`.
+#     2. NÃO importar `EmptyState` de um caminho que NÃO termine
+#        em `shared/EmptyState` (ex.: `../EmptyState`,
+#        `../../components/ui/EmptyState`) — o teste usa
+#        `endswith('shared/EmptyState')` para fixar o contrato.
+#     3. NÃO deixar um room sem o `import` correspondente — o
+#        teste do import e o teste do JSX são disjuntos; um room
+#        pode, em teoria, renderizar `<EmptyState>` via re-export,
+#        mas isso é desencorajado pelo padrão de imports diretos
+#        usado pelos outros shared components.
+#     4. NÃO renomear nenhum dos 8 room files — a lista é fixa e
+#        parametrizada no teste; renomear quebraria a coleta
+#        (pytest não encontraria o `parametrize`).
+
+
+# ── Paths ─────────────────────────────────────────────────────────────────
+
+
+ROOM_FILES = [
+    "ComprasRoom.tsx",
+    "FinanceiroRoom.tsx",
+    "ClientesRoom.tsx",
+    "EstrategiaRoom.tsx",
+    "DocumentosRoom.tsx",
+    "BibliotecaRoom.tsx",
+    "AgentOpsRoom.tsx",
+    "AgendaRoom.tsx",
+]
+
+
+def _room_path(filename: str) -> Path:
+    return (
+        REPO_ROOT
+        / "apps"
+        / "blu_v3"
+        / "src"
+        / "pages"
+        / "app"
+        / filename
+    )
+
+
+def _read_room_source(filename: str) -> str:
+    path = _room_path(filename)
+    assert path.exists(), f"Source file not found: {path}"
+    return path.read_text(encoding="utf-8")
+
+
+def _imports_shared_component(source: str, component: str, module: str) -> bool:
+    """Detect `import <Component> from '…/shared/<module>'`.
+
+    We pin the suffix (`shared/<module>`) so the test fails RED
+    when a room imports a local copy (e.g. `./EmptyState`) or a
+    copy in a different directory (e.g.
+    `../../components/ui/EmptyState`). Both the default-import
+    form (`import <Component> from …`) and the named-import
+    form (`import { <Component> } from …`) pass — the regex
+    tolerates a leading `{` and any path content before the
+    canonical `shared/<module>` suffix.
+    """
+    pattern = (
+        rf"import\s+(?:\{{\s*)?"
+        rf"{re.escape(component)}"
+        rf"(?:\s*\}})?\s+from\s+['\"][^'\"]*shared/{re.escape(module)}['\"]"
+    )
+    return re.search(pattern, source) is not None
+
+
+def _renders_component_jsx(source: str, component: str) -> bool:
+    """Detect a JSX element `<Component … />` (self-closing) or
+    `<Component …>…</Component>` (with children).
+
+    We require the angle bracket, the component name, and either
+    whitespace, `/`, or `>` immediately after the name. This
+    intentionally rejects the substring `Component` standing
+    alone (e.g. a type annotation, a docstring) and accepts
+    both self-closing and paired JSX forms.
+    """
+    pattern = rf"<{re.escape(component)}(\s|/|>)"
+    return re.search(pattern, source) is not None
+
+
+# ── Parametrized room × check matrix ─────────────────────────────────────
+
+
+class TestRoomsUseSharedComponents:
+    """AC#3 — every room page consumes the shared `EmptyState` and
+    `LoadingState` components.
+
+    For each of the 8 rooms under `apps/blu_v3/src/pages/app/`,
+    four guards fire (one per check, parametrized by the room
+    filename), so the matrix is 8 rooms × 4 checks = 32
+    individual tests. Every guard is currently RED because:
+
+        - the shared `EmptyState` and `LoadingState` components
+          do not exist on disk, so no room can import them; and
+        - the rooms have not been migrated, so they still roll
+          their own inline empty and loading markup.
+
+    A room is GREEN only when ALL four of its guards pass.
+    """
+
+    @pytest.mark.parametrize("room_filename", ROOM_FILES)
+    def test_room_imports_empty_state(self, room_filename: str):
+        """Check 1 — the room imports `EmptyState` from
+        `…/shared/EmptyState`.
+
+        The path suffix is pinned to `shared/EmptyState` so a
+        room cannot satisfy this guard by importing a local
+        copy (e.g. `./EmptyState`); the import must resolve
+        to the canonical shared component.
+        """
+        source = _read_room_source(room_filename)
+
+        assert _imports_shared_component(source, "EmptyState", "EmptyState"), (
+            f"RED — {room_filename} does NOT import `EmptyState` "
+            f"from `…/shared/EmptyState`. Expected a line of the "
+            f"form `import EmptyState from "
+            f"'../../components/shared/EmptyState'` so the room "
+            f"consumes the shared component instead of rolling its "
+            f"own ad-hoc empty-state block. The shared component "
+            f"is the single source of truth for empty-state "
+            f"markup; a local copy would re-introduce the visual "
+            f"drift this migration is meant to eliminate."
+        )
+
+    @pytest.mark.parametrize("room_filename", ROOM_FILES)
+    def test_room_imports_loading_state(self, room_filename: str):
+        """Check 2 — the room imports `LoadingState` from
+        `…/shared/LoadingState`.
+
+        Symmetric to the `EmptyState` import guard: the path
+        suffix is pinned to `shared/LoadingState` so a room
+        cannot satisfy this guard by importing a local copy.
+        """
+        source = _read_room_source(room_filename)
+
+        assert _imports_shared_component(source, "LoadingState", "LoadingState"), (
+            f"RED — {room_filename} does NOT import `LoadingState` "
+            f"from `…/shared/LoadingState`. Expected a line of the "
+            f"form `import LoadingState from "
+            f"'../../components/shared/LoadingState'` so the room "
+            f"consumes the shared component instead of rolling its "
+            f"own ad-hoc loading block. The shared component is "
+            f"the single source of truth for loading-state markup; "
+            f"a local copy would re-introduce the visual drift this "
+            f"migration is meant to eliminate."
+        )
+
+    @pytest.mark.parametrize("room_filename", ROOM_FILES)
+    def test_room_renders_empty_state_jsx(self, room_filename: str):
+        """Check 3 — the room's JSX contains a `<EmptyState … />`
+        element.
+
+        An import is not enough — the room must actually render
+        the shared component in its tree. We accept both the
+        self-closing form (`<EmptyState … />`) and the
+        with-children form (`<EmptyState …>…</EmptyState>`);
+        the regex matches the opening tag in either form.
+        """
+        source = _read_room_source(room_filename)
+
+        assert _renders_component_jsx(source, "EmptyState"), (
+            f"RED — {room_filename} does NOT render a "
+            f"`<EmptyState … />` (or `<EmptyState …>…</EmptyState>`) "
+            f"element. The import alone is not enough; the room "
+            f"must actually use the shared component in its JSX "
+            f"tree so the user sees the polished empty-state "
+            f"block (icon + title + description + optional CTA) "
+            f"instead of the legacy ad-hoc markup. The shared "
+            f"component is the source of truth for empty-state "
+            f"markup; rooms that import it but never render it "
+            f"are still drifting."
+        )
+
+    @pytest.mark.parametrize("room_filename", ROOM_FILES)
+    def test_room_renders_loading_state_jsx(self, room_filename: str):
+        """Check 4 — the room's JSX contains a
+        `<LoadingState … />` element.
+
+        Symmetric to the `EmptyState` JSX guard: an import is
+        not enough — the room must actually render the shared
+        loading component in its tree so the user sees a
+        consistent spinner/skeleton block (with the default
+        copy, or a per-room `message` override) instead of the
+        legacy ad-hoc markup.
+        """
+        source = _read_room_source(room_filename)
+
+        assert _renders_component_jsx(source, "LoadingState"), (
+            f"RED — {room_filename} does NOT render a "
+            f"`<LoadingState … />` (or `<LoadingState …>…</LoadingState>`) "
+            f"element. The import alone is not enough; the room "
+            f"must actually use the shared component in its JSX "
+            f"tree so the user sees a polished loading block "
+            f"instead of the legacy ad-hoc markup. The shared "
+            f"component is the source of truth for loading-state "
+            f"markup; rooms that import it but never render it "
+            f"are still drifting."
+        )

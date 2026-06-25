@@ -18,10 +18,14 @@ import RoutineExecutionFeed from '../../components/shared/RoutineExecutionFeed'
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 import DecisionCard from '../../components/shared/DecisionCard'
+import EmptyState from '../../components/shared/EmptyState'
+import LoadingState from '../../components/shared/LoadingState'
 import { snoozeUntil } from '../../utils/time'
 import { formatBRL } from '../../utils/formatters'
 
 type Tab = 'decisoes' | 'tarefas' | 'historico' | 'config'
+
+const LOADING_TIMEOUT = 15_000
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
@@ -94,6 +98,16 @@ export default function ComprasRoom() {
 
   const invalidateApprovals = () => qc.invalidateQueries({ queryKey: ['approvals'] })
 
+  useEffect(() => {
+    if (!supplyQ.isLoading) return
+    const t = setTimeout(() => {
+      if (supplyQ.isLoading) {
+        console.warn('[ComprasRoom] supply indicators loading timeout after', LOADING_TIMEOUT, 'ms')
+      }
+    }, LOADING_TIMEOUT)
+    return () => clearTimeout(t)
+  }, [supplyQ.isLoading])
+
   const approveMut = useMutation({
     mutationFn: (id: string) => approveRequest(id, clientId!),
     onSuccess: () => { invalidateApprovals(); addToast('ok', 'Aprovado', 'Compra autorizada.') },
@@ -155,14 +169,14 @@ export default function ComprasRoom() {
             <div className={`tc${tab === 'decisoes' ? ' on' : ''}`} id="c-decisoes">
               <div className={`dl${approvals.length === 0 ? '' : approvals.length <= 3 ? ' dl-few' : ' dl-many'}`}>
                 {approvalsQ.isLoading && (
-                  <div style={{ padding: '12px 0', color: 'var(--mu)', fontSize: 12 }}>Carregando…</div>
+                  <LoadingState message="Carregando decisões de compras…" />
                 )}
                 {!approvalsQ.isLoading && approvals.length === 0 && (
-                  <div className="empty">
-                    <div className="ei">✓</div>
-                    <div className="et">Tudo em dia</div>
-                    <div className="eb">Nenhuma decisão pendente em Compras. O Blu irá notificá-lo quando houver algo para resolver.</div>
-                  </div>
+                  <EmptyState
+                    icon="✓"
+                    title="Tudo em dia"
+                    description="Nenhuma decisão pendente em Compras. O Blu irá notificá-lo quando houver algo para resolver."
+                  />
                 )}
                 {approvals.map(approval => (
                   <DecisionCard
@@ -184,9 +198,13 @@ export default function ComprasRoom() {
 
             {/* HISTÓRICO */}
             <div className={`tc${tab === 'historico' ? ' on' : ''}`} id="c-historico">
-              {historyQ.isLoading && <div style={{ color: 'var(--mu)', fontSize: 12, padding: '12px 0' }}>Carregando…</div>}
+              {historyQ.isLoading && <LoadingState message="Carregando histórico de compras…" />}
               {!historyQ.isLoading && history.length === 0 && (
-                <div style={{ color: 'var(--mu)', fontSize: 12, padding: '12px 0' }}>Nenhuma compra registrada.</div>
+                <EmptyState
+                  icon="🛒"
+                  title="Nenhuma compra registrada"
+                  description="Quando você aprovar uma compra, ela aparecerá aqui."
+                />
               )}
               {history.map(h => (
                 <div key={h.id} className="hi">
@@ -243,7 +261,7 @@ export default function ComprasRoom() {
             </div>
             <div className={`anl-body${analyticsOpen ? ' open' : ''}`}>
               {supplyQ.isLoading ? (
-                <div style={{ fontSize: 11, color: 'var(--mu)', textAlign: 'center', padding: '8px 0' }}>Carregando…</div>
+                <LoadingState message="Carregando indicadores de suprimentos…" />
               ) : supplyQ.isError ? (
                 <div style={{ fontSize: 11, color: 'var(--urg)', textAlign: 'center', padding: '8px 0' }}>
                   Erro ao carregar.{' '}
@@ -330,7 +348,14 @@ export default function ComprasRoom() {
           <CollapsiblePanel id="compras-fornecedores" icon="📁" title="Fornecedores" action={<button className="ph-add" onClick={() => openChatWith('Quero cadastrar um novo fornecedor')}>＋</button>}>
             <div className="dr-sec">
                 <div className="pills"><span className="pill on">Todos</span><span className="pill">Escritório</span><span className="pill">Insumos</span></div>
-                {suppliersQ.isLoading && <div style={{ color: 'var(--mu)', fontSize: 12, marginTop: 8 }}>Carregando…</div>}
+                {suppliersQ.isLoading && <LoadingState message="Carregando fornecedores…" />}
+                {!suppliersQ.isLoading && suppliers.length === 0 && (
+                  <EmptyState
+                    icon="📁"
+                    title="Nenhum fornecedor cadastrado"
+                    description="Cadastre fornecedores para que os agentes possam cotar preços e gerenciar relacionamentos."
+                  />
+                )}
                 {suppliers.map(s => (
                   <div key={s.id} className="sup-row">
                     <span>🏪</span>
@@ -360,7 +385,7 @@ export default function ComprasRoom() {
           </CollapsiblePanel>
           <CollapsiblePanel id="compras-historico" icon="🕐" title="Histórico recente">
             <div className="dr-sec">
-                {historyQ.isLoading && <div style={{ color: 'var(--mu)', fontSize: 12 }}>Carregando…</div>}
+                {historyQ.isLoading && <LoadingState message="Carregando histórico…" />}
                 {history.slice(0, 3).map(h => (
                   <div key={h.id} className="hi">
                     <div className="hi-n">{h.title}</div>

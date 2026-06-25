@@ -5,6 +5,8 @@ import { useKnowledgeBase } from '../../hooks/useKnowledgeBase'
 import { KB_CATEGORIES, isCsvFile, type KBDocument, type KBCategory } from '../../services/knowledgeBaseService'
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
+import EmptyState from '../../components/shared/EmptyState'
+import LoadingState from '../../components/shared/LoadingState'
 
 type ViewMode = 'grid' | 'list'
 type CategoryFilter = 'all' | string
@@ -64,10 +66,11 @@ function isTimedOut(doc: KBDocument): boolean {
 
 // ── Document card (grid view) ─────────────────────────────────────────────────
 
-function DocCard({ doc, onRemove, onRetry }: {
+function DocCard({ doc, onRemove, onRetry, onDownload }: {
   doc: KBDocument
   onRemove: (id: string, path: string | null) => Promise<void>
   onRetry: (doc: KBDocument) => Promise<void>
+  onDownload: (doc: KBDocument) => void
 }) {
   const { label, color } = kbStatusBadge(doc.status)
   const tag = fileTypeIcon(doc.file_name)
@@ -76,6 +79,7 @@ function DocCard({ doc, onRemove, onRetry }: {
 
   return (
     <div
+      title={doc.description ?? ''}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
@@ -138,6 +142,12 @@ function DocCard({ doc, onRemove, onRetry }: {
         {doc.file_name}
       </div>
 
+      {doc.description && (
+        <div style={{ fontSize: 9.5, color: 'var(--mu)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {doc.description}
+        </div>
+      )}
+
       {/* Category + date */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
         {doc.category && (
@@ -152,10 +162,17 @@ function DocCard({ doc, onRemove, onRetry }: {
             {catLabel(doc.category)}
           </span>
         )}
+        {doc.status === 'completed' && ('🔗 ' + doc.chunk_count + ' chunks')}
         <span style={{ fontSize: 9.5, color: 'var(--mu)', marginLeft: 'auto' }}>
           {relativeTime(doc.created_at)}
         </span>
       </div>
+
+      {(doc.status === 'failed' || doc.status === 'partially_failed') && doc.error_message && (
+        <div title={doc.error_message} style={{ fontSize: 9, color: 'var(--urg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
+          {doc.error_message}
+        </div>
+      )}
 
       {/* Actions shown on hover */}
       <div style={{
@@ -175,6 +192,13 @@ function DocCard({ doc, onRemove, onRetry }: {
           </button>
         )}
         <button
+          className="btn bs"
+          style={{ fontSize: 9.5, padding: '2px 7px' }}
+          onClick={() => onDownload(doc)}
+        >
+          ⬇ Download
+        </button>
+        <button
           className="btn brd"
           style={{ fontSize: 9.5, padding: '2px 7px', marginLeft: 'auto' }}
           onClick={() => onRemove(doc.id, doc.storage_path)}
@@ -188,17 +212,18 @@ function DocCard({ doc, onRemove, onRetry }: {
 
 // ── Document row (list view) ──────────────────────────────────────────────────
 
-function DocRow({ doc, onRemove, onRetry }: {
+function DocRow({ doc, onRemove, onRetry, onDownload }: {
   doc: KBDocument
   onRemove: (id: string, path: string | null) => Promise<void>
   onRetry: (doc: KBDocument) => Promise<void>
+  onDownload: (doc: KBDocument) => void
 }) {
   const { label, color } = kbStatusBadge(doc.status)
   const tag = fileTypeIcon(doc.file_name)
   const tagColor = fileTypeColor(doc.file_name)
 
   return (
-    <div style={{
+    <div title={doc.description ?? ''} style={{
       display: 'flex',
       alignItems: 'center',
       gap: 10,
@@ -223,6 +248,12 @@ function DocRow({ doc, onRemove, onRetry }: {
       <span style={{ flex: 1, fontSize: 11.5, color: 'var(--fg)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {doc.file_name}
       </span>
+      {doc.status === 'completed' && ('🔗 ' + doc.chunk_count)}
+      {(doc.status === 'failed' || doc.status === 'partially_failed') && doc.error_message && (
+        <span title={doc.error_message} style={{ fontSize: 9, color: 'var(--urg)', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {doc.error_message}
+        </span>
+      )}
       {doc.category && (
         <span style={{ fontSize: 9.5, padding: '1px 6px', borderRadius: 3, background: 'var(--glass)', color: 'var(--mu2)', border: '1px solid var(--gb)', whiteSpace: 'nowrap' }}>
           {catLabel(doc.category)}
@@ -237,7 +268,70 @@ function DocRow({ doc, onRemove, onRetry }: {
       {(doc.status === 'failed' || doc.status === 'partially_failed' || isTimedOut(doc)) && (
         <button className="btn bs" style={{ fontSize: 9.5, padding: '2px 7px' }} onClick={() => onRetry(doc)}>↻</button>
       )}
+      <button className="btn bs" style={{ fontSize: 9.5, padding: '2px 7px' }} onClick={() => onDownload(doc)} title="Baixar arquivo original">⬇</button>
       <button className="btn brd" style={{ fontSize: 9.5, padding: '2px 7px' }} onClick={() => onRemove(doc.id, doc.storage_path)}>×</button>
+    </div>
+  )
+}
+
+// ── Preview modal (TXT / MD) ──────────────────────────────────────────────────
+
+function PreviewModal({ title, text, onClose }: {
+  title: string
+  text: string
+  onClose: () => void
+}) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.55)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 9999,
+        padding: 24,
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: 'var(--bg, #0e0e10)',
+          border: '1px solid var(--gb)',
+          borderRadius: 'var(--r)',
+          width: 'min(820px, 100%)',
+          maxHeight: '85vh',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}
+      >
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '10px 14px',
+          borderBottom: '1px solid var(--gb)',
+          fontSize: 12,
+          fontWeight: 600,
+        }}>
+          <span>👁 {title}</span>
+          <button className="btn brd" style={{ fontSize: 10, padding: '2px 8px' }} onClick={onClose}>Fechar</button>
+        </div>
+        <pre style={{
+          margin: 0,
+          padding: '14px 16px',
+          overflow: 'auto',
+          fontSize: 12,
+          lineHeight: 1.55,
+          fontFamily: 'var(--mono)',
+          color: 'var(--fg)',
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+        }}>{text}</pre>
+      </div>
     </div>
   )
 }
@@ -254,8 +348,11 @@ export default function BibliotecaRoom() {
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [sortBy, setSortBy] = useState<'created_at' | 'file_name' | 'status'>('created_at')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [kbCategory, setKbCategory] = useState<KBCategory>(KB_CATEGORIES[0].value)
   const [dragging, setDragging] = useState(false)
+  const [previewContent, setPreviewContent] = useState<{ title: string; text: string } | null>(null)
 
   const filtered = useMemo(() => {
     return kb.documents.filter(doc => {
@@ -265,6 +362,16 @@ export default function BibliotecaRoom() {
       return true
     })
   }, [kb.documents, search, categoryFilter, statusFilter])
+
+  const sorted = useMemo(() => {
+    return [...filtered].sort((a, b) => {
+      let cmp = 0
+      if (sortBy === 'file_name') cmp = a.file_name.localeCompare(b.file_name)
+      else if (sortBy === 'status') cmp = a.status.localeCompare(b.status)
+      else if (sortBy === 'created_at') cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+  }, [filtered, sortBy, sortDir])
 
   // Stats
   const totalDocs = kb.documents.length
@@ -294,6 +401,34 @@ export default function BibliotecaRoom() {
     setDragging(false)
     const file = e.dataTransfer.files[0]
     if (file) await handleUpload(file)
+  }
+
+  function handleDownload(doc: KBDocument) {
+    if (!doc.storage_path) return
+    kb.getDownloadUrl(doc).then(url => {
+      window.open(url, '_blank')
+    }).catch(err => {
+      console.error('Download failed:', err)
+    })
+  }
+
+  async function handlePreview(doc: KBDocument) {
+    if (!doc.storage_path) return
+    const url = await kb.getDownloadUrl(doc)
+    const ext = doc.file_name.split('.').pop()?.toLowerCase() ?? ''
+    if (ext === 'pdf') {
+      window.open(url, '_blank')
+      return
+    }
+    if (ext === 'txt' || ext === 'md') {
+      try {
+        const res = await fetch(url)
+        const text = await res.text()
+        setPreviewContent({ title: doc.file_name, text })
+      } catch {
+        setPreviewContent({ title: doc.file_name, text: 'Falha ao carregar preview.' })
+      }
+    }
   }
 
   return (
@@ -401,6 +536,22 @@ export default function BibliotecaRoom() {
               <option value="failed">Erro</option>
               <option value="partially_failed">Parcial</option>
             </select>
+            <select
+              value={`${sortBy}_${sortDir}`}
+              onChange={e => {
+                const [b, d] = e.target.value.split('_') as ['created_at' | 'file_name' | 'status', 'asc' | 'desc']
+                setSortBy(b)
+                setSortDir(d)
+              }}
+              style={{ fontSize: 10.5, padding: '4px 7px', background: 'var(--glass)', border: '1px solid var(--gb)', borderRadius: 4, color: 'var(--fg)' }}
+            >
+              <option value="created_at_desc">Mais recentes</option>
+              <option value="created_at_asc">Mais antigos</option>
+              <option value="file_name_asc">Nome A-Z</option>
+              <option value="file_name_desc">Nome Z-A</option>
+              <option value="status_asc">Status A-Z</option>
+              <option value="status_desc">Status Z-A</option>
+            </select>
           </div>
 
           {/* Drop zone */}
@@ -441,29 +592,29 @@ export default function BibliotecaRoom() {
           {/* Document list */}
           <div className="pb" style={{ flex: 1, overflowY: 'auto' }}>
             {kb.loading ? (
-              <div style={{ fontSize: 11.5, color: 'var(--mu)', padding: '16px 0', textAlign: 'center' }}>
-                Carregando documentos…
-              </div>
-            ) : filtered.length === 0 ? (
-              <div style={{ fontSize: 11.5, color: 'var(--mu)', padding: '32px 0', textAlign: 'center' }}>
-                {kb.documents.length === 0
-                  ? 'Nenhum documento adicionado ainda. Adicione arquivos para que os agentes possam consultá-los.'
-                  : 'Nenhum documento corresponde aos filtros selecionados.'}
-              </div>
+              <LoadingState message="Carregando documentos da base de conhecimento…" />
+            ) : sorted.length === 0 ? (
+              <EmptyState
+                icon="📚"
+                title={kb.documents.length === 0 ? 'Nenhum documento adicionado ainda' : 'Nenhum documento corresponde aos filtros'}
+                description={kb.documents.length === 0
+                  ? 'Adicione arquivos para que os agentes possam consultá-los.'
+                  : 'Ajuste os filtros de categoria ou status para ver mais documentos.'}
+              />
             ) : viewMode === 'grid' ? (
               <div style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))',
                 gap: 8,
               }}>
-                {filtered.map(doc => (
-                  <DocCard key={doc.id} doc={doc} onRemove={kb.remove} onRetry={kb.retry} />
+                {sorted.map(doc => (
+                  <DocCard key={doc.id} doc={doc} onRemove={kb.remove} onRetry={kb.retry} onDownload={handleDownload} />
                 ))}
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {filtered.map(doc => (
-                  <DocRow key={doc.id} doc={doc} onRemove={kb.remove} onRetry={kb.retry} />
+                {sorted.map(doc => (
+                  <DocRow key={doc.id} doc={doc} onRemove={kb.remove} onRetry={kb.retry} onDownload={handleDownload} />
                 ))}
               </div>
             )}
@@ -579,6 +730,14 @@ export default function BibliotecaRoom() {
           )}
         </div>
       </div>
+
+      {previewContent && (
+        <PreviewModal
+          title={previewContent.title}
+          text={previewContent.text}
+          onClose={() => setPreviewContent(null)}
+        />
+      )}
     </div>
   )
 }

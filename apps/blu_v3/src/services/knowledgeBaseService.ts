@@ -81,13 +81,20 @@ export function getAcceptedExtensions(): string {
 
 // ── Service functions ──────────────────────────────────────────
 
-export async function listDocuments(clientId: string): Promise<KBDocument[]> {
+export async function listDocuments(
+  clientId: string,
+  sortBy?: string,
+  sortDir?: string,
+): Promise<KBDocument[]> {
+  const sortColumn =
+    sortBy === 'file_name' ? 'file_name' : sortBy === 'status' ? 'status' : 'created_at'
+
   const { data, error } = await supabase
     .schema('vector_db')
     .from('documents')
     .select('*')
     .eq('client_id', clientId)
-    .order('created_at', { ascending: false })
+    .order(sortColumn, { ascending: sortDir === 'asc' })
 
   if (error) throw new Error(`Erro ao listar documentos: ${error.message}`)
   return (data ?? []) as KBDocument[]
@@ -110,6 +117,17 @@ export async function deleteDocument(documentId: string, storagePath: string | n
     .eq('id', documentId)
 
   if (error) throw new Error(`Erro ao deletar documento: ${error.message}`)
+}
+
+export async function getDocumentDownloadUrl(storagePath: string): Promise<string> {
+  const { data, error } = await supabase.storage
+    .from('knowledge-base')
+    .createSignedUrl(storagePath, 60)
+
+  if (error) throw new Error(`Erro ao gerar URL de download: ${error.message}`)
+  if (!data?.signedUrl) throw new Error('URL de download indisponível.')
+
+  return data.signedUrl
 }
 
 export async function getDocumentProgress(documentId: string): Promise<EmbeddingProgress> {
@@ -136,12 +154,6 @@ export async function getDocumentProgress(documentId: string): Promise<Embedding
     progress_pct: row?.progress_pct ?? 0,
     status: docStatus,
   }
-}
-
-async function getAuthToken(): Promise<string> {
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session?.access_token) throw new Error('Sessão expirada — faça login novamente.')
-  return session.access_token
 }
 
 export async function uploadSimpleFile(
@@ -270,11 +282,12 @@ export interface CsvUploadResult {
 export async function uploadCsvDataSource(
   file: File,
   clientId: string,
+  schemaType?: string,
 ): Promise<CsvUploadResult> {
   const form = new FormData()
   form.append('file', file)
   form.append('client_id', clientId)
-  form.append('schema_type', 'invoices')
+  form.append('schema_type', schemaType || 'invoices')
 
   const { data, error } = await supabase.functions.invoke('upload-csv-source', {
     body: form,

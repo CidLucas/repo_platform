@@ -58,6 +58,12 @@ interface PendingCredential {
 
 type Step = 'auth' | 'info' | 'data' | 'mapping' | 'launch'
 
+type CsvClassification = {
+  confirmed: boolean
+  schemaType: string
+  canceled: boolean
+}
+
 const STEP_ORDER: Step[] = ['auth', 'info', 'data', 'mapping', 'launch']
 const STEP_LABELS = ['Conta', 'Empresa', 'Dados', 'Mapeamento']
 
@@ -132,11 +138,11 @@ export type ColumnMappingResult = {
   details: MappingDetail[]
 }
 
-async function callMatchColumns(sourceColumns: string[]): Promise<ColumnMappingResult | null> {
+async function callMatchColumns(sourceColumns: string[], schemaType?: string): Promise<ColumnMappingResult | null> {
   if (sourceColumns.length === 0) return null
   try {
     const { data, error } = await supabase.functions.invoke('match-columns', {
-      body: { source_columns: sourceColumns, schema_type: 'invoices' },
+      body: { source_columns: sourceColumns, schema_type: schemaType || 'invoices' },
     })
     if (error) {
       console.warn('[onboarding] match-columns failed:', error.message)
@@ -424,11 +430,13 @@ function StepAuth({ onNext, mode }: { onNext: () => void; mode: 'login' | 'signu
 
 interface SiteContext {
   company_name?: string
+  cnpj?: string
   vertical?: string
   cnpj?: string
   telefone?: string
   confidence: number
   suggested_agents?: string[]
+  telefone?: string
 }
 
 function formatCnpj(raw: string): string {
@@ -475,25 +483,32 @@ function StepInfo({
   const [error, setError] = useState<string | null>(null)
   const [detecting, setDetecting] = useState(false)
   const [siteContext, setSiteContext] = useState<SiteContext | null>(null)
+  const clearSiteCtx = () => setSiteContext(null)
 
   async function handleWebsiteBlur() {
     const url = website.trim()
     if (!url) return
     setDetecting(true)
-    setSiteContext(null)
+    clearSiteCtx()
     try {
       const { data, error } = await supabase.functions.invoke('onboarding-website-intel', {
         body: { website_url: url },
       })
       if (error || !data) return
       const ctx = data as SiteContext
-      // Auto-fill vertical and company name if confidence is high enough
+      // Auto-fill company name
+      if (ctx.company_name && !empresa.trim()) setEmpresa(ctx.company_name)
+      // Auto-fill CNPJ
+      if (ctx.cnpj && !cnpj.trim()) {
+        setCnpj(ctx.cnpj)
+        setCnpj(prev => prev.replace(/\D/g, ""))
+      }
+      // Auto-fill telefone
+      if (ctx.telefone && !telefone.trim()) setTelefone(ctx.telefone)
+      // Auto-fill vertical
       const detected = VERTICAL_DISPLAY[ctx.vertical as string]
       if (detected && ctx.confidence >= 0.3) {
         setVertical(detected)
-        if (ctx.company_name && !empresa.trim()) setEmpresa(ctx.company_name)
-        if (ctx.cnpj && !cnpj.trim()) setCnpj(ctx.cnpj)
-        if (ctx.telefone && !telefone.trim()) setTelefone(ctx.telefone)
       }
       // Show context card for any confidence level to let user confirm/adjust
       if (ctx.vertical || ctx.company_name || ctx.cnpj || ctx.telefone) setSiteContext(ctx)
@@ -585,9 +600,11 @@ function StepInfo({
                   <polyline points="20 6 9 17 4 12"/>
                 </svg>
                 Encontrei sua empresa. Já anotei.
-                <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--muted)', background: 'var(--surface2)', padding: '1px 6px', borderRadius: 10, marginLeft: 2 }}>
-                  {Math.round(siteContext.confidence * 100)}% de confiança
-                </span>
+                {siteContext.confidence >= 0.7 ? (
+                  <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--green, #16a34a)', background: 'rgba(22, 163, 74, 0.1)', padding: '1px 7px', borderRadius: 20, marginLeft: 2 }}>Confiança alta</span>
+                ) : siteContext.confidence >= 0.3 ? (
+                  <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--amber, #ca8a04)', background: 'rgba(202, 138, 4, 0.1)', padding: '1px 7px', borderRadius: 20, marginLeft: 2 }}>Confiança média</span>
+                ) : null}
               </div>
 
               {siteContext.confidence < 0.5 && (
@@ -634,6 +651,26 @@ function StepInfo({
                     delay={500}
                   />
                 )}
+                {siteContext.cnpj && (
+                  <div key="cnpj" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <ScrapeField label="CNPJ" value={formatCnpj(siteContext.cnpj)} delay={250} />
+                    {siteContext.confidence >= 0.7 ? (
+                      <span style={{ color: '#16a34a', background: '#dcfce7', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança alta</span>
+                    ) : siteContext.confidence >= 0.3 ? (
+                      <span style={{ color: '#ca8a04', background: '#fef9c3', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança média</span>
+                    ) : null}
+                  </div>
+                )}
+                {siteContext.telefone && (
+                  <div key="telefone" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <ScrapeField label="Telefone" value={siteContext.telefone} delay={500} />
+                    {siteContext.confidence >= 0.7 ? (
+                      <span style={{ color: '#16a34a', background: '#dcfce7', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança alta</span>
+                    ) : siteContext.confidence >= 0.3 ? (
+                      <span style={{ color: '#ca8a04', background: '#fef9c3', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança média</span>
+                    ) : null}
+                  </div>
+                )}
               </div>
 
               {/* Contextual questions — feed saveDraft via produtoServico */}
@@ -658,11 +695,11 @@ function StepInfo({
           <div className="field">
             <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               Setor *
-              {siteContext && siteContext.confidence >= 0.5 && (
-                <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--blue3)', background: 'var(--blue-tint, rgba(59,130,246,.1))', padding: '1px 7px', borderRadius: 20 }}>
-                  detectado automaticamente
-                </span>
-              )}
+              {siteContext && siteContext.confidence >= 0.7 ? (
+                <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--green, #16a34a)', background: 'rgba(22, 163, 74, 0.1)', padding: '1px 7px', borderRadius: 20 }}>detectado automaticamente</span>
+              ) : siteContext && siteContext.confidence >= 0.3 ? (
+                <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--amber, #ca8a04)', background: 'rgba(202, 138, 4, 0.1)', padding: '1px 7px', borderRadius: 20 }}>detectado — confiança média</span>
+              ) : null}
             </label>
             <div className="radio-pills">
               {VERTICALS.map(v => (
@@ -950,7 +987,7 @@ function StepData({
   saveDraft: (patch: Partial<OnboardingDraft>) => Promise<void>
   onMappingReady: (result: ColumnMappingResult | null) => void
   onCredentialCollected: (platform: ConnectorPlatform, nomServico: string, credentials: CredentialPayload) => void
-  onCsvFileReady: (file: File | null, sheetName?: string) => void
+  onCsvFileReady: (file: File | null, sheetName?: string, schemaType?: string) => void
   onDriveFileReady: (fileId: string) => void
 }) {
   const [connected, setConnected] = useState<Record<string, boolean>>({})
@@ -959,7 +996,10 @@ function StepData({
   const [csvUploaded, setCsvUploaded] = useState(false)
   const [csvHeaders, setCsvHeaders] = useState<string[]>([])
   const [csvFileName, setCsvFileName] = useState<string>('')
+  const [csvClassification, setCsvClassification] = useState<CsvClassification | null>(null)
+  const [showClassificationModal, setShowClassificationModal] = useState(false)
   const csvRef = useRef<HTMLInputElement>(null)
+  const csvFileRef = useRef<File | null>(null)
   const [driveOpen, setDriveOpen] = useState(false)
   const [driveUrl, setDriveUrl] = useState('')
   const [driveConnected, setDriveConnected] = useState(false)
@@ -1074,11 +1114,13 @@ function StepData({
   async function handleCsvChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    setCsvUploaded(true)
+    // Only set file info, not csvUploaded — modal will confirm
     setCsvFileName(file.name)
     const { headers, sheetName } = await parseSpreadsheetHeaders(file)
     setCsvHeaders(headers)
-    onCsvFileReady(file, sheetName)
+    // Store file ref for later use
+    csvFileRef.current = file
+    setShowClassificationModal(true)
   }
 
   async function handleNext() {
@@ -1088,7 +1130,8 @@ function StepData({
     ]
     await saveDraft({ systems, csvUploaded })
     // Match CSV columns if uploaded; BQ columns are discovered in StepLaunch
-    const mappingResult = csvHeaders.length > 0 ? await callMatchColumns(csvHeaders) : null
+    const schemaType = csvClassification?.schemaType || 'invoices'
+    const mappingResult = csvHeaders.length > 0 ? await callMatchColumns(csvHeaders, schemaType) : null
     onMappingReady(mappingResult)
     onNext(mappingResult)
   }
@@ -1203,6 +1246,81 @@ function StepData({
                   Confirmar arquivo
                 </button>
               </div>
+            </div>
+          )}
+          {csvHeaders.length > 0 && showClassificationModal && (
+            <div style={{ marginTop: 16, padding: 16, background: 'var(--surface)', border: '1px solid var(--gb)', borderRadius: 'var(--rl)' }}>
+              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>
+                Qual o tipo de dados desta planilha?
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
+                Detectamos {csvHeaders.length} colunas. Selecione o tipo que melhor descreve esta planilha.
+              </div>
+              {(showSchemaTypeRadios || !csvClassification?.schemaType) && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer', fontSize: 13 }}>
+                    <input type="radio" name="csvSchemaType" value="invoices" checked={(csvClassification?.schemaType ?? 'invoices') === 'invoices'} onChange={() => setCsvClassification({ confirmed: false, schemaType: 'invoices', canceled: false })} />
+                    <span><strong>Notas Fiscais / Faturamento</strong> — invoices, NF-e, NFC-e, recibos de venda.</span>
+                  </label>
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer', fontSize: 13 }}>
+                    <input type="radio" name="csvSchemaType" value="fato_transacoes" checked={csvClassification?.schemaType === 'fato_transacoes'} onChange={() => setCsvClassification({ confirmed: false, schemaType: 'fato_transacoes', canceled: false })} />
+                    <span><strong>Transacoes Financeiras</strong> — fato_transacoes, lancamentos, receitas, despesas.</span>
+                  </label>
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer', fontSize: 13 }}>
+                    <input type="radio" name="csvSchemaType" value="dim_clientes" checked={csvClassification?.schemaType === 'dim_clientes'} onChange={() => setCsvClassification({ confirmed: false, schemaType: 'dim_clientes', canceled: false })} />
+                    <span><strong>Clientes</strong> — dim_clientes, cadastro de clientes.</span>
+                  </label>
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer', fontSize: 13 }}>
+                    <input type="radio" name="csvSchemaType" value="dim_inventory" checked={csvClassification?.schemaType === 'dim_inventory'} onChange={() => setCsvClassification({ confirmed: false, schemaType: 'dim_inventory', canceled: false })} />
+                    <span><strong>Estoque / Produtos</strong> — dim_inventory, SKU, produtos, catalogo.</span>
+                  </label>
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn btn-primary" onClick={() => {
+                  const schemaType = csvClassification?.schemaType || 'invoices'
+                  setCsvUploaded(true)
+                  setCsvClassification({ confirmed: true, schemaType, canceled: false })
+                  setShowClassificationModal(false)
+                  setShowSchemaTypeRadios(false)
+                  const file = csvFileRef.current
+                  if (file) onCsvFileReady(file, undefined, schemaType)
+                }}>Confirmar</button>
+                {!showSchemaTypeRadios && (
+                  <button className="btn btn-ghost" onClick={() => setShowSchemaTypeRadios(true)}>Alterar tipo</button>
+                )}
+                <button className="btn btn-ghost" onClick={() => {
+                  setCsvFileName('')
+                  setCsvHeaders([])
+                  setCsvUploaded(false)
+                  setCsvClassification(null)
+                  setShowClassificationModal(false)
+                  csvFileRef.current = null
+                  onCsvFileReady(null)
+                }}>Cancelar</button>
+              </div>
+              {csvClassification && !csvClassification.confirmed && (
+                <div className="field">
+                  <label>schemaType:</label>
+                  <select value={csvClassification.schemaType} onChange={e => {
+                    setCsvClassification(prev => prev ? { ...prev, schemaType: e.target.value } : { confirmed: false, schemaType: e.target.value, canceled: false })
+                    if (e.target.value !== '') {
+                      setCsvUploaded(true)
+                      setCsvClassification({ confirmed: true, schemaType: e.target.value, canceled: false })
+                      setShowClassificationModal(false)
+                      const file = csvFileRef.current
+                      if (file) onCsvFileReady(file, undefined, e.target.value)
+                    }
+                  }}>
+                    <option value="">Selecione…</option>
+                    <option value="invoices">invoices</option>
+                    <option value="receipts">receipts</option>
+                    <option value="bank_statements">bank_statements</option>
+                    <option value="outros">outros</option>
+                    <option value="Nao sei">Nao sei (sugere via LLM)</option>
+                  </select>
+                </div>
+              )}
             </div>
           )}
           <input
@@ -1507,13 +1625,14 @@ function StepMapping({
 
 // ─── StepLaunch ───────────────────────────────────────────────────────────────
 
-function StepLaunch({ bootstrap, pendingCredentials, onDone, website, csvFile, csvSheetName, driveFileId, confirmedColumnMapping }: {
+function StepLaunch({ bootstrap, pendingCredentials, onDone, website, csvFile, csvSheetName, csvSchemaType, driveFileId, confirmedColumnMapping }: {
   bootstrap: () => Promise<{ client_id: string; agents: number; routines: number; prompts_seeded: number }>
   pendingCredentials: PendingCredential[]
   onDone: (mappingResult: ColumnMappingResult | null, credentialId: number | null, clientId: string, csvSourceId: string | null) => void
   website?: string
   csvFile?: File | null
   csvSheetName?: string
+  csvSchemaType?: string
   driveFileId?: string | null
   confirmedColumnMapping?: Record<string, string>
 }) {
@@ -1631,7 +1750,7 @@ function StepLaunch({ bootstrap, pendingCredentials, onDone, website, csvFile, c
             const form = new FormData()
             form.append('file', csvFile)
             form.append('client_id', result.client_id)
-            form.append('schema_type', 'invoices')
+            form.append('schema_type', csvSchemaType || 'invoices')
             if (csvSheetName) form.append('sheet_name', csvSheetName)
             const { data: uploadData, error: uploadErr } = await supabase.functions.invoke('upload-csv-source', {
               body: form,
@@ -1682,7 +1801,7 @@ function StepLaunch({ bootstrap, pendingCredentials, onDone, website, csvFile, c
           }
           try {
             const { data: driveData, error: driveErr } = await supabase.functions.invoke('upload-drive-source', {
-              body: { client_id: result.client_id, drive_file_id: driveFileId, schema_type: 'invoices' },
+              body: { client_id: result.client_id, drive_file_id: driveFileId, schema_type: csvSchemaType || 'invoices' },
             })
             if (!driveErr && driveData?.source_id) {
               if (!cancelledRef.current) {
@@ -1789,6 +1908,7 @@ export default function OnboardingApp() {
   const [bqClientId, setBqClientId] = useState<string | null>(null)
   const [csvFile, setCsvFile] = useState<File | null>(null)
   const [csvSheetName, setCsvSheetName] = useState<string>('')
+  const [csvSchemaType, setCsvSchemaType] = useState<string>('invoices')
   const [csvSourceId, setCsvSourceId] = useState<string | null>(null)
   const [driveFileId, setDriveFileId] = useState<string | null>(null)
 
@@ -1819,6 +1939,7 @@ export default function OnboardingApp() {
 
   // When user is authenticated at the auth step, route based on profile state.
   // Handles: (a) existing session on /onboarding?mode=login, (b) return from Google OAuth.
+  // Uses centralized RPC is_onboarded_client() (multi-signal check).
   const clientIdChecked = useRef(false)
   useEffect(() => {
     if (loading || !user || step !== 'auth') return
@@ -1826,40 +1947,59 @@ export default function OnboardingApp() {
     if (clientIdChecked.current) return
     clientIdChecked.current = true
     let cancelled = false
-    supabase.rpc('get_my_client_id').then(
-      async ({ data: clientId }) => {
-        if (cancelled) return
-        if (clientId) {
-          // Profile exists — but it may be a provisional row (ensure_tenant_row)
-          // created mid-onboarding. Only redirect to /app when onboarding is done.
-          const { data: row } = await supabase
-            .from('clientes_blu')
-            .select('onboarding_completed_at')
-            .eq('client_id', clientId)
-            .maybeSingle()
 
-          if (row?.onboarding_completed_at) {
-            navigate('/app', { replace: true })
-          } else if (localStorage.getItem('onboarding_returning_to_data') === '1') {
-            // User came back from Drive OAuth during the data step — restore it.
-            localStorage.removeItem('onboarding_returning_to_data')
-            if (!cancelled) setStep('data')
-          } else {
-            // Provisional profile without completed onboarding — resume from info.
-            if (!cancelled) setStep('info')
-          }
+    // Use the centralized RPC that checks multiple "is this a real client" signals
+    supabase.rpc('is_onboarded_client').then(
+      ({ data: onboarded }) => {
+        if (cancelled) return
+
+        if (onboarded) {
+          // Client is onboarded by any signal — go to app
+          navigate('/app', { replace: true })
+        } else if (localStorage.getItem('onboarding_returning_to_data') === '1') {
+          // User came back from Drive OAuth during the data step — restore it.
+          localStorage.removeItem('onboarding_returning_to_data')
+          if (!cancelled) setStep('data')
         } else {
-          // New user — provision the clientes_blu row immediately so that Drive
-          // OAuth token capture (which happens during the data step) finds a valid
-          // tenant. onboarding_bootstrap_tx will update it later with full info.
-          try { await supabase.rpc('ensure_tenant_row') } catch { /* best-effort */ }
-          if (!cancelled) setStep('info')
+          // New or provisional client — ensure tenant row and show onboarding
+          supabase.rpc('get_my_client_id').then(
+            ({ data: clientId }) => {
+              if (cancelled) return
+              if (!clientId) {
+                supabase.rpc('ensure_tenant_row').then(() => {}, () => {})
+              }
+              if (!cancelled) setStep('info')
+            },
+            () => { if (!cancelled) setStep('info') }
+          )
         }
       },
       () => {
-        if (!cancelled) setStep('info')
-      },
+        // RPC failed gracefully — fall back to original behavior
+        supabase.rpc('get_my_client_id').then(
+          async ({ data: clientId }) => {
+            if (cancelled) return
+            if (clientId) {
+              const { data: row } = await supabase
+                .from('clientes_blu')
+                .select('onboarding_completed_at')
+                .eq('client_id', clientId)
+                .maybeSingle()
+              if (row?.onboarding_completed_at) {
+                navigate('/app', { replace: true })
+              } else if (!cancelled) {
+                setStep('info')
+              }
+            } else {
+              try { await supabase.rpc('ensure_tenant_row') } catch { /* best-effort */ }
+              if (!cancelled) setStep('info')
+            }
+          },
+          () => { if (!cancelled) setStep('info') }
+        )
+      }
     )
+
     return () => { cancelled = true }
   }, [user?.id, loading, step, navigate])
 
@@ -1906,7 +2046,11 @@ export default function OnboardingApp() {
         onSkip={() => go('launch')}
         saveDraft={saveDraft}
         onMappingReady={setMappingResult}
-        onCsvFileReady={(file, sheetName) => { setCsvFile(file); setCsvSheetName(sheetName ?? '') }}
+        onCsvFileReady={(file, sheetName, schemaType) => {
+          setCsvFile(file)
+          setCsvSheetName(sheetName ?? '')
+          if (schemaType) setCsvSchemaType(schemaType)
+        }}
         onDriveFileReady={(fileId) => setDriveFileId(fileId)}
         onCredentialCollected={(platform, nomServico, credentials) =>
           setPendingCredentials(prev => [
@@ -1940,6 +2084,7 @@ export default function OnboardingApp() {
       website={draft.website || undefined}
       csvFile={csvFile}
       csvSheetName={csvSheetName}
+      csvSchemaType={csvSchemaType}
       driveFileId={driveFileId}
       confirmedColumnMapping={confirmedColumnMapping ?? undefined}
       onDone={(bqMapping, credentialId, clientId, uploadedCsvSourceId) => {

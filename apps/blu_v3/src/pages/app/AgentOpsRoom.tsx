@@ -12,6 +12,8 @@ import {
   type SyncJob,
   type Credential,
 } from '../../api/agentOps'
+import EmptyState from '../../components/shared/EmptyState'
+import LoadingState from '../../components/shared/LoadingState'
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
@@ -122,11 +124,15 @@ function SessionsTab({ clientId }: { clientId: string }) {
     staleTime: 15_000,
   })
 
-  if (isLoading) return <div style={{ padding: 24, color: 'var(--mu)', fontSize: 12 }}>Carregando sessões…</div>
+  if (isLoading) return <LoadingState message="Carregando sessões…" />
 
   if (sessions.length === 0) return (
-    <div style={{ padding: 40, textAlign: 'center', color: 'var(--mu)', fontSize: 12 }}>
-      Nenhuma sessão registrada ainda.
+    <div style={{ padding: 40, textAlign: 'center' }}>
+      <EmptyState
+        icon="🛰"
+        title="Nenhuma sessão registrada ainda"
+        description="Sessões de agentes aparecerão aqui assim que forem iniciadas."
+      />
     </div>
   )
 
@@ -180,7 +186,11 @@ function SessionsTab({ clientId }: { clientId: string }) {
                         Mensagens da sessão {msgLoading ? '· carregando…' : `· ${messages.length}`}
                       </div>
                       {messages.length === 0 && !msgLoading ? (
-                        <div style={{ fontSize: 11, color: 'var(--mu)' }}>Nenhuma mensagem nesta sessão.</div>
+                        <EmptyState
+                          icon="💬"
+                          title="Nenhuma mensagem nesta sessão"
+                          description="As mensagens trocadas com o agente aparecerão aqui."
+                        />
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 220, overflowY: 'auto' }}>
                           {messages.map(m => (
@@ -234,11 +244,15 @@ function JobsTab() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['ops-jobs'] }),
   })
 
-  if (isLoading) return <div style={{ padding: 24, color: 'var(--mu)', fontSize: 12 }}>Carregando jobs…</div>
+  if (isLoading) return <LoadingState message="Carregando jobs…" />
 
   if (jobs.length === 0) return (
-    <div style={{ padding: 40, textAlign: 'center', color: 'var(--mu)', fontSize: 12 }}>
-      Nenhum job de sincronização encontrado.
+    <div style={{ padding: 40, textAlign: 'center' }}>
+      <EmptyState
+        icon="⚙️"
+        title="Nenhum job de sincronização encontrado"
+        description="Jobs de sincronização aparecerão aqui assim que forem executados."
+      />
     </div>
   )
 
@@ -337,11 +351,15 @@ function CredentialsTab({ clientId }: { clientId: string }) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['ops-credentials', clientId] }),
   })
 
-  if (isLoading) return <div style={{ padding: 24, color: 'var(--mu)', fontSize: 12 }}>Carregando credenciais…</div>
+  if (isLoading) return <LoadingState message="Carregando credenciais…" />
 
   if (creds.length === 0) return (
-    <div style={{ padding: 40, textAlign: 'center', color: 'var(--mu)', fontSize: 12 }}>
-      Nenhuma credencial configurada.
+    <div style={{ padding: 40, textAlign: 'center' }}>
+      <EmptyState
+        icon="🔑"
+        title="Nenhuma credencial configurada"
+        description="Credenciais de APIs e integrações aparecerão aqui assim que forem configuradas."
+      />
     </div>
   )
 

@@ -600,11 +600,12 @@ def test_b8_validate_cnpj_canary_executes_correct_algorithm():
     # (2) calls it against the test vectors, (3) prints JSON.
     valid_cnpjs = (
         "11222333000181",
-        "60746948000112",
+        "04337168000158",
         "11444777000161",
     )
     invalid_cnpjs = (
         "11222333000182",
+        "00000000000000",
         "11111111111111",
         "12345678901234",
     )

@@ -432,6 +432,7 @@ function StepAuth({ onNext, mode }: { onNext: () => void; mode: 'login' | 'signu
 
 interface SiteContext {
   company_name?: string
+  cnpj?: string
   vertical?: string
   confidence: number
   suggested_agents?: string[]
@@ -493,11 +494,17 @@ function StepInfo({
       })
       if (error || !data) return
       const ctx = data as SiteContext
-      // Auto-fill vertical and company name if confidence is high enough
+      // Auto-fill company name
+      if (ctx.company_name && !empresa.trim()) setEmpresa(ctx.company_name)
+      // Auto-fill CNPJ
+      if (ctx.cnpj && !cnpj.trim()) {
+        setCnpj(ctx.cnpj)
+        setCnpj(prev => prev.replace(/\D/g, ""))
+      }
+      // Auto-fill vertical
       const detected = VERTICAL_DISPLAY[ctx.vertical as string]
-      if (detected && ctx.confidence >= 0.5) {
+      if (detected && ctx.confidence >= 0.3) {
         setVertical(detected)
-        if (ctx.company_name && !empresa.trim()) setEmpresa(ctx.company_name)
       }
       // Show context card for any confidence level to let user confirm/adjust
       if (ctx.vertical || ctx.company_name) setSiteContext(ctx)
@@ -590,9 +597,11 @@ function StepInfo({
                   <polyline points="20 6 9 17 4 12"/>
                 </svg>
                 Encontrei sua empresa. Já anotei.
-                <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--muted)', background: 'var(--surface2)', padding: '1px 6px', borderRadius: 10, marginLeft: 2 }}>
-                  {Math.round(siteContext.confidence * 100)}% de confiança
-                </span>
+                {siteContext.confidence >= 0.7 ? (
+                  <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--green, #16a34a)', background: 'rgba(22, 163, 74, 0.1)', padding: '1px 7px', borderRadius: 20, marginLeft: 2 }}>Confiança alta</span>
+                ) : siteContext.confidence >= 0.3 ? (
+                  <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--amber, #ca8a04)', background: 'rgba(202, 138, 4, 0.1)', padding: '1px 7px', borderRadius: 20, marginLeft: 2 }}>Confiança média</span>
+                ) : null}
               </div>
 
               {siteContext.confidence < 0.5 && (
@@ -653,11 +662,11 @@ function StepInfo({
           <div className="field">
             <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               Setor *
-              {siteContext && siteContext.confidence >= 0.5 && (
-                <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--blue3)', background: 'var(--blue-tint, rgba(59,130,246,.1))', padding: '1px 7px', borderRadius: 20 }}>
-                  detectado automaticamente
-                </span>
-              )}
+              {siteContext && siteContext.confidence >= 0.7 ? (
+                <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--green, #16a34a)', background: 'rgba(22, 163, 74, 0.1)', padding: '1px 7px', borderRadius: 20 }}>detectado automaticamente</span>
+              ) : siteContext && siteContext.confidence >= 0.3 ? (
+                <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--amber, #ca8a04)', background: 'rgba(202, 138, 4, 0.1)', padding: '1px 7px', borderRadius: 20 }}>detectado — confiança média</span>
+              ) : null}
             </label>
             <div className="radio-pills">
               {VERTICALS.map(v => (

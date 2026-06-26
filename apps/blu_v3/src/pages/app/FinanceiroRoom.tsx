@@ -677,7 +677,7 @@ export default function FinanceiroRoom() {
         <div className="rcol">
           <RColResizeHandle />
 
-          <CollapsiblePanel id="fin-contas" icon="🏦" title="Contas" action={<button className="ph-add" onClick={() => openChatWith('Quero adicionar uma nova conta bancária')}>＋</button>}>
+          <CollapsiblePanel id="fin-contas" icon="🏦" title="Contas" action={<button className="btn bp" style={{ fontSize: 10, padding: '3px 8px' }} onClick={() => openChatWith('Quero conectar minha conta bancaria via Open Finance')}>Conectar Banco</button>}>
             <div className="dr-sec">
               {polpAccountsQ.isLoading && [0,1].map(i => (
                 <div key={i} style={{ padding: '8px 0', opacity: 0.4, display: 'flex', gap: 8, alignItems: 'center' }}>

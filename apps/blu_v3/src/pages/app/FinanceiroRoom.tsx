@@ -22,7 +22,7 @@ import AnalyticsPanel from '../../components/shared/AnalyticsPanel'
 import { snoozeUntil } from '../../utils/time'
 import { formatBRL } from '../../utils/formatters'
 
-type Tab = 'decisoes' | 'compromissos' | 'tarefas' | 'historico' | 'config'
+type Tab = 'decisoes' | 'transacoes' | 'tarefas' | 'config'
 
 
 function fmtCompact(value: number | null): string {
@@ -129,6 +129,7 @@ export default function FinanceiroRoom() {
   const qc = useQueryClient()
   const [tab, setTab] = useState<Tab>('decisoes')
   const [analyticsPeriod, setAnalyticsPeriod] = useState<'30d' | '90d' | '1y'>('30d')
+  const [txPeriod, setTxPeriod] = useState<'hoje' | '7d' | '30d' | 'tudo'>('30d')
   const [queuedBillIds, setQueuedBillIds] = useState<Set<string>>(new Set())
   const [editingTxId, setEditingTxId] = useState<string | null>(null)
   const { data: localCategories = {} } = useTxCategories()
@@ -260,11 +261,10 @@ export default function FinanceiroRoom() {
             <span className="ph-cnt">{pendingCount} pendente{pendingCount !== 1 ? 's' : ''}</span>
           </div>
           <div className="rtabs" id="fTabs">
-            {(['decisoes', 'compromissos', 'tarefas', 'historico', 'config'] as Tab[]).map(t => (
+            {(['decisoes', 'transacoes', 'tarefas', 'config'] as Tab[]).map(t => (
               <div key={t} className={`rtab${tab === t ? ' on' : ''}`} onClick={() => setTab(t)}>
                 {t === 'decisoes' ? <>Decisões {pendingCount > 0 && <span className="tbdg">{pendingCount}</span>}</>
-                  : t === 'compromissos' ? <>Compromissos {polpBills.filter(b => b.status !== 'CLOSED').length > 0 && <span className="tbdg">{polpBills.filter(b => b.status !== 'CLOSED').length}</span>}</>
-                  : t === 'historico' ? 'Histórico'
+                  : t === 'transacoes' ? <>Transações {polpBills.filter(b => b.status !== 'CLOSED').length > 0 && <span className="tbdg">{polpBills.filter(b => b.status !== 'CLOSED').length}</span>}</>
                   : t.charAt(0).toUpperCase() + t.slice(1)}
               </div>
             ))}
@@ -309,17 +309,30 @@ export default function FinanceiroRoom() {
               </div>
             </div>
 
-            {/* COMPROMISSOS */}
-            <div className={`tc${tab === 'compromissos' ? ' on' : ''}`} id="f-compromissos">
-              {polpBillsQ.isLoading && (
-                <div style={{ padding: '12px 0', color: 'var(--mu)', fontSize: 12 }}>Carregando…</div>
-              )}
-              {!polpBillsQ.isLoading && polpBills.length === 0 && (
-                <div style={{ padding: '12px 0', color: 'var(--mu)', fontSize: 12 }}>
-                  Nenhuma fatura encontrada. Conecte suas contas em Integrações.
-                </div>
-              )}
+            {/* TRANSAÇÕES */}
+            <div className={`tc${tab === 'transacoes' ? ' on' : ''}`} id="f-transacoes">
+              <div style={{ display: 'flex', gap: 4, padding: '4px 0 8px', borderBottom: '1px solid var(--gb)', marginBottom: 8 }}>
+                {(['hoje', '7d', '30d', 'tudo'] as const).map(p => (
+                  <button
+                    key={p}
+                    onClick={() => setTxPeriod(p)}
+                    className={txPeriod === p ? 'btn bp' : 'btn bs'}
+                    style={{ fontSize: 11, padding: '3px 10px' }}
+                  >
+                    {p === 'hoje' ? 'Hoje' : p === '7d' ? '7 dias' : p === '30d' ? '30 dias' : 'Tudo'}
+                  </button>
+                ))}
+              </div>
               {(() => {
+                // Period filter: symmetric window around today
+                const todayMs = new Date().setHours(0, 0, 0, 0)
+                const daysWindow = txPeriod === 'hoje' ? 0 : txPeriod === '7d' ? 7 : txPeriod === '30d' ? 30 : Infinity
+                const inPeriod = (iso: string) => {
+                  if (txPeriod === 'tudo') return true
+                  const d = new Date(iso).setHours(0, 0, 0, 0)
+                  return Math.abs(d - todayMs) / 86400000 <= daysWindow
+                }
+
                 // Deduplicate: show only the most recent cycle per card
                 const latestPerAccount = polpBills.reduce<Map<number, PolpBill>>((map, bill) => {
                   const ex = map.get(bill.polp_account_id)
@@ -327,19 +340,17 @@ export default function FinanceiroRoom() {
                   return map
                 }, new Map())
                 const dedupedBills = [...latestPerAccount.values()].sort((a, b) => a.due_date.localeCompare(b.due_date))
+                const filteredBills = dedupedBills.filter(b => inPeriod(b.due_date))
+                const filteredTx = polpTransactions.filter(tx => inPeriod(tx.date))
 
                 // Older open cycles per account (to show summary)
                 const olderCycles = (acctId: number, latestDue: string) =>
                   polpBills.filter(b => b.polp_account_id === acctId && b.due_date < latestDue)
 
-                const today = new Date(); today.setHours(0, 0, 0, 0)
-                const overdue = dedupedBills.filter(b => new Date(b.due_date) < today)
-                const upcoming = dedupedBills.filter(b => new Date(b.due_date) >= today)
-
                 const BillRow = ({ bill }: { bill: PolpBill }) => {
                   const dueDate = new Date(bill.due_date)
-                  const todayMs = new Date().setHours(0, 0, 0, 0)
-                  const daysUntil = Math.round((dueDate.getTime() - todayMs) / 86400000)
+                  const todayMsRow = new Date().setHours(0, 0, 0, 0)
+                  const daysUntil = Math.round((dueDate.getTime() - todayMsRow) / 86400000)
                   const isOverdue = daysUntil < 0
                   const isSoon = daysUntil <= 3 && !isOverdue
                   const isClosed = bill.status === 'CLOSED'
@@ -433,24 +444,135 @@ export default function FinanceiroRoom() {
                 }
 
                 return (
-                  <div className="dl">
-                    {overdue.length > 0 && (
-                      <>
-                        <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--urg)', letterSpacing: '0.06em', textTransform: 'uppercase', padding: '8px 0 4px' }}>
-                          Atrasadas ({overdue.length})
-                        </div>
-                        {overdue.map(b => <BillRow key={b.id} bill={b} />)}
-                      </>
+                  <>
+                    <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--mu)', letterSpacing: '0.06em', textTransform: 'uppercase', padding: '8px 0 4px' }}>
+                      Contas a pagar ({filteredBills.length})
+                    </div>
+                    {polpBillsQ.isLoading && (
+                      <div style={{ padding: '4px 0 8px', color: 'var(--mu)', fontSize: 12 }}>Carregando…</div>
                     )}
-                    {upcoming.length > 0 && (
-                      <>
-                        <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--mu)', letterSpacing: '0.06em', textTransform: 'uppercase', padding: '8px 0 4px' }}>
-                          Próximas ({upcoming.length})
-                        </div>
-                        {upcoming.map(b => <BillRow key={b.id} bill={b} />)}
-                      </>
+                    {!polpBillsQ.isLoading && filteredBills.length === 0 && (
+                      <div style={{ padding: '4px 0 8px', color: 'var(--mu)', fontSize: 12 }}>
+                        {txPeriod === 'tudo'
+                          ? 'Nenhuma fatura encontrada. Conecte suas contas em Integrações.'
+                          : 'Nenhuma fatura neste período.'}
+                      </div>
                     )}
-                  </div>
+                    {filteredBills.map(b => <BillRow key={b.id} bill={b} />)}
+
+                    <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--mu)', letterSpacing: '0.06em', textTransform: 'uppercase', padding: '12px 0 4px', borderTop: '1px solid var(--gb)', marginTop: 8 }}>
+                      Histórico ({filteredTx.length})
+                    </div>
+                    {polpTxQ.isLoading && [0,1,2].map(i => (
+                      <div key={i} style={{ padding: '8px 0', opacity: 0.4, display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <div style={{ background: 'var(--gb)', borderRadius: 3, height: 12, width: 32 }} />
+                        <div style={{ background: 'var(--gb)', borderRadius: 3, height: 12, flex: 1 }} />
+                        <div style={{ background: 'var(--gb)', borderRadius: 3, height: 12, width: 60 }} />
+                      </div>
+                    ))}
+                    {!polpTxQ.isLoading && filteredTx.length === 0 && (
+                      <div style={{ color: 'var(--mu)', fontSize: 12, padding: '4px 0 8px' }}>
+                        {txPeriod === 'tudo'
+                          ? 'Nenhuma transação encontrada. Conecte suas contas bancárias em Integrações.'
+                          : 'Nenhuma transação neste período.'}
+                      </div>
+                    )}
+                    {filteredTx.map(tx => {
+                      const isCredit = tx.type === 'CREDIT'
+                      const isPending = tx.status === 'PENDING'
+
+                      const pd = tx.payment_data
+                      const pixReceiverName = pd?.paymentMethod === 'PIX' ? pd?.receiver?.name ?? null : null
+                      const merchant = tx.merchant as Record<string, unknown> | null
+                      // Usar logo do merchant do Polp diretamente (CDN confiável)
+                      const merchantLogo = (merchant?.logo_url as string | null) ?? null
+                      const label = (merchant?.name as string | null) ?? pixReceiverName ?? tx.description ?? '—'
+
+                      const MCC: Record<string, string> = {
+                        '4121': 'Transporte', '4511': 'Passagens', '4814': 'Telecom',
+                        '5411': 'Supermercado', '5732': 'Eletrônicos', '5812': 'Restaurante',
+                        '5814': 'Fast food', '5912': 'Farmácia', '7011': 'Hotel',
+                        '7372': 'Software', '7991': 'Lazer', '8099': 'Saúde',
+                      }
+                      const ccm = tx.credit_card_metadata
+                      const mccLabel = ccm?.payeeMCC ? MCC[ccm.payeeMCC] ?? null : null
+                      const cat = tx.category as Record<string, unknown> | null
+                      const pluggyCat = cat?.description as string | undefined
+                      const fingerprint = getTxFingerprint(tx)
+                      const categoryLabel = localCategories[fingerprint] ?? pluggyCat ?? mccLabel ?? null
+                      const isEditing = editingTxId === tx.id
+
+                      const saveCategory = (val: string) => {
+                        const trimmed = val.trim()
+                        if (trimmed) {
+                          saveCategoryMut.mutate({ ...localCategories, [fingerprint]: trimmed })
+                        }
+                        setEditingTxId(null)
+                      }
+
+                      return (
+                        <div key={tx.id} style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 6,
+                          padding: '5px 0',
+                          borderBottom: '1px solid var(--gb)',
+                          overflow: 'hidden',
+                        }}>
+                          {/* Icon */}
+                          <span style={{ position: 'relative', width: 16, height: 16, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <span style={{ fontSize: 13, lineHeight: 1 }}>{getTxIcon(tx)}</span>
+                            {merchantLogo && (
+                              <img src={merchantLogo} alt=""
+                                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                                style={{ position: 'absolute', inset: 0, width: 16, height: 16, borderRadius: 3, objectFit: 'contain', background: 'var(--sb)' }}
+                              />
+                            )}
+                          </span>
+                          {/* Name */}
+                          <span style={{ flex: '1 1 0', minWidth: 0, maxWidth: '42%', fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isPending ? 'var(--mu)' : 'var(--fg)' }}>
+                            {label}
+                          </span>
+                          {/* Category — dropdown */}
+                          {isEditing ? (
+                            <select
+                              autoFocus
+                              value={categoryLabel ?? ''}
+                              style={{ width: 100, fontSize: 11, background: 'var(--sb)', border: '1px solid var(--ac)', borderRadius: 3, padding: '2px 4px', color: 'var(--fg)', outline: 'none', flexShrink: 0, cursor: 'pointer' }}
+                              onChange={(e) => saveCategory(e.currentTarget.value)}
+                              onBlur={() => setEditingTxId(null)}
+                              onKeyDown={(e) => { if (e.key === 'Escape') setEditingTxId(null) }}
+                            >
+                              <option value="">— categoria —</option>
+                              {TX_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                          ) : (
+                            <button
+                              onClick={() => setEditingTxId(tx.id)}
+                              style={{
+                                fontSize: 11, flexShrink: 0, cursor: 'pointer', whiteSpace: 'nowrap',
+                                background: categoryLabel ? 'color-mix(in srgb,var(--fg) 8%,transparent)' : 'transparent',
+                                border: categoryLabel ? '1px solid color-mix(in srgb,var(--fg) 12%,transparent)' : '1px dashed color-mix(in srgb,var(--fg) 22%,transparent)',
+                                borderRadius: 3, padding: '2px 6px',
+                                color: categoryLabel ? 'var(--mu)' : 'color-mix(in srgb,var(--fg) 28%,transparent)',
+                              }}
+                            >
+                              {categoryLabel ?? '+ cat'}
+                            </button>
+                          )}
+                          {/* Date */}
+                          <span style={{ fontSize: 11, color: 'var(--mu)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                            {new Date(tx.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                          </span>
+                          {/* Amount */}
+                          <span style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0, minWidth: 72, textAlign: 'right', color: isCredit ? 'var(--ok)' : isPending ? 'var(--mu)' : 'var(--fg)' }}>
+                            {isCredit ? '+' : '−'}{formatBRL(Math.abs(tx.amount))}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </>
                 )
               })()}
             </div>
@@ -458,115 +580,6 @@ export default function FinanceiroRoom() {
             {/* TAREFAS */}
             <div className={`tc${tab === 'tarefas' ? ' on' : ''}`} id="f-tarefas">
               <RoutineExecutionFeed domain="financeiro" />
-            </div>
-
-            {/* HISTÓRICO */}
-            <div className={`tc${tab === 'historico' ? ' on' : ''}`} id="f-historico">
-              {polpTxQ.isLoading && [0,1,2].map(i => (
-                <div key={i} style={{ padding: '8px 0', opacity: 0.4, display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <div style={{ background: 'var(--gb)', borderRadius: 3, height: 12, width: 32 }} />
-                  <div style={{ background: 'var(--gb)', borderRadius: 3, height: 12, flex: 1 }} />
-                  <div style={{ background: 'var(--gb)', borderRadius: 3, height: 12, width: 60 }} />
-                </div>
-              ))}
-              {!polpTxQ.isLoading && polpTransactions.length === 0 && (
-                <div style={{ color: 'var(--mu)', fontSize: 12, padding: '12px 0' }}>Nenhuma transação encontrada. Conecte suas contas bancárias em Integrações.</div>
-              )}
-              {polpTransactions.map(tx => {
-                const isCredit = tx.type === 'CREDIT'
-                const isPending = tx.status === 'PENDING'
-
-                const pd = tx.payment_data
-                const pixReceiverName = pd?.paymentMethod === 'PIX' ? pd?.receiver?.name ?? null : null
-                const merchant = tx.merchant as Record<string, unknown> | null
-                // Usar logo do merchant do Polp diretamente (CDN confiável)
-                const merchantLogo = (merchant?.logo_url as string | null) ?? null
-                const label = (merchant?.name as string | null) ?? pixReceiverName ?? tx.description ?? '—'
-
-                const MCC: Record<string, string> = {
-                  '4121': 'Transporte', '4511': 'Passagens', '4814': 'Telecom',
-                  '5411': 'Supermercado', '5732': 'Eletrônicos', '5812': 'Restaurante',
-                  '5814': 'Fast food', '5912': 'Farmácia', '7011': 'Hotel',
-                  '7372': 'Software', '7991': 'Lazer', '8099': 'Saúde',
-                }
-                const ccm = tx.credit_card_metadata
-                const mccLabel = ccm?.payeeMCC ? MCC[ccm.payeeMCC] ?? null : null
-                const cat = tx.category as Record<string, unknown> | null
-                const pluggyCat = cat?.description as string | undefined
-                const fingerprint = getTxFingerprint(tx)
-                const categoryLabel = localCategories[fingerprint] ?? pluggyCat ?? mccLabel ?? null
-                const isEditing = editingTxId === tx.id
-
-                const saveCategory = (val: string) => {
-                  const trimmed = val.trim()
-                  if (trimmed) {
-                    saveCategoryMut.mutate({ ...localCategories, [fingerprint]: trimmed })
-                  }
-                  setEditingTxId(null)
-                }
-
-                return (
-                  <div key={tx.id} style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 6,
-                    padding: '5px 0',
-                    borderBottom: '1px solid var(--gb)',
-                    overflow: 'hidden',
-                  }}>
-                    {/* Icon */}
-                    <span style={{ position: 'relative', width: 16, height: 16, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <span style={{ fontSize: 13, lineHeight: 1 }}>{getTxIcon(tx)}</span>
-                      {merchantLogo && (
-                        <img src={merchantLogo} alt=""
-                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-                          style={{ position: 'absolute', inset: 0, width: 16, height: 16, borderRadius: 3, objectFit: 'contain', background: 'var(--sb)' }}
-                        />
-                      )}
-                    </span>
-                    {/* Name */}
-                    <span style={{ flex: '1 1 0', minWidth: 0, maxWidth: '42%', fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isPending ? 'var(--mu)' : 'var(--fg)' }}>
-                      {label}
-                    </span>
-                    {/* Category — dropdown */}
-                    {isEditing ? (
-                      <select
-                        autoFocus
-                        value={categoryLabel ?? ''}
-                        style={{ width: 100, fontSize: 11, background: 'var(--sb)', border: '1px solid var(--ac)', borderRadius: 3, padding: '2px 4px', color: 'var(--fg)', outline: 'none', flexShrink: 0, cursor: 'pointer' }}
-                        onChange={(e) => saveCategory(e.currentTarget.value)}
-                        onBlur={() => setEditingTxId(null)}
-                        onKeyDown={(e) => { if (e.key === 'Escape') setEditingTxId(null) }}
-                      >
-                        <option value="">— categoria —</option>
-                        {TX_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    ) : (
-                      <button
-                        onClick={() => setEditingTxId(tx.id)}
-                        style={{
-                          fontSize: 11, flexShrink: 0, cursor: 'pointer', whiteSpace: 'nowrap',
-                          background: categoryLabel ? 'color-mix(in srgb,var(--fg) 8%,transparent)' : 'transparent',
-                          border: categoryLabel ? '1px solid color-mix(in srgb,var(--fg) 12%,transparent)' : '1px dashed color-mix(in srgb,var(--fg) 22%,transparent)',
-                          borderRadius: 3, padding: '2px 6px',
-                          color: categoryLabel ? 'var(--mu)' : 'color-mix(in srgb,var(--fg) 28%,transparent)',
-                        }}
-                      >
-                        {categoryLabel ?? '+ cat'}
-                      </button>
-                    )}
-                    {/* Date */}
-                    <span style={{ fontSize: 11, color: 'var(--mu)', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                      {new Date(tx.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
-                    </span>
-                    {/* Amount */}
-                    <span style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0, minWidth: 72, textAlign: 'right', color: isCredit ? 'var(--ok)' : isPending ? 'var(--mu)' : 'var(--fg)' }}>
-                      {isCredit ? '+' : '−'}{formatBRL(Math.abs(tx.amount))}
-                    </span>
-                  </div>
-                )
-              })}
             </div>
 
             {/* CONFIG */}
@@ -863,7 +876,7 @@ export default function FinanceiroRoom() {
             <div className="nums-head">⚙️ Rotinas ativas</div>
             <div style={{ fontSize: 11, color: 'var(--mu)' }}>Ver na aba Tarefas →</div>
           </div>
-          <div className="nums-chip" onClick={() => setTab('historico')}>
+          <div className="nums-chip" onClick={() => setTab('transacoes')}>
             <div className="nums-head">📊 KPIs do mês</div>
             <div className="nums-row">
               <div className="nkpi">

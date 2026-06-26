@@ -2073,6 +2073,13 @@ export default function OnboardingApp() {
   // Handles: (a) existing session on /onboarding?mode=login, (b) return from Google OAuth.
   // Uses centralized RPC is_onboarded_client() (multi-signal check).
   const clientIdChecked = useRef(false)
+
+  // AC1: Reset clientIdChecked when user id changes (signOut → signIn as different user).
+  // Without this, a new sign-in after sign-out skips the onboarding gate.
+  useEffect(() => {
+    clientIdChecked.current = false
+  }, [user?.id])
+
   useEffect(() => {
     if (loading || !user || step !== 'auth') return
     // Guard against multiple firings from repeated auth state events (OAuth emits several)

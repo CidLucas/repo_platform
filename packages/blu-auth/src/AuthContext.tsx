@@ -102,6 +102,11 @@ export function AuthProvider({
       }
 
       setState((s) => ({ ...s, clientId, tier }))
+      console.info('[Auth] initClientId resolved', {
+        clientId,
+        tier,
+        timestamp: new Date().toISOString(),
+      })
     } catch (err) {
       // "Client not found" is a terminal state for new users — don't retry.
       // Only reset the ref for transient errors (network, timeout) so they can retry.
@@ -124,8 +129,17 @@ export function AuthProvider({
       setState((s) => ({ ...s, session, user: session?.user ?? null, loading: false }))
 
       if (session?.user) {
+        console.info('[Auth] initSession — session found', {
+          userId: session.user.id,
+          email: session.user.email,
+          provider: session.user.app_metadata?.provider ?? 'email',
+          isOAuthCallback,
+          timestamp: new Date().toISOString(),
+        })
         onIdentifyUser?.(session.user.id, { email: session.user.email })
         void initClientId()
+      } else {
+        console.info('[Auth] initSession — anonymous', { isOAuthCallback, timestamp: new Date().toISOString() })
       }
 
       // Capture OAuth tokens immediately on redirect (before onAuthStateChange fires
@@ -157,7 +171,15 @@ export function AuthProvider({
           window.location.hash.includes('access_token') ||
           window.location.search.includes('code=')
         if (hasOAuthParams) {
-          window.history.replaceState(null, '', window.location.pathname)
+          // AC5: Preserve ?mode= query param when cleaning OAuth hash/search.
+          // The OAuth redirectTo includes ?mode=login but Supabase's callback
+          // replaces the URL entirely. We clean the OAuth tokens from the URL
+          // but keep any business-significant query params.
+          const modeParam = new URLSearchParams(window.location.search).get('mode')
+          const cleanPath = modeParam
+            ? `${window.location.pathname}?mode=${modeParam}`
+            : window.location.pathname
+          window.history.replaceState(null, '', cleanPath)
         }
 
         if (
@@ -199,11 +221,19 @@ export function AuthProvider({
       setState((s) => ({ ...s, session, user: session?.user ?? null, loading: false }))
 
       if (session?.user && _event !== 'SIGNED_OUT') {
+        console.info('[Auth] onAuthStateChange', {
+          event: _event,
+          userId: session.user.id,
+          email: session.user.email,
+          provider: session.user.app_metadata?.provider ?? 'email',
+          timestamp: new Date().toISOString(),
+        })
         onIdentifyUser?.(session.user.id, { email: session.user.email })
         void initClientId()
       }
 
       if (_event === 'SIGNED_OUT') {
+        console.info('[Auth] onAuthStateChange SIGNED_OUT', { timestamp: new Date().toISOString() })
         clientIdFetchedRef.current = false
         setState({ session: null, user: null, clientId: null, tier: null, loading: false })
         onResetUser?.()
@@ -216,10 +246,16 @@ export function AuthProvider({
 
   const signInWithEmail = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
+    if (!error) {
+      console.info('[Auth] signInWithEmail succeeded', { email, timestamp: new Date().toISOString() })
+    } else {
+      console.warn('[Auth] signInWithEmail failed', { email, error: error.message, timestamp: new Date().toISOString() })
+    }
     return { error }
   }
 
   const signInWithGoogle = async () => {
+    console.info('[Auth] signInWithGoogle — redirecting', { redirectTo: `${window.location.origin}${loginRedirectPath}`, timestamp: new Date().toISOString() })
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: `${window.location.origin}${loginRedirectPath}` },
@@ -228,6 +264,7 @@ export function AuthProvider({
   }
 
   const signInWithMicrosoft = async () => {
+    console.info('[Auth] signInWithMicrosoft — redirecting', { redirectTo: `${window.location.origin}${loginRedirectPath}`, timestamp: new Date().toISOString() })
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'azure',
       options: { redirectTo: `${window.location.origin}${loginRedirectPath}`, scopes: 'email' },
@@ -236,6 +273,7 @@ export function AuthProvider({
   }
 
   const signInWithApple = async () => {
+    console.info('[Auth] signInWithApple — redirecting', { redirectTo: `${window.location.origin}${loginRedirectPath}`, timestamp: new Date().toISOString() })
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'apple',
       options: { redirectTo: `${window.location.origin}${loginRedirectPath}` },
@@ -248,6 +286,7 @@ export function AuthProvider({
     // Without this, the singleton `session`/`user`/`clientId`/`tier` state
     // from a previous sign-in leaks into the new signUp call, causing
     // onboarding to bootstrap with the previous tenant's data.
+    console.info('[Auth] signUp — clearing previous session', { email, timestamp: new Date().toISOString() })
     await supabase.auth.signOut()
     setState({ session: null, user: null, clientId: null, tier: null, loading: false })
 
@@ -256,11 +295,23 @@ export function AuthProvider({
       password,
       options: { data: metadata },
     })
+    if (!error) {
+      console.info('[Auth] signUp succeeded', { email, timestamp: new Date().toISOString() })
+    } else {
+      console.warn('[Auth] signUp failed', { email, error: error.message, timestamp: new Date().toISOString() })
+    }
     return { error }
   }
 
   const signOut = async () => {
+    // AC2: Explicit state reset — don't wait for SIGNED_OUT listener.
+    // The listener duplicates this for belt-and-suspenders, but the
+    // explicit reset here is the source of truth for immediate consumption.
+    clientIdFetchedRef.current = false
+    setState({ session: null, user: null, clientId: null, tier: null, loading: false })
+    onResetUser?.()
     await supabase.auth.signOut()
+    console.info('[Auth] signOut — state reset explicitamente', { timestamp: new Date().toISOString() })
   }
 
   return (

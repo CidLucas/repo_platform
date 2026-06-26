@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import {
   House, ShoppingCart, ChartBar, CalendarDots,
-  PencilSimpleLine, Target, UsersThree,
+  Target, UsersThree,
   Bell, Gear, Monitor, Books,
 } from '@phosphor-icons/react'
 import { useAppStore, Screen } from '../../store/appStore'
@@ -19,14 +19,17 @@ const ICON_SIZE = 22
 const ICON_WEIGHT = 'regular' as const
 
 const NAV_ITEMS: NavItem[] = [
-  { s: 'home',       icon: <House       size={ICON_SIZE} weight={ICON_WEIGHT} />, label: 'Início' },
-  { s: 'compras',    icon: <ShoppingCart size={ICON_SIZE} weight={ICON_WEIGHT} />, label: 'Compras' },
-  { s: 'financeiro', icon: <ChartBar    size={ICON_SIZE} weight={ICON_WEIGHT} />, label: 'Financeiro' },
-  { s: 'agenda',     icon: <CalendarDots size={ICON_SIZE} weight={ICON_WEIGHT} />, label: 'Agenda' },
-  { s: 'estrategia', icon: <Target      size={ICON_SIZE} weight={ICON_WEIGHT} />, label: 'Estratégia' },
-  { s: 'clientes',   icon: <UsersThree  size={ICON_SIZE} weight={ICON_WEIGHT} />, label: 'Clientes' },
-  { s: 'biblioteca', icon: <Books       size={ICON_SIZE} weight={ICON_WEIGHT} />, label: 'Biblioteca' },
-]
+  { s: 'home',       icon: <House         size="22" weight="regular" />, label: 'Início' },
+  { s: 'compras',    icon: <ShoppingCart  size="22" weight="regular" />, label: 'Compras' },
+  { s: 'financeiro', icon: <ChartBar      size="22" weight="regular" />, label: 'Financeiro' },
+  { s: 'agenda',     icon: <CalendarDots  size="22" weight="regular" />, label: 'Agenda' },
+  { s: 'estrategia', icon: <Target        size="22" weight="regular" />, label: 'Estratégia' },
+  { s: 'clientes',   icon: <UsersThree    size="22" weight="regular" />, label: 'Clientes' },
+  { s: 'biblioteca', icon: <Books         size="22" weight="regular" />, label: 'Biblioteca' },
+  { s: 'atividade',  icon: <Bell          size="22" weight="regular" />, label: 'Atividade' },
+  { s: 'admin',      icon: <Gear          size="22" weight="regular" />, label: 'Admin' },
+  { s: 'blu_ops',    icon: <Monitor       size="22" weight="regular" />, label: 'AgentOps' },
+];
 
 const FOOT_ITEMS: NavItem[] = [
   { s: 'atividade', icon: <Bell    size={ICON_SIZE} weight={ICON_WEIGHT} />, label: 'Atividade' },
@@ -73,12 +76,15 @@ export default function Sidebar() {
     return true
   })
 
-  const allItems = [...NAV_ITEMS, ...visibleFootItems]
+  const visibleFootSlugs = new Set(visibleFootItems.map(item => item.s))
+  const desktopMainItems = NAV_ITEMS.filter(item => !visibleFootSlugs.has(item.s))
+
+  const allItems = [...desktopMainItems, ...visibleFootItems]
 
   return (
     <>
       <aside className="sidebar" data-spotlight-target="sidebar">
-        {NAV_ITEMS.map(renderDesktopItem)}
+        {desktopMainItems.map(renderDesktopItem)}
         <div className="sb-foot">
           {visibleFootItems.map(renderDesktopItem)}
         </div>
@@ -129,3 +135,4 @@ export default function Sidebar() {
     </>
   )
 }
+

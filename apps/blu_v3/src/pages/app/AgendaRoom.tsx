@@ -267,6 +267,12 @@ export default function AgendaRoom() {
         <div className="rcol">
           <RColResizeHandle />
 
+          <div style={{ position: "sticky", top: 0, zIndex: 10, padding: "8px 0" }}>
+            <button className="btn bs" style={{ fontSize: 10, width: "100%" }} onClick={() => goWithTab("admin", "Admin", "integracoes")}>
+              ＋ Adicionar integração
+            </button>
+          </div>
+
           <CollapsiblePanel id="agenda-calendarios" icon="📆" title="Calendários" action={<button className="ph-add">＋</button>}>
             <div className="dr-sec">
                 <div className="dr-ttl">Hoje</div>
@@ -385,18 +391,6 @@ export default function AgendaRoom() {
                       </div>
                     ))
                   })()}
-                </div>
-              </div>
-              <div className="dr-sec" style={{ marginTop: 10 }}>
-                <div className="dr-ttl">Gestão de Projetos</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 5 }}>
-                  <button
-                    className="btn bs"
-                    style={{ fontSize: 10 }}
-                    onClick={() => goWithTab('admin', 'Admin', 'integracoes')}
-                  >
-                    ＋ Adicionar integração
-                  </button>
                 </div>
               </div>
           </CollapsiblePanel>

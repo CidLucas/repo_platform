@@ -449,7 +449,7 @@ export default function BibliotecaRoom() {
     if (isCsvFile(file.name)) {
       await kb.uploadCsv(file)
     } else {
-      await kb.upload(file, false, 'upload', { category: kbCategory })
+      await kb.upload(file, false, 'upload', { category: kbCategory || inferCategory(file.name) })
     }
   }
 

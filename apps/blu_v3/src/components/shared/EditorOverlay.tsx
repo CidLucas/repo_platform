@@ -25,6 +25,8 @@ interface EditorOverlayProps {
   open: boolean
   docName: string
   onClose: () => void
+  initialContent?: string
+  onSave?: (text: string) => void
 }
 
 function computeDiff(original: string, current: string): { html: string; changes: number } {
@@ -59,18 +61,22 @@ function computeDiff(original: string, current: string): { html: string; changes
   return { html, changes }
 }
 
-export default function EditorOverlay({ open, docName, onClose }: EditorOverlayProps) {
+export default function EditorOverlay({ open, docName, onClose, initialContent, onSave }: EditorOverlayProps) {
   const { approve, addToast } = useAppStore()
-  const [text, setText] = useState(DEFAULT_DOC)
-  const original = useRef(DEFAULT_DOC)
+  const [text, setText] = useState(initialContent ?? DEFAULT_DOC)
+  const original = useRef(initialContent ?? DEFAULT_DOC)
 
   const { html: diffHtml, changes } = computeDiff(original.current, text)
   const status = changes === 0 ? 'Sem alterações' : 'Editando — alterações não salvas'
   const badge = changes === 0 ? '0 alterações' : `${changes} ${changes === 1 ? 'alteração' : 'alterações'}`
 
   const handleSave = useCallback(() => {
-    addToast('ok', 'Salvo', 'Rascunho salvo com sucesso.')
-  }, [addToast])
+    if (onSave) {
+      onSave(text)
+    } else {
+      addToast('ok', 'Salvo', 'Rascunho salvo com sucesso.')
+    }
+  }, [onSave, text, addToast])
 
   const handleSign = useCallback(() => {
     approve('dd1', 'Proposta assinada. Cliente Central notificado.')

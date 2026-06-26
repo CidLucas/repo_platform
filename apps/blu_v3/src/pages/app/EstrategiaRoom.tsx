@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useQueries, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQueries, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAppStore } from '../../store/appStore'
 import { useAuth } from '../../hooks/useAuth'
 import {
@@ -16,9 +16,16 @@ import {
 } from '../../api/estrategia'
 import { getContextMetrics, type ContextMetricRow } from '../../api/analytics'
 import { fetchContextReports, downloadContextReport, type ContextReport } from '../../api/contextReport'
+import {
+  fetchDocTemplates,
+  createDocument,
+  saveDocument,
+  type DocTemplate,
+} from '../../api/documents'
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
+import EditorOverlay from '../../components/shared/EditorOverlay'
 import BibliotecaRoom from './BibliotecaRoom'
 
 import { snoozeUntil } from '../../utils/time'
@@ -173,6 +180,64 @@ export default function EstrategiaRoom() {
     ],
   })
 
+  // Gerador de Documentos — templates + criação via EditorOverlay
+  const creatingDocState = useState(false)
+  const creatingDoc = creatingDocState[0]
+  const setCreatingDoc = creatingDocState[1]
+  const selectedTemplateState = useState<DocTemplate | null>(null)
+  const selectedTemplate = selectedTemplateState[0]
+  const setSelectedTemplate = selectedTemplateState[1]
+  const [docBeingCreated, setDocBeingCreated] = useState<{ id: string; title: string } | null>(null)
+  const [editorContent, setEditorContent] = useState<string>('')
+
+  const docTemplatesQ = useQuery({
+    queryKey: ['docTemplates', clientId ?? ''],
+    queryFn: () => fetchDocTemplates(clientId!),
+    enabled: !!clientId,
+    staleTime: 5 * 60_000,
+  })
+  const docTemplates: DocTemplate[] = docTemplatesQ.data ?? []
+
+  const createDocMut = useMutation({
+    mutationFn: (title: string) => createDocument(clientId!, title),
+    onSuccess: (doc) => {
+      setDocBeingCreated({ id: doc.id, title: doc.title })
+      setCreatingDoc(true)
+      qc.invalidateQueries({ queryKey: ['documents', clientId] })
+      addToast('ok', 'Documento criado', `Rascunho "${doc.title}" aberto no editor.`)
+    },
+    onError: (e: Error) => {
+      addToast('no', 'Erro ao criar', e.message)
+    },
+  })
+
+  const saveDocMut = useMutation({
+    mutationFn: (text: string) => {
+      if (!docBeingCreated) return Promise.resolve()
+      const payload = { text, source: 'editor', templateId: selectedTemplate?.id ?? null }
+      return saveDocument(docBeingCreated.id, clientId!, payload)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['documents', clientId] })
+      addToast('ok', 'Salvo', 'Documento salvo como ativo.')
+    },
+    onError: (e: Error) => {
+      addToast('no', 'Erro ao salvar', e.message)
+    },
+  })
+
+  const handleStartFromTemplate = (tpl: DocTemplate) => {
+    setSelectedTemplate(tpl)
+    setEditorContent(`# ${tpl.name}\n\n${tpl.description ?? ''}\n\n`)
+    createDocMut.mutate(tpl.name)
+  }
+
+  const handleStartBlank = () => {
+    setSelectedTemplate(null)
+    setEditorContent('')
+    createDocMut.mutate('Novo Documento')
+  }
+
   const approveMut = useMutation({
     mutationFn: (id: string) => approveRequest(id, clientId!),
     onSuccess: () => {
@@ -300,8 +365,47 @@ export default function EstrategiaRoom() {
               )}
             </div>
 
-            {/* DOCUMENTOS — context report viewer */}
+            {/* DOCUMENTOS — context report viewer + gerador */}
             <div className={`tc${tab === 'documentos' ? ' on' : ''}`}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 11, color: 'var(--mu)', fontWeight: 500 }}>Gerador:</span>
+                <button
+                  className="btn bp"
+                  style={{ fontSize: 11 }}
+                  onClick={handleStartBlank}
+                  disabled={createDocMut.isPending}
+                >
+                  + Novo Documento
+                </button>
+                {docTemplatesQ.isLoading ? (
+                  <span style={{ fontSize: 10.5, color: 'var(--mu)' }}>carregando templates…</span>
+                ) : docTemplates.length === 0 ? (
+                  <span style={{ fontSize: 10.5, color: 'var(--mu)' }}>Nenhum template disponível</span>
+                ) : (
+                  <select
+                    className="ipt"
+                    style={{ fontSize: 11, padding: '4px 6px', minWidth: 180 }}
+                    value={selectedTemplate?.id ?? ''}
+                    onChange={(e) => {
+                      const tpl = docTemplates.find((t) => t.id === e.target.value)
+                      if (tpl) handleStartFromTemplate(tpl)
+                    }}
+                    disabled={createDocMut.isPending}
+                  >
+                    <option value="">Usar template/modelo…</option>
+                    {docTemplates.map((tpl) => (
+                      <option key={tpl.id} value={tpl.id}>
+                        {tpl.name}
+                        {tpl.category ? ` (${tpl.category})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <span style={{ fontSize: 10, color: 'var(--mu)', marginLeft: 'auto' }}>
+                  {creatingDoc ? 'Editor aberto' : 'Criar do zero ou usar template'}
+                </span>
+              </div>
+
               {!selectedReport ? (
                 <div style={{ fontSize: 12, color: 'var(--mu)', padding: '16px 0', textAlign: 'center' }}>
                   Selecione um relatório na coluna direita para visualizá-lo.
@@ -444,6 +548,19 @@ export default function EstrategiaRoom() {
           ))}
         </div>
       </div>
+
+      <EditorOverlay
+        key={docBeingCreated?.id ?? 'new'}
+        open={creatingDoc && !!docBeingCreated}
+        docName={docBeingCreated?.title ?? 'Novo Documento'}
+        initialContent={editorContent}
+        onClose={() => {
+          setCreatingDoc(false)
+          setDocBeingCreated(null)
+          setSelectedTemplate(null)
+        }}
+        onSave={(text) => saveDocMut.mutate(text)}
+      />
     </div>
   )
 }

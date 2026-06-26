@@ -19,6 +19,7 @@ import { fetchContextReports, downloadContextReport, type ContextReport } from '
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
+import BibliotecaRoom from './BibliotecaRoom'
 
 import { snoozeUntil } from '../../utils/time'
 
@@ -320,25 +321,7 @@ export default function EstrategiaRoom() {
 
             {/* CONHECIMENTO */}
             <div className={`tc${tab === 'conhecimento' ? ' on' : ''}`}>
-              {historyQ.isLoading ? (
-                <div style={{ fontSize: 11, color: 'var(--mu)' }}>Carregando…</div>
-              ) : history.length === 0 ? (
-                <div style={{ fontSize: 12, color: 'var(--mu)', padding: '16px 0', textAlign: 'center' }}>
-                  Nenhuma análise no histórico.
-                </div>
-              ) : (
-                history.map((item) => (
-                  <div key={item.id} className="hi">
-                    <div className="hi-n">{item.title}</div>
-                    <div className="hi-m">
-                      <span>{relativeTime(item.created_at)}</span>
-                      <span style={{ color: item.action === 'approved' ? 'var(--ok)' : 'var(--urg)' }}>
-                        {item.action === 'approved' ? 'Aprovada' : 'Rejeitada'}
-                      </span>
-                    </div>
-                  </div>
-                ))
-              )}
+              <BibliotecaRoom />
             </div>
 
             {/* CONFIG */}

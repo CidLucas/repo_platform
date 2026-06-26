@@ -7,8 +7,10 @@ import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 import EmptyState from '../../components/shared/EmptyState'
 import LoadingState from '../../components/shared/LoadingState'
+import GraphView from '../../components/biblioteca/GraphView'
+import DocGraph from '../../components/biblioteca/DocGraph'
 
-type ViewMode = 'grid' | 'list'
+type ViewMode = 'grid' | 'list' | 'graph'
 type CategoryFilter = 'all' | string
 type StatusFilter = 'all' | KBDocument['status']
 
@@ -469,6 +471,10 @@ export default function BibliotecaRoom() {
     })
   }
 
+  function handleGraphSelect(_docId: string) {
+    // BKL-032: no-op por enquanto — futuro: abrir preview do doc selecionado no grafo.
+  }
+
   async function handlePreview(doc: KBDocument) {
     if (!doc.storage_path) return
     const url = await kb.getDownloadUrl(doc)
@@ -536,7 +542,7 @@ export default function BibliotecaRoom() {
           <div className="ph">
             <span className="ph-ttl">Documentos</span>
             <span className="ph-cnt">{totalDocs > 0 ? `${totalDocs} arquivo${totalDocs !== 1 ? 's' : ''}` : ''}</span>
-            {/* View toggle */}
+            {/* View toggle: 3 modos — onClick=() => setViewMode('grid') / onClick=() => setViewMode('list') / onClick=() => setViewMode('graph') */}
             <div style={{ display: 'flex', gap: 2, marginLeft: 'auto' }}>
               <button
                 className={`btn ${viewMode === 'grid' ? 'bp' : 'bs'}`}
@@ -550,6 +556,12 @@ export default function BibliotecaRoom() {
                 onClick={() => setViewMode('list')}
                 title="Lista"
               >≡</button>
+              <button
+                className={`btn ${viewMode === 'graph' ? 'bp' : 'bs'}`}
+                style={{ fontSize: 11, padding: '3px 8px' }}
+                onClick={() => setViewMode('graph')}
+                title="Grafo"
+              >🕸</button>
             </div>
           </div>
 
@@ -707,6 +719,20 @@ export default function BibliotecaRoom() {
                 {sorted.map(doc => (
                   <DocCard key={doc.id} doc={doc} onRemove={kb.remove} onRetry={kb.retry} onDownload={handleDownload} />
                 ))}
+              </div>
+            ) : viewMode === 'graph' ? (
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, padding: '8px 14px 14px', minHeight: 0 }}>
+                <div style={{ flex: 2, minHeight: 0 }}>
+                  <DocGraph documents={sorted} onSelectDocument={handleGraphSelect} />
+                </div>
+                <details style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+                  <summary style={{ fontSize: 10.5, color: 'var(--mu2)', cursor: 'pointer', padding: '4px 0' }}>
+                    🕸️ Visão expandida com entidades inferidas
+                  </summary>
+                  <div style={{ flex: 1, minHeight: 320 }}>
+                    <GraphView documents={sorted} onSelectDocument={handleGraphSelect} />
+                  </div>
+                </details>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>

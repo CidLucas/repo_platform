@@ -397,3 +397,19 @@ export async function retryDocument(doc: KBDocument): Promise<void> {
 
   if (error) throw new Error(`Erro ao reprocessar: ${error.message}`)
 }
+
+export async function uploadMulti(
+  files: File[],
+  clientId: string,
+  source: KBDocumentSource = 'upload',
+  options?: UploadOptions,
+): Promise<string[]> {
+  const results: string[] = []
+
+  for (const file of files) {
+    const docId = await uploadFile(file, clientId, false, source, options)
+    results.push(docId)
+  }
+
+  return results
+}

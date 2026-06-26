@@ -1,15 +1,14 @@
-"""RED test for B-5 (BATCH #208) — Design system auditado + modo grafo
+"""GREEN test for B-5 (BATCH #208) — Design system auditado + modo grafo
 na Biblioteca.
 
 GOAL:
-    Confirmar que a ``BibliotecaRoom.tsx`` ainda NÃO implementa o modo
-    grafo — ou seja, o type ``ViewMode`` continua sendo ``'grid' | 'list'``
-    (sem o literal ``'graph'``) e o toggle de visualização da toolbar
-    continua com apenas dois botões (``grid`` + ``list``), sem o terceiro
+    Validar que a ``BibliotecaRoom.tsx`` EXPÕE o modo grafo — ou seja, o
+    type ``ViewMode`` agora é ``'grid' | 'list' | 'graph'`` (inclui o
+    literal ``'graph'``) e o toggle de visualização da toolbar tem os
+    três botões (``grid`` + ``list`` + ``graph``), com o terceiro
     botão ``graph`` rotulado ``Grafo``. Este é um teste
-    source-inspection TRUE RED — cada AC deve passar enquanto a feature
-    não tiver sido entregue, sinalizando que o B-5 ainda não foi
-    implementado.
+    source-inspection GREEN — cada AC deve passar enquanto a feature
+    estiver implementada e falhar (REGRESSED) se a feature for removida.
 
 BEHAVIOR:
     B-5 (Modo Grafo) — ``apps/blu_v3/src/pages/app/BibliotecaRoom.tsx``
@@ -19,33 +18,30 @@ BEHAVIOR:
            (union atual ``'grid' | 'list'`` → ``'grid' | 'list' | 'graph'``).
         2. Adicionar um terceiro botão no toggle de visualização da
            toolbar do painel ``Documentos`` com ``title="Grafo"``
-           (atualmente só existem os botões ``title="Grade"`` e
+           (ao lado dos já existentes ``title="Grade"`` e
            ``title="Lista"``).
 
-    Estado atual (BEFORE — confirmado por inspeção de
+    Estado atual (GREEN — confirmado por inspeção de
     ``apps/blu_v3/src/pages/app/BibliotecaRoom.tsx``):
 
-        - Linha 9: ``type ViewMode = 'grid' | 'list'`` → NÃO inclui
+        - Linha 13: ``type ViewMode = 'grid' | 'list' | 'graph'`` → inclui
           ``'graph'``.
-        - Linhas 344-355: toggle da toolbar do painel ``Documentos``
-          contém apenas dois ``<button>`` com ``title="Grade"`` e
-          ``title="Lista"`` → NÃO há terceiro botão ``title="Grafo"``.
+        - Linhas ~559-564: toggle da toolbar do painel ``Documentos``
+          contém três ``<button>`` com ``title="Grade"``, ``title="Lista"``
+          e ``title="Grafo"``.
 
 AC (Acceptance Criteria):
-    AC#1 — O type ``ViewMode`` NÃO inclui o literal ``'graph'`` na
-           union (o source ainda não referencia o modo grafo em lugar
-           nenhum).
-    AC#2 — O toggle de visualização da toolbar NÃO tem um terceiro
-           botão com ``title="Grafo"``.
+    AC#1 — O type ``ViewMode`` INCLUI o literal ``'graph'`` na union.
+    AC#2 — O toggle de visualização da toolbar TEM um terceiro botão
+           com ``title="Grafo"``.
 
 DECISION:
-    Estratégia: editar
-    ``apps/blu_v3/src/pages/app/BibliotecaRoom.tsx`` in-place,
-    estendendo o type ``ViewMode`` para incluir ``'graph'`` e
-    adicionando o terceiro botão ao toggle de visualização. A
-    renderização condicional do modo grafo em si (canvas, nós, arestas)
-    pode ser entregue em um GREEN subsequente — o teste B-5 cobre
-    apenas o gate mínimo: type extendido + botão presente.
+    A GREEN anterior (commit f9b32fa4) entregou: ``type ViewMode`` com
+    ``'graph'``, botão ``title="Grafo"`` no toggle, e o componente
+    ``DocGraph`` (e ``GraphView``) renderizado condicionalmente quando
+    ``viewMode === 'graph'``. Este teste foi escrito como FALSE RED
+    tripwire e foi FLIPADO para GREEN neste commit, seguindo o mesmo
+    pattern do c1fbd182 (post-merge cleanup de FALSE RED tests).
 
 Test strategy:
     Source-inspection (lê o ``.tsx`` como texto). O test runner não
@@ -54,23 +50,19 @@ Test strategy:
 
         - Lê o source uma vez por teste (helper ``read_source``).
         - Aplica uma regex específica da AC.
-        - Se a regex ENCONTRAR o padrão esperado no estado GREEN,
-          dispara ``pytest.fail("FALSE RED — …")`` com mensagem em
-          pt-BR explicando por que o teste está FAILING (a feature já
-          foi implementada, então o RED é inválido).
-        - Se a regex NÃO ENCONTRAR o padrão, o teste passa em silêncio
-          (TRUE RED — a feature ainda não foi entregue).
+        - Se a regex NÃO ENCONTRAR o padrão esperado (estado GREEN
+          regrediu), dispara ``pytest.fail("AC#N REGRESSED — …")`` com
+          mensagem em pt-BR explicando por que o teste está FAILING.
+        - Se a regex ENCONTRAR o padrão, o teste passa em silêncio
+          (GREEN — a feature está em vigor).
 
 Anti-Goals (must NOT be violated):
-    1. NÃO modificar o código de produção — apenas escrever o teste.
+    1. NÃO exigir alterações no código de produção — o código JÁ
+       implementa o modo grafo.
     2. NÃO transpilar nem executar TSX — source-inspection puro.
     3. NÃO usar mocks, Supabase, banco de dados ou rede.
     4. NÃO falhar o teste por causa de imports ou whitespace — apenas
        pelos 2 padrões textuais definidos nas ACs.
-    5. NÃO inverter a polaridade do teste: o test deve passar AGORA
-       (RED = feature ausente) e falhar depois que a feature for
-       entregue (GREEN). A inversão de polaridade é uma armadilha
-       clássica em testes de source-inspection.
 """
 
 from __future__ import annotations
@@ -126,55 +118,49 @@ def read_source() -> str:
 
 
 class TestB5ModoGrafoBiblioteca:
-    """RED tests para B-5 (BATCH #208) — Modo Grafo na Biblioteca.
+    """GREEN tests para B-5 (BATCH #208) — Modo Grafo na Biblioteca.
 
-    Cada ``test_acN_*`` valida uma AC e deve PASSAR (TRUE RED) enquanto
-    a feature não tiver sido implementada. Após a entrega do GREEN, o
-    padrão procurado pela regex será encontrado e o teste falhará com
-    ``pytest.fail("FALSE RED — …")`` — sinalizando que o RED foi
-    violado e o teste precisa ser atualizado/removido.
+    Cada ``test_acN_*`` valida uma AC e deve PASSAR (GREEN) enquanto a
+    feature estiver implementada. Se a feature for removida (regressed),
+    o teste falhará com ``pytest.fail("AC#N REGRESSED — …")`` —
+    sinalizando que alguém removeu parte do B-5 e o teste precisa ser
+    revisado.
+
+    Este arquivo foi FLIPADO de FALSE RED para GREEN seguindo o mesmo
+    pattern do commit c1fbd182 (post-merge cleanup de inverted RED
+    tests). A GREEN original está no commit f9b32fa4.
     """
 
     # ── AC#1 ────────────────────────────────────────────────────────────────
 
-    def test_ac1_view_mode_nao_inclui_graph(self) -> None:
-        """AC#1 — O type ``ViewMode`` NÃO inclui o literal ``'graph'``.
+    def test_ac1_view_mode_inclui_graph(self) -> None:
+        """AC#1 — O type ``ViewMode`` INCLUI o literal ``'graph'`` na union.
 
         GREEN esperado:
             ``type ViewMode = 'grid' | 'list' | 'graph'``
         (o literal ``'graph'`` deve aparecer em algum lugar do source,
-        tipicamente dentro da union do type ``ViewMode`` na linha 9).
-
-        Hoje (linha 9) o type é
-        ``type ViewMode = 'grid' | 'list'`` — sem ``'graph'``. Não há
-        nenhuma outra referência ao literal ``'graph'`` em
-        ``BibliotecaRoom.tsx``.
+        dentro da union do type ``ViewMode`` na linha 13).
         """
         source = read_source()
         match = re.search(r"""['"]graph['"]""", source)
-        if match is not None:
-            pytest.fail(
-                "FALSE RED — AC#1 violada: o literal `'graph'` JÁ aparece "
-                f"em BibliotecaRoom.tsx (match em offset {match.start()}). "
-                "Esperava-se que o type `ViewMode` ainda NÃO incluísse "
-                "`'graph'` na union para que este teste RED passasse. "
-                "A feature B-5 já foi entregue e este teste precisa ser "
-                "removido/atualizado para a nova realidade GREEN."
-            )
+        assert match is not None, (
+            "AC#1 REGRESSED: o literal `'graph'` NÃO aparece em "
+            "BibliotecaRoom.tsx. "
+            "Esperado: `type ViewMode = 'grid' | 'list' | 'graph'` "
+            "na linha 13 (com o literal `'graph'` na union). "
+            "O Coder removeu o modo grafo da union do type ViewMode — "
+            "REVERTER imediatamente."
+        )
 
     # ── AC#2 ────────────────────────────────────────────────────────────────
 
-    def test_ac2_toggle_nao_tem_grafo(self) -> None:
-        """AC#2 — O toggle de visualização NÃO tem botão ``title="Grafo"``.
+    def test_ac2_toggle_tem_grafo(self) -> None:
+        """AC#2 — O toggle de visualização TEM botão ``title="Grafo"``.
 
         GREEN esperado: o toggle da toolbar do painel ``Documentos``
-        (atualmente linhas 344-355) deve ganhar um terceiro
-        ``<button title="Grafo" …>`` ao lado dos já existentes
-        ``title="Grade"`` e ``title="Lista"``, para que o usuário
-        possa alternar entre os três modos de visualização.
-
-        Hoje só existem os botões com ``title="Grade"`` e
-        ``title="Lista"``.
+        tem um terceiro ``<button title="Grafo" …>`` ao lado dos já
+        existentes ``title="Grade"`` e ``title="Lista"``, para que o
+        usuário possa alternar entre os três modos de visualização.
         """
         source = read_source()
         # Aceita aspas duplas ou simples no atributo title.
@@ -182,12 +168,13 @@ class TestB5ModoGrafoBiblioteca:
             r"""title\s*=\s*["']Grafo["']""",
             source,
         )
-        if match is not None:
-            pytest.fail(
-                "FALSE RED — AC#2 violada: o botão `title=\"Grafo\"` JÁ "
-                f"existe no toggle de visualização de BibliotecaRoom.tsx "
-                f"(match em offset {match.start()}). Esperava-se que o "
-                "toggle ainda NÃO tivesse o terceiro botão 'Grafo' para "
-                "que este teste RED passasse. A feature B-5 já foi "
-                "entregue."
-            )
+        assert match is not None, (
+            "AC#2 REGRESSED: o toggle de visualização NÃO tem botão "
+            "`title=\"Grafo\"` em BibliotecaRoom.tsx. "
+            "Esperado: `<button title=\"Grafo\" ... "
+            "onClick={() => setViewMode('graph')}>...</button>` "
+            "ao lado dos já existentes `title=\"Grade\"` e "
+            "`title=\"Lista\"` no painel Documentos. "
+            "O Coder removeu o terceiro botão (modo grafo) — REVERTER "
+            "imediatamente."
+        )

@@ -2,7 +2,7 @@ import { useState, useRef, useMemo } from 'react'
 import { useAppStore } from '../../store/appStore'
 import { useAuth } from '../../hooks/useAuth'
 import { useKnowledgeBase } from '../../hooks/useKnowledgeBase'
-import { KB_CATEGORIES, isCsvFile, type KBDocument, type KBCategory } from '../../services/knowledgeBaseService'
+import { KB_CATEGORIES, KB_CATEGORY_TREE, isCsvFile, type KBDocument, type KBCategory, type KBCategoryNode } from '../../services/knowledgeBaseService'
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 import EmptyState from '../../components/shared/EmptyState'
@@ -62,6 +62,63 @@ function catLabel(cat: string | null): string {
 // F-3-B3: falha desconhecida para documentos presos em processing > 2min
 function isTimedOut(doc: KBDocument): boolean {
   return doc.status === 'processing' && Date.now() - new Date(doc.created_at).getTime() > 120_000
+}
+
+// ── Category tree node (recursive) ───────────────────────────────────────────
+// BKL-035: renderiza um no da arvore de categorias com label, contagem e
+// recursao para os filhos.
+
+function CategoryTreeNode({ node, catCounts, selected, onSelect, depth = 0 }: {
+  node: KBCategoryNode
+  catCounts: Record<string, number>
+  selected: string
+  onSelect: (value: string) => void
+  depth?: number
+}) {
+  const count = catCounts[node.value] ?? 0
+  const isSelected = selected === node.value
+  return (
+    <div>
+      <div
+        onClick={() => onSelect(node.value)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 6,
+          padding: '5px 8px 5px ' + (8 + depth * 14) + 'px',
+          fontSize: 11.5,
+          color: isSelected ? 'var(--fg)' : 'var(--mu2)',
+          background: isSelected ? 'rgba(255,87,1,0.10)' : 'transparent',
+          borderLeft: isSelected ? '2px solid var(--acc, #FF5701)' : '2px solid transparent',
+          borderRadius: 4,
+          cursor: 'pointer',
+          userSelect: 'none',
+        }}
+      >
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {node.label}
+        </span>
+        <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: count > 0 ? 'var(--fg)' : 'var(--mu)' }}>
+          {count}
+        </span>
+      </div>
+      {node.children && node.children.length > 0 && (
+        <div>
+          {node.children.map(child => (
+            <CategoryTreeNode
+              key={child.value}
+              node={{ value: child.value, label: child.label }}
+              catCounts={catCounts}
+              selected={selected}
+              onSelect={onSelect}
+              depth={depth + 1}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ── Document card (grid view) ─────────────────────────────────────────────────
@@ -514,16 +571,56 @@ export default function BibliotecaRoom() {
                 outline: 'none',
               }}
             />
-            <select
-              value={categoryFilter}
-              onChange={e => setCategoryFilter(e.target.value)}
-              style={{ fontSize: 10.5, padding: '4px 7px', background: 'var(--glass)', border: '1px solid var(--gb)', borderRadius: 4, color: 'var(--fg)' }}
+            <nav
+              className="kb-tree"
+              aria-label="Arvore de categorias"
+              style={{
+                minWidth: 200,
+                maxWidth: 260,
+                padding: '4px',
+                background: 'var(--glass)',
+                border: '1px solid var(--gb)',
+                borderRadius: 4,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 2,
+                maxHeight: 320,
+                overflowY: 'auto',
+              }}
             >
-              <option value="all">Todas as categorias</option>
-              {KB_CATEGORIES.map(c => (
-                <option key={c.value} value={c.value}>{c.label}</option>
+              <div
+                onClick={() => setCategoryFilter('all')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 6,
+                  padding: '5px 8px',
+                  fontSize: 11.5,
+                  color: categoryFilter === 'all' ? 'var(--fg)' : 'var(--mu2)',
+                  background: categoryFilter === 'all' ? 'rgba(255,87,1,0.10)' : 'transparent',
+                  borderLeft: categoryFilter === 'all' ? '2px solid var(--acc, #FF5701)' : '2px solid transparent',
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                  fontWeight: 600,
+                }}
+              >
+                <span>Todas as categorias</span>
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--fg)' }}>
+                  {totalDocs}
+                </span>
+              </div>
+              {KB_CATEGORY_TREE.map(node => (
+                <CategoryTreeNode
+                  key={node.value}
+                  node={node}
+                  catCounts={catCounts}
+                  selected={categoryFilter}
+                  onSelect={v => setCategoryFilter(v)}
+                />
               ))}
-            </select>
+            </nav>
             <select
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value as StatusFilter)}

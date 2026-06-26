@@ -20,6 +20,7 @@ from slowapi.util import get_remote_address
 
 from agent_api.api.agents_router import router as agents_router
 from agent_api.api.chat_router import router as chat_router
+from agent_api.api.context_report_router import router as context_report_router
 from agent_api.api.google_calendar_webhook_router import router as gcal_webhook_router
 from agent_api.api.routines_router import router as routines_router
 from agent_api.config import get_settings
@@ -159,6 +160,7 @@ def create_app() -> FastAPI:
     app.include_router(chat_router, prefix="/v1")
     app.include_router(agents_router, prefix="/v1")
     app.include_router(routines_router, prefix="/v1")
+    app.include_router(context_report_router, prefix="/v1")
     app.include_router(gcal_webhook_router)
 
     # Health

@@ -92,7 +92,7 @@ A racionalização original propôs ~3.580 LOC de redução em 5 ondas. **~30% j
 | D3 | **Auth fix é P0** — precede qualquer outra fase | 7 RED tests em `test_sequential_signups.py` + `b1_fluxo_signup.py` |
 | D4 | Phases 2.2 e 2.3 do plano original **descartadas** (BKL-038/041 fazem polling e unificação de upload, respectivamente) | Conflito no merge |
 | D5 | Phase 3.2 (website-intel → client-side) **parcialmente feita** (PRs #197/#199/#210) — manter como expansão do EF, não mover para client-side | O usuário expandiu o EF (CNPJ, phone, 17 verticals) em vez de mover |
-| D6 | Phase 4.1 (M7) **bloqueada** — tentativa foi revertida em `cf33ffd1` | Commit `73c7080c` → `cf33ffd1` |
+| D6 | ~~Phase 4.1 (M7) bloqueada — tentativa foi revertida em `cf33ffd1`~~ **CORREÇÃO 2026-06-25:** a referência de commit estava errada. `73c7080c → cf33ffd1` foi o revert do PR #186 (R-1 context_report routine UI), NÃO do M7. Não havia tentativa de M7 registrada no git history. **M7 feito** — ver Phase 4.1 na tabela resumo. | Commit `73c7080c` era R-1, não M7 |
 | D7 | Estratégia de execução: em ondas, cada fase mergeável independentemente | D2 do plano original |
 
 ---
@@ -182,7 +182,7 @@ A racionalização original propôs ~3.580 LOC de redução em 5 ondas. **~30% j
 | 3.4 | match-columns → Python service | ⏸️ **pendente** | |
 | 3.5 | search-documents → direct SQL + Cohere | ⏸️ **pendente** | |
 | 3.6 | search-documents → Python service (Phase 3.3 da nova onda 5) | ✅ **feito** | 212 LOC → Python `services/search_documents/` + FastAPI `/v1/search-documents`. Bloqueado por **Issue 3.6.1** (função RPC sumiu do baseline ativo). |
-| 4.1 | Matar generate-context-report EF (M7) | ⚠️ **bloqueada** | Tentativa `73c7080c` revertida em `cf33ffd1`. Re-avaliar contexto antes de retentar |
+| 4.1 | Matar generate-context-report EF (M7) | ✅ **feito** (commit TBD) | Endpoint `POST /v1/internal/context-report` em `agent_api`, onboarding-bootstrap rewired, EF + função SQL órfã deletadas. Ver "Onda 4 — Fase 4.1" abaixo para detalhes. |
 | 4.2 | etl-bigquery-ingest → Python | ⏸️ **pendente** (opcional) | |
 | 4.3 | routine-builder → agent_api | ⏸️ **pendente** (opcional) | |
 | 4.4 | polp-sync → Python | ⏸️ **pendente** (opcional) | |
@@ -442,20 +442,38 @@ A racionalização original propôs ~3.580 LOC de redução em 5 ondas. **~30% j
 
 ### Onda 4 — M7 e Fase 5.1 (REAVALIAR)
 
-#### Fase 4.1 — M7 (kill `generate-context-report` EF) — REAVALIAR
+#### Fase 4.1 — M7 (kill `generate-context-report` EF) — ✅ FEITO
 
-**Estado:** Tentativa em `73c7080c` foi revertida em `cf33ffd1`. A reversão indica que matar o EF causou regressão (provavelmente o dispatcher pg_cron não estava atualizado, ou o agent_api ainda não tem o endpoint equivalente).
+**Correção de história (2026-06-25):** a nota original deste plano dizia que a tentativa `73c7080c → cf33ffd1` era M7 revertido. **Errado** — esse par foi o revert do PR #186 (R-1 `context_report` routine UI, com `RoutineConfigSection` e `RoutinesPanel`), não tem nada a ver com o EF `generate-context-report`. Não havia tentativa de M7 registrada no git history; o "M7 bloqueado" do tracker era herança de quando o plano foi reescrito em `474b1679`.
 
-**Recomendação:** Investigar por que a tentativa anterior falhou antes de retentar. Hipótese: faltou adicionar endpoint `/v1/internal/context-report/run` no `agent_api` (que era o plano da Fase 4.1 original).
+**Análise real pré-execução:**
+
+- A EF Deno (610 LOC) era um TS port do `blu_agent_framework.routines.context_report.run_for_client` Python.
+- 2 callers no repo: `onboarding-bootstrap/index.ts:162` (real, fire-and-forget) e `public.schedule_monthly_context_reports()` (SQL function órfã — nenhum `cron.schedule` a chama, comentário "monthly via pg_cron" era aspiracional).
+- O Python já tinha call site interno: `agent_api.core.routine_functions._generate_context_report` registrado como routine `analytics.generate_context_report`.
+
+**O que foi feito (commit TBD):**
 
 | # | Tarefa | LOC |
 |---|---|---|
-| 4.1.1 | Investigar `git revert -m 1 cf33ffd1` ou ler o PR revertido para entender o que quebrou | 0 |
-| 4.1.2 | Se for falta de endpoint no `agent_api`: criar `POST /v1/internal/context-report/run` (chama `run_for_client` de `context_report.py`) | +30 |
-| 4.1.3 | Reescrever `schedule_monthly_context_reports` SQL para chamar o endpoint | +30 |
-| 4.1.4 | Deletar `supabase/functions/generate-context-report/` | -610 |
+| 4.1.1 | ~~Investigar revertido~~ — feito acima, era investigação errada | 0 |
+| 4.1.2 | `POST /v1/internal/context-report` em `agent_api` (chama `_generate_context_report` em BackgroundTask, retorna 202) | +130 |
+| 4.1.3 | `onboarding-bootstrap/index.ts:162` rewired: novo `AGENT_API_URL` + `CONTEXT_REPORT_TOKEN` env vars, `EdgeRuntime.waitUntil` agora chama o endpoint Python em vez da EF Deno | ±25 |
+| 4.1.4 | `supabase/functions/generate-context-report/` deletado (-610 LOC), bloco `[functions.generate-context-report]` removido do `config.toml` | -615 |
+| 4.1.5 | `public.schedule_monthly_context_reports()` dropada via migration `proposed/20260625000001_drop_schedule_monthly_context_reports.sql` (era órfã) | -25 SQL |
+| 4.1.6 | 11 unit tests pro novo router (auth: 401/503, validação: 422, 202 + background task, exception isolation) | +200 |
 
-**Risco:** Médio (precisa entender por que a tentativa anterior falhou).
+**LOC líquido:** ~-300 (Python: +355, Deno: -610, SQL: -25, tests: +200, plan/edit: -20).
+
+**Auth:** shared secret `CONTEXT_REPORT_TOKEN` (mesmo padrão de `routines_router._verify_token`). Service-role key não é passada — agent_api roda com sua própria identidade de DB.
+
+**Deploy checklist (Lucas):**
+
+- [ ] Set `CONTEXT_REPORT_TOKEN` em `agent_api` E `onboarding-bootstrap` com o mesmo valor (random 32+ chars).
+- [ ] Set `AGENT_API_URL` em `onboarding-bootstrap` com a URL do agent_api (compose: `http://agent_api:8000`; Cloud Run: URL público).
+- [ ] Aplicar migration `proposed/20260625000001_drop_schedule_monthly_context_reports.sql` no DB live.
+- [ ] Verificar via log do `onboarding-bootstrap` que step 6 retorna 202 (não mais o payload da EF).
+- [ ] (Follow-up P1) Adicionar 1-2 tests E2E que validam o report completo end-to-end.
 
 ---
 

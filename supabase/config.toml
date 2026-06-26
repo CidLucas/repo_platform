@@ -170,12 +170,6 @@ verify_jwt = false
 # can invoke them. The function body checks isSystemInvocation() to
 # reject anything else.
 
-# generate-context-report: builds AI context report for a tenant.
-# Fire-and-forget from onboarding-bootstrap (service_role) and from
-# pg_cron on monthly reg_jobs completion.
-[functions.generate-context-report]
-verify_jwt = false
-
 # website-context-builder: scrapes and stores website context during
 # onboarding. Fire-and-forget from onboarding-bootstrap.
 [functions.website-context-builder]

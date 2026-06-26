@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     # Routine dispatch
     ROUTINE_DISPATCH_TOKEN: str | None = None
 
+    # Context report endpoint — replaces the Deno generate-context-report EF
+    # (Phase 4.1 — M7). Shared secret with onboarding-bootstrap so it can
+    # fire-and-forget the routine without holding the supabase service role.
+    CONTEXT_REPORT_TOKEN: str | None = None
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

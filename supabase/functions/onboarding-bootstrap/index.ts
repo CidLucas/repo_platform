@@ -35,6 +35,13 @@ import {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+// Phase 4.1 (M7): the context report is no longer a Deno EF — it lives
+// in agent_api at /v1/internal/context-report. Set AGENT_API_URL to the
+// agent_api service base (e.g. http://agent_api:8000 in compose,
+// http://localhost:8002 in local dev). The shared token must match
+// agent_api's CONTEXT_REPORT_TOKEN env var.
+const AGENT_API_URL = Deno.env.get("AGENT_API_URL") ?? "";
+const CONTEXT_REPORT_TOKEN = Deno.env.get("CONTEXT_REPORT_TOKEN") ?? "";
 
 interface BootstrapTxResult {
   client_id: string;
@@ -156,28 +163,34 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // ── 6. Fire generate-context-report (best-effort; skips if no data yet) ─
-    if (SUPABASE_SERVICE_ROLE_KEY) {
+    // ── 6. Fire context report (best-effort; skips if no data yet) ─
+    // Phase 4.1 (M7): the Deno generate-context-report EF is gone.
+    // The Python routine lives in agent_api at /v1/internal/context-report.
+    // We POST { client_id } with the shared CONTEXT_REPORT_TOKEN.
+    if (AGENT_API_URL && CONTEXT_REPORT_TOKEN) {
       EdgeRuntime.waitUntil(
-        fetch(`${SUPABASE_URL}/functions/v1/generate-context-report`, {
+        fetch(`${AGENT_API_URL}/v1/internal/context-report`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            Authorization: `Bearer ${CONTEXT_REPORT_TOKEN}`,
           },
           body: JSON.stringify({ client_id: result.client_id }),
         }).then(async (r) => {
-          const body = await r.json().catch(() => ({}));
           if (!r.ok) {
-            console.warn(`[onboarding-bootstrap] generate-context-report ${r.status}:`, body);
-          } else if (body.skipped) {
-            console.log(`[onboarding-bootstrap] generate-context-report skipped (no data yet) for ${result.client_id}`);
+            const body = await r.text().catch(() => "");
+            console.warn(`[onboarding-bootstrap] context-report ${r.status}:`, body);
           } else {
-            console.log(`[onboarding-bootstrap] context report generated: doc=${body.document_id}`);
+            // The Python endpoint always returns 202 with {status: "accepted", client_id, message}
+            console.log(`[onboarding-bootstrap] context report scheduled for ${result.client_id}`);
           }
         }).catch((err) => {
-          console.warn("[onboarding-bootstrap] generate-context-report fire failed:", err);
+          console.warn("[onboarding-bootstrap] context-report fire failed:", err);
         }),
+      );
+    } else {
+      console.warn(
+        "[onboarding-bootstrap] context-report skipped: AGENT_API_URL or CONTEXT_REPORT_TOKEN not set",
       );
     }
 

@@ -22,7 +22,7 @@ import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
 
 import { snoozeUntil } from '../../utils/time'
 
-type Tab = 'decisoes' | 'analises' | 'historico' | 'config'
+type Tab = 'objetivos' | 'documentos' | 'conhecimento' | 'config'
 
 // ── Lightweight markdown renderer (no external dependency) ─────────────────────────────────
 function renderMarkdownLine(line: string, key: number): React.ReactNode {
@@ -125,7 +125,7 @@ export default function EstrategiaRoom() {
   const { go, addToast, openChatWith } = useAppStore()
   const { clientId } = useAuth()
   const qc = useQueryClient()
-  const [tab, setTab] = useState<Tab>('decisoes')
+  const [tab, setTab] = useState<Tab>('objetivos')
   const [analyticsOpen, setAnalyticsOpen] = useState(false)
   const [selectedReport, setSelectedReport] = useState<ContextReport | null>(null)
   const [reportContent, setReportContent] = useState<string | null>(null)
@@ -247,23 +247,23 @@ export default function EstrategiaRoom() {
             <span className="ph-ttl">Mesa de Trabalho</span>
           </div>
           <div className="rtabs">
-            {(['decisoes', 'analises', 'historico', 'config'] as Tab[]).map((t) => (
+            {(['objetivos', 'documentos', 'conhecimento', 'config'] as Tab[]).map((t) => (
               <div
                 key={t}
                 className={`rtab${tab === t ? ' on' : ''}`}
                 onClick={() => setTab(t)}
               >
-                {t === 'decisoes' ? (
+                {t === 'objetivos' ? (
                   <>
-                    Decisões{' '}
+                    Objetivos{' '}
                     {!approvalsQ.isLoading && !approvalsDocsQ.isLoading && allApprovals.length > 0 && (
                       <span className="tbdg">{allApprovals.length}</span>
                     )}
                   </>
-                ) : t === 'analises' ? (
-                  'Análises'
-                ) : t === 'historico' ? (
-                  'Histórico'
+                ) : t === 'documentos' ? (
+                  'Documentos'
+                ) : t === 'conhecimento' ? (
+                  'Conhecimento'
                 ) : (
                   'Config'
                 )}
@@ -272,8 +272,8 @@ export default function EstrategiaRoom() {
           </div>
 
           <div className="pb">
-            {/* DECISÕES */}
-            <div className={`tc${tab === 'decisoes' ? ' on' : ''}`}>
+            {/* OBJETIVOS */}
+            <div className={`tc${tab === 'objetivos' ? ' on' : ''}`}>
               {approvalsQ.isLoading || approvalsDocsQ.isLoading ? (
                 <div className="dc" style={{ opacity: 0.4 }}>Carregando…</div>
               ) : allApprovals.length === 0 ? (
@@ -299,8 +299,8 @@ export default function EstrategiaRoom() {
               )}
             </div>
 
-            {/* ANÁLISES — context report viewer */}
-            <div className={`tc${tab === 'analises' ? ' on' : ''}`}>
+            {/* DOCUMENTOS — context report viewer */}
+            <div className={`tc${tab === 'documentos' ? ' on' : ''}`}>
               {!selectedReport ? (
                 <div style={{ fontSize: 12, color: 'var(--mu)', padding: '16px 0', textAlign: 'center' }}>
                   Selecione um relatório na coluna direita para visualizá-lo.
@@ -318,8 +318,8 @@ export default function EstrategiaRoom() {
               )}
             </div>
 
-            {/* HISTÓRICO */}
-            <div className={`tc${tab === 'historico' ? ' on' : ''}`}>
+            {/* CONHECIMENTO */}
+            <div className={`tc${tab === 'conhecimento' ? ' on' : ''}`}>
               {historyQ.isLoading ? (
                 <div style={{ fontSize: 11, color: 'var(--mu)' }}>Carregando…</div>
               ) : history.length === 0 ? (
@@ -416,7 +416,7 @@ export default function EstrategiaRoom() {
                         key={report.id}
                         onClick={() => {
                           setSelectedReport(report)
-                          setTab('analises')
+                          setTab('documentos')
                         }}
                         style={{
                           display: 'flex',

@@ -131,6 +131,9 @@ export default function EstrategiaRoom() {
   const [reportContent, setReportContent] = useState<string | null>(null)
   const [loadingReport, setLoadingReport] = useState(false)
 
+  const [configDocumentos, setConfigDocumentos] = useState<Record<string, unknown>>({})
+  const [configEstrategia, setConfigEstrategia] = useState<Record<string, unknown>>({})
+
   const [approvalsQ, approvalsDocsQ, insightsQ, historyQ, contextReportsQ, contextMetricsQ] = useQueries({
     queries: [
       {

@@ -68,20 +68,26 @@ def _read_file(path: Path) -> str:
 
 def test_b5_ac1_auth_context_signup_sem_signout() -> None:
     """
-    AC#1 — RED: AuthContext.signUp() NÃO chama supabase.auth.signOut() antes
-    de supabase.auth.signUp().
+    AC#1 — GREEN: AuthContext.signUp() DEVE chamar supabase.auth.signOut()
+    antes de supabase.auth.signUp().
+
+    Phase 0.1 (commit 1f60c82e) shipped the fix: o corpo de signUp
+    agora faz signOut() + setState({session: null, user: null, ...})
+    antes de signUp(). Sem esse preludio, a sessao do usuario
+    anterior vaza no segundo cadastro e o backend Supabase pode
+    retornar erro ``Auth session missing!`` ou vincular o novo
+    ``auth.users`` ao ``client_id`` do usuario anterior.
 
     Lógica:
-        - Se o arquivo contém ".signOut(" → a correção JÁ FOI APLICADA
-          → pytest.fail("FALSE RED: correção já implementada")
-        - Caso contrário → assert True → TRUE RED confirmado
+        - Se o corpo de signUp contém ".signOut(" ANTES de ".signUp("
+          → assert True (GREEN, fix em vigor)
+        - Caso contrário → pytest.fail (REGRESSED, fix removido)
     """
     content = _read_file(AUTH_CONTEXT_PATH)
 
     import re
 
     # Extrai o corpo da função signUp: entre "const signUp = async" e "  }"
-    # (a função tem indentação de 2 espaços, termina com "  }")
     sign_up_match = re.search(
         r"const signUp\s*=\s*async\s*\([^)]*\)\s*=>\s*\{"
         r"(.*?)\n  \}",
@@ -94,19 +100,23 @@ def test_b5_ac1_auth_context_signup_sem_signout() -> None:
 
     sign_up_body = sign_up_match.group(1)
 
-    # Procura por signOut() dentro do corpo da função signUp
-    if ".signOut(" in sign_up_body:
-        pytest.fail(
-            "FALSE RED — AC#1: AuthContext.signUp() já contém "
-            "supabase.auth.signOut() antes de signUp(). "
-            "Correção já implementada — este teste deveria falhar na fase GREEN."
-        )
+    signout_pos = sign_up_body.find(".signOut(")
+    signup_pos = sign_up_body.find(".signUp(")
+    signout_before_signup = (
+        signout_pos != -1
+        and signup_pos != -1
+        and signout_pos < signup_pos
+    )
 
-    # Se chegou aqui, a correção NÃO existe → TRUE RED
-    assert True, (
-        "TRUE RED confirmado — AC#1: AuthContext.signUp() ainda chama "
-        "supabase.auth.signUp() sem signOut() prévio. "
-        "A sessão do usuário anterior vaza no segundo cadastro."
+    assert signout_before_signup, (
+        "AC#1 REGRESSED: AuthContext.signUp() não chama "
+        "supabase.auth.signOut() antes de supabase.auth.signUp(). "
+        "Phase 0.1 (commit 1f60c82e) adicionou este preludio para "
+        "evitar contaminacao de sessao. Se este teste falha, "
+        "alguem removeu a linha — REVERTER imediatamente.\n"
+        f"  - signOut() pos: {signout_pos}\n"
+        f"  - signUp() pos:  {signup_pos}\n"
+        f"  - Corpo de signUp():\n{sign_up_body}"
     )
 
 

@@ -249,13 +249,17 @@ class TestB4ConhecimentoConfig:
     def test_ac5_config_tab_domain_documentos(self) -> None:
         """AC#5 — A aba Config inclui ``<RoutineConfigSection domain="documentos" />``.
 
-        GREEN esperado: além do já existente
-        ``<RoutineConfigSection domain="estrategia" />`` (linha 340),
-        o componente deve renderizar um segundo ``RoutineConfigSection``
-        com ``domain="documentos"`` (ou ``domain='documentos'``) para
+        GREEN: EstrategiaRoom.tsx DEVE renderizar um
+        ``<RoutineConfigSection domain="documentos" />`` (alem do ja
+        existente ``<RoutineConfigSection domain="estrategia" />``) para
         consolidar as rotinas de documentos na Config da EstrategiaRoom.
 
-        Hoje só existe ``<RoutineConfigSection domain="estrategia" />``.
+        O fix foi entregue em algum GREEN commit anterior ao merge
+        ``f6c93470`` (que moveu OnboardingApp.tsx mas nao tocou este
+        test). O test foi escrito como RED inverted e nunca foi
+        atualizado — ele falha porque a feature esta em vigor. Esta
+        assertion valida que a feature continua em vigor e falha se
+        alguem remover o ``RoutineConfigSection domain="documentos"``.
         """
         source = read_source()
         # Aceita aspas duplas ou simples no atributo domain.
@@ -263,12 +267,13 @@ class TestB4ConhecimentoConfig:
             r"""RoutineConfigSection\s+domain\s*=\s*["']documentos["']""",
             source,
         )
-        if match is not None:
-            pytest.fail(
-                "FALSE RED — AC#5 violada: o JSX "
-                "`<RoutineConfigSection domain=\"documentos\" />` JÁ é "
-                f"renderizado em EstrategiaRoom.tsx (match em offset {match.start()}). "
-                "Esperava-se que a Config ainda NÃO estivesse consolidada "
-                "com as rotinas de documentos para que este teste RED "
-                "passasse. A feature B-4 já foi entregue."
-            )
+        assert match is not None, (
+            "AC#5 REGRESSED: EstrategiaRoom.tsx NAO renderiza mais "
+            "`<RoutineConfigSection domain=\"documentos\" />`. A feature "
+            "B-4 de consolidacao das rotinas de documentos na Config "
+            "da EstrategiaRoom foi removida. REVERTER imediatamente.\n"
+            "  - Esperado (GREEN): alem de "
+            "`<RoutineConfigSection domain=\"estrategia\" />`, o "
+            "componente deve renderizar tambem "
+            "`<RoutineConfigSection domain=\"documentos\" />`."
+        )

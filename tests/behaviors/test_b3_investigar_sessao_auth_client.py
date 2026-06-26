@@ -141,26 +141,21 @@ def _extract_signup_function_body(source: str) -> str:
 
 
 def test_b3_ac1_signup_nao_consulta_sessao_existente():
-    """AC#1: ``AuthContext.signUp()`` NAO deve chamar
-    ``supabase.auth.getSession()`` nem ``supabase.auth.signOut()``
-    ANTES de ``supabase.auth.signUp()``.
+    """AC#1 (GREEN): ``AuthContext.signUp()`` DEVE chamar
+    ``supabase.auth.signOut()`` (e opcionalmente ``supabase.auth.getSession()``)
+    ANTES de ``supabase.auth.signUp()`` para limpar a sessao do usuario
+    anterior.
 
-    Hoje, o codigo em AuthContext.tsx (linhas 233-240) faz:
+    Phase 0.1 (commit 1f60c82e) shipped este fix: o signUp() agora
+    faz signOut() + setState({session:null, user:null, ...}) como
+    preludio, evitando contaminacao de sessao entre signups.
 
-        const signUp = async (email, password, metadata) => {
-            const { error } = await supabase.auth.signUp({
-                email, password, options: { data: metadata },
-            })
-            return { error }
-        }
+    Este teste e' GREEN: valida que o preludio esta em vigor. Falha
+    se alguem remover o signOut() do signUp() (regressao).
 
-    Sem ``getSession()`` nem ``signOut()`` previo — comportamento
-    CORRETO. Este teste atua como tripwire de regressao: se algum
-    refactor futuro inserir uma pre-consulta ou pre-limpeza de
-    sessao, o teste sinaliza com "AC#1 FIXED". Enquanto o estado
-    correto se mantiver, o teste falha RED sinalizando que a AC
-    ainda nao foi formalmente "fixada" (documentada) por uma fase
-    GREEN.
+    CAVEAT — ``supabase.auth.getSession()`` NAO deve ser chamado em
+    signUp(): isso causaria race condition com refresh token do
+    usuario anterior. Aceitamos ``signOut()`` mas NAO ``getSession()``.
     """
     assert AUTH_CONTEXT_PATH.exists(), (
         f"Source file not found: {AUTH_CONTEXT_PATH}. "
@@ -183,33 +178,21 @@ def test_b3_ac1_signup_nao_consulta_sessao_existente():
     pos = body.find("supabase.auth.signUp(")
     pre_signup_block = body[:pos]
 
-    try:
-        assert "getSession(" not in pre_signup_block and "signOut(" not in pre_signup_block
-    except AssertionError:
-        pytest.fail(
-            "AC#1 FIXED: session check found in pre_signup_block, test needs update."
-        )
+    # signOut() DEVE estar no preludio (Phase 0.1 fix).
+    assert "signOut(" in pre_signup_block, (
+        "AC#1 REGRESSED: AuthContext.signUp() NAO chama signOut() "
+        "antes de signUp(). Phase 0.1 (commit 1f60c82e) adicionou este "
+        "preludio para evitar contaminacao de sessao. Se este teste "
+        "falha, alguem removeu a linha — REVERTER imediatamente.\n"
+        f"  - preludio atual: {pre_signup_block.strip()}"
+    )
 
-    pytest.fail(
-        "AC#1 RED: AuthContext.signUp() ainda nao foi formalmente validado "
-        "como livre de pre-consulta/pre-limpeza de sessao.\n\n"
-        "Causa raiz investigada: o signUp() em "
-        "packages/blu-auth/src/AuthContext.tsx (linhas 233-240) chama "
-        "diretamente `supabase.auth.signUp()` sem nenhum `getSession()` "
-        "ou `signOut()` previo. Embora isso seja o comportamento desejado "
-        "(AC#1 = NAO consultar/limpar sessao antes do signUp), o teste "
-        "sinaliza RED ate que uma fase GREEN documente formalmente essa "
-        "propriedade de isolamento.\n\n"
-        "Risco que estamos prevenindo: um refactor futuro pode inserir "
-        "`await supabase.auth.getSession()` ou `await supabase.auth.signOut()` "
-        "antes do signUp(), causando:\n"
-        "  - race condition com refresh token do usuario anterior\n"
-        "  - disparo de onAuthStateChange que limpa state React "
-        "prematuramente e derruba o usuario do fluxo de onboarding\n\n"
-        "Contrato esperado (AC#1): o signUp() deve ir DIRETO para "
-        "`supabase.auth.signUp()` sem pre-consulta/pre-limpeza de sessao.\n\n"
-        f"Trecho atual do signUp() (pre_signup_block):\n"
-        f"```\n{pre_signup_block.strip()}\n```\n"
+    # getSession() NAO deve estar no preludio (race condition risk).
+    assert "getSession(" not in pre_signup_block, (
+        "AC#1 violated: supabase.auth.getSession() encontrado no "
+        "preludio de signUp(). Isso causa race condition com refresh "
+        "token do usuario anterior. REMOVER a chamada getSession() "
+        "do preludio de signUp() — signOut() e' suficiente."
     )
 
 
@@ -490,16 +473,12 @@ def test_b3_ac3_signup_funciona_sem_sessao():
         "{...}`."
     )
 
-    pytest.fail(
-        "AC#3 RED: AuthContext.signUp() ainda nao foi formalmente "
-        "validado como livre de pre-condicoes que bloqueiem signUp "
-        "em sessao limpa. Atualmente a funcao chama "
-        "supabase.auth.signUp() diretamente (sem if/try/catch), o "
-        "que e' o comportamento correto para o cenario de nova "
-        "aba/incognito. Este teste sinaliza RED como contrato: "
-        "qualquer refactor futuro que adicione condicionais antes "
-        "do supabase.auth.signUp() ira quebrar este teste."
-    )
+    # AC#3 GREEN: signUp() nao tem if/try/catch. Phase 0.1 adicionou
+    # apenas setState + signOut() como preludio (statements sem
+    # branching), preservando o contrato de signUp ir direto para
+    # supabase.auth.signUp(). O teste continua sendo um "tripwire"
+    # util: se alguem adicionar branching (if/try/catch) ao signUp,
+    # o teste falha com "AC#3 FIXED" sinalizando a regressao.
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -576,25 +555,24 @@ def _extract_signup_body_precise(source: str) -> str:
 
 
 def test_b3_ac4_auth_nao_faz_signout_automatico():
-    """AC#4: ``@blu/auth`` must NOT do automatic ``signOut()`` before
-    ``signUp()``. This confirms the root cause of the B-1 bug: the
-    Supabase JS client rejects a second ``signUp()`` when an active
-    session already exists (from a previous signUp). The fix (B-1)
-    must add ``signOut()`` BEFORE ``signUp()`` EITHER in signUp()
-    (in AuthContext.tsx) OR in ``StepAuth.handleSubmit()`` in
-    OnboardingApp.tsx.
+    """AC#4 (GREEN): ``@blu/auth`` DEVE fazer ``signOut()`` antes de
+    ``signUp()`` (defesa em profundidade — Phase 0.1).
 
-    This test verifies:
-      - signUp() body in AuthContext.tsx does NOT call signOut()
-      - signUp() body in AuthContext.tsx does NOT call
-        ``supabase.auth.signOut()``
-      - index.ts has NO export or function chaining signOut+signUp
-      - "signOut" in index.ts appears ONLY as a standalone export
-        (not combined with signUp in the same export clause)
+    Phase 0.1 (commit 1f60c82e) shipped: signUp() em AuthContext.tsx
+    agora chama ``supabase.auth.signOut()`` e reseta o state React
+    como preludio. Isso garante limpeza de sessao mesmo se o caller
+    esquecer de chamar signOut() (cenarios OAuth, session hijacking,
+    etc.).
 
-    Current state: RED — signUp() does NOT call signOut() (which is
-    what the test asserts), but the AC is not yet formally
-    validated as a "fix" by a GREEN phase.
+    Este teste valida o design de defesa em profundidade. Falha
+    (REGRESSED) se alguem remover o signOut() do signUp().
+
+    NOTA SOBRE O NOME: o nome do test "auth_nao_faz_signout_automatico"
+    foi escrito ANTES do Phase 0.1 ser decidido. O design original
+    era "caller is responsible". Phase 0.1 inverteu para "AuthContext
+    faz signOut() automaticamente (defesa em profundidade) + caller
+    tambem faz (camada extra)". O test foi atualizado para refletir
+    a decisao final.
     """
     assert AUTH_CONTEXT_PATH.exists(), (
         f"Source file not found: {AUTH_CONTEXT_PATH}. "
@@ -609,21 +587,19 @@ def test_b3_ac4_auth_nao_faz_signout_automatico():
         "exist as a callable function."
     )
 
-    try:
-        assert "signOut(" not in signup_body, (
-            "AC#4 violated: signUp() body contains `signOut(`. The "
-            "@blu/auth package must NOT do automatic signOut before "
-            "signUp — the caller (e.g., StepAuth.handleSubmit) is "
-            "responsible for invoking signOut() manually before a "
-            "fresh signUp() if needed."
-        )
-        assert "supabase.auth.signOut(" not in signup_body, (
-            "AC#4 violated: signUp() body contains "
-            "`supabase.auth.signOut(`. The signUp() function must "
-            "not terminate the active session internally."
-        )
-    except AssertionError as exc:
-        pytest.fail(f"AC#4 FIXED: {exc!s}")
+    # Phase 0.1 design: signOut() DEVE estar no preludio de signUp().
+    assert "signOut(" in signup_body, (
+        "AC#4 REGRESSED: signUp() body does NOT call signOut(). "
+        "Phase 0.1 (commit 1f60c82e) adicionou signOut() + "
+        "setState({session:null, ...}) como preludio de signUp() "
+        "para evitar contaminacao de sessao. Se este teste falha, "
+        "alguem removeu o preludio — REVERTER imediatamente."
+    )
+    assert "supabase.auth.signOut(" in signup_body, (
+        "AC#4 REGRESSED: signUp() does NOT call "
+        "`supabase.auth.signOut(`. Phase 0.1 chama este metodo "
+        "como parte do preludio de signUp()."
+    )
 
     assert AUTH_INDEX_PATH.exists(), (
         f"Source file not found: {AUTH_INDEX_PATH}. "
@@ -657,17 +633,9 @@ def test_b3_ac4_auth_nao_faz_signout_automatico():
                 "export in the @blu/auth barrel file."
             )
 
-    pytest.fail(
-        "AC#4 RED: @blu/auth NAO faz signOut automatico antes de "
-        "signUp — confirmando a causa raiz. O signUp() atual em "
-        "AuthContext.tsx chama supabase.auth.signUp() diretamente "
-        "sem invocar signOut() primeiro. Isso significa que se "
-        "houver sessao ativa (de um signUp anterior), o Supabase "
-        "JS client rejeita o segundo signUp com erro. O fix "
-        "esperado (B-1) deve adicionar signOut() antes de signUp() "
-        "em signUp() ou no StepAuth.handleSubmit() em "
-        "OnboardingApp.tsx."
-    )
+    # AC#4 GREEN: passamos. Phase 0.1 garante que signUp() faz
+    # signOut() + setState({session:null, ...}) como preludio.
+    # signOut e signUp sao exportados independentemente em index.ts.
 
 
 # ══════════════════════════════════════════════════════════════════════════

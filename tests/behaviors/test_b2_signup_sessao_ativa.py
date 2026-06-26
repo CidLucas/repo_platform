@@ -1,17 +1,16 @@
-"""RED test for behavior B2 — ``signUp()`` sem ``signOut()`` previo em
-``StepAuth.handleSubmit()`` quebra o segundo signup.
+"""GREEN test for behavior B2 — ``signUp()`` com ``signOut()`` previo em
+``StepAuth.handleSubmit()`` para evitar contaminacao de sessao.
 
-GOAL:
-    Garantir que ``StepAuth.handleSubmit()`` em
-    ``apps/blu_v3/src/pages/onboarding/OnboardingApp.tsx`` chame
-    ``signOut()`` (ou ``supabase.auth.signOut()``) ANTES de executar
-    ``signUp(email, password)`` no branch ``else`` (signup).
+Validates the GREEN phase: ``StepAuth.handleSubmit()`` em
+``apps/blu_v3/src/pages/onboarding/OnboardingApp.tsx`` DEVE chamar
+``signOut()`` (ou ``supabase.auth.signOut()``) ANTES de executar
+``signUp(email, password)`` no branch ``else`` (signup), e ``signOut``
+DEVE estar no destructure de ``useAuth()``.
 
-    Sem esse ``signOut()`` previo, a sessao ativa de um signup/login
-    anterior permanece viva no client Supabase, e o segundo ``signUp``
-    retorna ``Auth session missing!`` (ou similar) ou herda o
-    ``client_id`` do usuario anterior, quebrando o fluxo de onboarding
-    para o segundo usuario.
+Phase 0.1 (commit 1f60c82e) shipped this fix. These tests are now
+GREEN: they verify the fix is in place and would FAIL if someone
+regressed the bug back. The previous RED assertion was inverted
+(it asserted the bug existed, which was wrong once the fix landed).
 
 BEHAVIOR:
     B2 — ``signUp()`` em ``StepAuth.handleSubmit()`` deve ser precedido
@@ -73,9 +72,9 @@ ONBOARDING_APP_PATH = (
     / "OnboardingApp.tsx"
 )
 
-HANDLESUBMIT_LINE_START = 316
-HANDLESUBMIT_LINE_END = 336
-STEPAUTH_USEAUTH_LINE = 298
+HANDLESUBMIT_LINE_START = 324
+HANDLESUBMIT_LINE_END = 352
+STEPAUTH_USEAUTH_LINE = 306
 
 # Regex para extrair o bloco ``else`` de handleSubmit.
 # Aceita variantes como:
@@ -119,20 +118,21 @@ def _cleanup_test_data():
     yield
 
 
-# ── AC#1 — signOut() NAO e' chamado antes de signUp() no else branch ───
+# ── AC#1 — signOut() DEVE ser chamado antes de signUp() no else branch ───
 
 
-def test_b2_ac1_handleSubmit_else_nao_chama_signout_antes_de_signup():
-    """AC#1: no branch ``else`` de ``StepAuth.handleSubmit()`` (linhas
-    316-336 do ``OnboardingApp.tsx``), ``signOut()`` ou
-    ``supabase.auth.signOut()`` NAO e' chamado antes de
+def test_b2_ac1_handleSubmit_else_chama_signout_antes_de_signup():
+    """AC#1 (GREEN): no branch ``else`` de ``StepAuth.handleSubmit()``
+    (linhas 316-336 do ``OnboardingApp.tsx``), ``signOut()`` ou
+    ``supabase.auth.signOut()`` DEVE ser chamado antes de
     ``signUp(email, password)``.
 
-    O estado RED e' exatamente este: ``signOut()`` esta' ausente do
-    bloco ``else``, fazendo com que o segundo ``signUp`` herde a
-    sessao anterior e quebre (erro ``Auth session missing!`` no
-    backend, ou o novo signup acaba vinculado ao ``client_id`` do
-    usuario anterior).
+    Validates the Phase 0.1 fix (commit 1f60c82e): a sessao ativa de
+    um signup/login anterior e' limpa antes do novo signup, evitando
+    contaminacao entre usuarios no mesmo browser. Sem esse ``signOut``
+    previo, o segundo ``signUp`` herdaria a sessao anterior e
+    quebraria (erro ``Auth session missing!`` no backend, ou o novo
+    signup acabaria vinculado ao ``client_id`` do usuario anterior).
     """
     assert ONBOARDING_APP_PATH.exists(), (
         f"Source file not found: {ONBOARDING_APP_PATH}. "
@@ -167,39 +167,51 @@ def test_b2_ac1_handleSubmit_else_nao_chama_signout_antes_de_signup():
         f"AC#1 nao faz sentido."
     )
 
-    # O bloco else NAO deve chamar ``signOut()`` nem
-    # ``supabase.auth.signOut()`` antes de ``signUp(email, password)``.
-    # Esta' e' a condicao RED: o signOut nao existe.
-    signout_match = RE_SIGNOUT_CALL.search(else_block)
-    assert not signout_match, (
-        f"AC#1 violated: `signOut()` ou `supabase.auth.signOut()` "
-        f"foi encontrado no bloco `else` de `handleSubmit()` em "
-        f"{ONBOARDING_APP_PATH}, mas o AC#1 exige que NAO esteja "
-        f"presente ate' a fase GREEN.\n"
-        f"  - Bloco `else` atual: {else_block}\n"
-        f"  - Match encontrado: {signout_match.group(0)}\n"
-        f"  - Esperado (RED): nenhuma chamada a `signOut()` antes "
-        f"de `signUp(email, password)` no `else`.\n"
-        f"  - Correcao esperada (GREEN): adicionar "
-        f"`await signOut()` (ou `await supabase.auth.signOut()`) "
-        f"como primeira linha do `else`, antes de "
-        f"`await signUp(email, password)`."
+    # AC#1 (GREEN): `signOut()` DEVE ser chamado em handleSubmit ANTES
+    # do `signUp(email, password)`. O fix do Phase 0.1 evoluiu de
+    # `signOut` dentro do `else` (versao inicial) para um guard no
+    # topo de handleSubmit: `if (mode === 'signup') { await signOut() }`
+    # seguido do signup no `else` (defense in depth). Esta assertion
+    # valida qualquer das duas patterns: signOut no escopo de
+    # handleSubmit ANTES do signUp call.
+    signout_match = RE_SIGNOUT_CALL.search(handlesubmit_block)
+    signup_pos = handlesubmit_block.find("signUp(email, password)")
+    signout_pos = handlesubmit_block.find("signOut()")
+    signout_before_signup = (
+        signout_match is not None
+        and signup_pos != -1
+        and signout_pos != -1
+        and signout_pos < signup_pos
+    )
+    assert signout_before_signup, (
+        f"AC#1 REGRESSED: `signOut()` NAO foi chamado em `handleSubmit()` "
+        f"ANTES de `signUp(email, password)` em {ONBOARDING_APP_PATH}. "
+        f"O Phase 0.1 (commit 1f60c82e) fixou a contaminacao de sessao "
+        f"adicionando `await signOut()` como guard antes do signup. "
+        f"Se este teste falha, alguem removeu a linha — REVERTER "
+        f"imediatamente.\n"
+        f"  - handleSubmit block (linhas "
+        f"{HANDLESUBMIT_LINE_START}-{HANDLESUBMIT_LINE_END}): "
+        f"{handlesubmit_block}\n"
+        f"  - Esperado (GREEN): `await signOut()` (ou "
+        f"`await supabase.auth.signOut()`) em algum lugar de "
+        f"handleSubmit ANTES de `await signUp(email, password)`."
     )
 
 
-# ── AC#2 — useAuth() desestrutura apenas signInWithEmail e signUp ───────
+# ── AC#2 — useAuth() DEVE destructurar signOut (fix Phase 0.1) ──────────
 
 
-def test_b2_ac2_stepauth_useauth_nao_destructura_signout():
-    """AC#2: em ``StepAuth`` linha 298 do ``OnboardingApp.tsx``,
-    ``useAuth()`` desestrutura APENAS ``{ signInWithEmail, signUp }``,
-    sem ``signOut``.
+def test_b2_ac2_stepauth_useauth_destructura_signout():
+    """AC#2 (GREEN): em ``StepAuth`` linha 298 do ``OnboardingApp.tsx``,
+    ``useAuth()`` DEVE destructurar ``signOut`` alem de
+    ``signInWithEmail`` e ``signUp``.
 
     Sem ``signOut`` no destructure, o componente NAO tem como chamar
-    ``signOut()`` antes de ``signUp()`` — bug estrutural que precisa
-    ser corrigido adicionando ``signOut`` ao destructure (e
-    ``signOut`` na implementacao do hook ``useAuth()`` em
-    ``apps/blu_v3/src/auth/AuthProvider.tsx`` ou similar).
+    ``signOut()`` antes de ``signUp()`` — bug estrutural que foi
+    corrigido no Phase 0.1 (commit 1f60c82e) adicionando ``signOut``
+    ao destructure e implementando a funcao no hook ``useAuth()`` em
+    ``packages/blu-auth/src/AuthContext.tsx``.
     """
     assert ONBOARDING_APP_PATH.exists(), (
         f"Source file not found: {ONBOARDING_APP_PATH}. "
@@ -254,22 +266,21 @@ def test_b2_ac2_stepauth_useauth_nao_destructura_signout():
         f"  - Esperado: `signInWithEmail` e `signUp`."
     )
 
-    # O destructure NAO deve conter ``signOut`` (estado RED: bug
-    # estrutural — o componente nao expoe a funcao necessaria).
-    assert "signOut" not in destructured_names, (
-        f"AC#2 violated: `signOut` esta' no destructure de "
+    # O destructure DEVE conter ``signOut`` (fix Phase 0.1).
+    # Esta assertion e' GREEN: valida que o fix esta' em vigor.
+    assert "signOut" in destructured_names, (
+        f"AC#2 REGRESSED: `signOut` NAO esta' no destructure de "
         f"`useAuth()` na linha {STEPAUTH_USEAUTH_LINE} de "
-        f"{ONBOARDING_APP_PATH}, mas o AC#2 exige que NAO esteja "
-        f"presente ate' a fase GREEN.\n"
+        f"{ONBOARDING_APP_PATH}. Phase 0.1 (commit 1f60c82e) "
+        f"adicionou `signOut` ao destructure para permitir o "
+        f"pattern de defesa em profundidade "
+        f"(`if (mode === 'signup') await signOut()` antes do "
+        f"signup). Se este teste falha, alguem removeu `signOut` do "
+        f"destructure — REVERTER imediatamente.\n"
         f"  - Destructure atual: {{ {destructured.strip()} }}\n"
         f"  - Nomes encontrados: {destructured_names}\n"
-        f"  - Esperado (RED): apenas `signInWithEmail` e `signUp`.\n"
-        f"  - Correcao esperada (GREEN): adicionar `signOut` ao "
-        f"destructure, e.g. "
-        f"`const {{ signInWithEmail, signUp, signOut }} = useAuth()`, "
-        f"e implementar `signOut` no hook `useAuth()` "
-        f"(provavelmente em `apps/blu_v3/src/auth/AuthProvider.tsx` "
-        f"ou equivalente) chamando `supabase.auth.signOut()`."
+        f"  - Esperado (GREEN): "
+        f"`const {{ signInWithEmail, signUp, signOut }} = useAuth()`."
     )
 
 
@@ -277,52 +288,50 @@ def test_b2_ac2_stepauth_useauth_nao_destructura_signout():
 
 
 def test_b2_red_signup_sem_signout_quebra_segundo_signup():
-    """RED consolidado para B2: falha explicitamente enquanto
-    ``signOut()`` nao for chamado antes de ``signUp()`` em
+    """GREEN consolidado para B2: passa enquanto o fix Phase 0.1 estiver
+    em vigor — ``signOut()`` chamado antes de ``signUp()`` em
     ``StepAuth.handleSubmit()``.
 
-    Estado atual (RED): o destructure de ``useAuth()`` na linha 298
-    expoe apenas ``{ signInWithEmail, signUp }``, e o branch ``else``
-    de ``handleSubmit()`` (linhas 327-331) chama
-    ``signUp(email, password)`` sem chamar ``signOut()`` antes.
+    Phase 0.1 (commit 1f60c82e) shipped the fix:
 
-    Consequencia: o segundo signup herda a sessao do primeiro
-    usuario. Dependendo do estado de RLS e do backend Supabase, o
-    segundo signup pode:
-      (a) falhar com ``Auth session missing!`` ou erro similar
-          retornado pelo backend, OU
-      (b) ser concluido, mas o novo ``auth.users`` acaba vinculado
-          ao ``client_id`` errado (do primeiro usuario), quebrando
-          isolamento de dados e onboarding.
+      1. Adicionado ``signOut`` ao destructure de ``useAuth()`` em
+         ``apps/blu_v3/src/pages/onboarding/OnboardingApp.tsx``.
+      2. ``signOut`` implementado no hook ``useAuth()`` (em
+         ``packages/blu-auth/src/AuthContext.tsx``) chamando
+         ``supabase.auth.signOut()`` e limpando o estado local.
+      3. ``await signOut()`` adicionado no topo de ``handleSubmit()``
+         como guard (``if (mode === 'signup') await signOut()``),
+         antes do branch que chama ``await signUp(email, password)``.
 
-    A correcao (GREEN) deve:
-      1. Adicionar ``signOut`` ao destructure de ``useAuth()`` na
-         linha 298 de ``apps/blu_v3/src/pages/onboarding/
-         OnboardingApp.tsx``.
-      2. Implementar ``signOut`` no hook ``useAuth()`` (em
-         ``apps/blu_v3/src/auth/AuthProvider.tsx`` ou arquivo
-         equivalente) chamando ``supabase.auth.signOut()`` e
-         limpando o estado local do provider.
-      3. No branch ``else`` de ``handleSubmit()``, adicionar
-         ``await signOut()`` como primeira linha, ANTES de
-         ``await signUp(email, password)``.
+    Este teste so' falha se o fix for REVERTIDO — nesse caso, o
+    segundo signup herda a sessao do primeiro usuario e quebra
+    (erro ``Auth session missing!`` no backend, ou o novo
+    ``auth.users`` acaba vinculado ao ``client_id`` errado,
+    quebrando isolamento de dados e onboarding).
     """
     assert ONBOARDING_APP_PATH.exists(), (
         f"Source file not found: {ONBOARDING_APP_PATH}. "
-        "RED check requires OnboardingApp.tsx to exist."
+        "GREEN check requires OnboardingApp.tsx to exist."
     )
 
     source = ONBOARDING_APP_PATH.read_text(encoding="utf-8")
     lines = source.splitlines()
 
-    # ── Avalia AC#1: signOut no else de handleSubmit ──
+    # ── Avalia AC#1: signOut em handleSubmit ANTES de signUp() ──
     handlesubmit_block = "\n".join(
         lines[HANDLESUBMIT_LINE_START - 1 : HANDLESUBMIT_LINE_END]
     )
     else_match = RE_ELSE_BLOCK.search(handlesubmit_block)
     else_block = else_match.group(1) if else_match else ""
     signup_in_else = bool(RE_SIGNUP_CALL.search(else_block))
-    signout_in_else = bool(RE_SIGNOUT_CALL.search(else_block))
+    signup_pos = handlesubmit_block.find("signUp(email, password)")
+    signout_pos = handlesubmit_block.find("signOut()")
+    signout_in_handlesubmit_before_signup = (
+        signup_in_else
+        and signout_pos != -1
+        and signup_pos != -1
+        and signout_pos < signup_pos
+    )
 
     # ── Avalia AC#2: signOut no destructure de useAuth ──
     useauth_line = (
@@ -340,19 +349,16 @@ def test_b2_red_signup_sem_signout_quebra_segundo_signup():
         ]
     signout_in_destructure = "signOut" in destructured_names
 
-    # GREEN: a falha RED deixa de existir quando
-    # (a) signOut() aparece no else de handleSubmit ANTES de signUp(), E
+    # GREEN: o fix esta' em vigor quando
+    # (a) signOut() aparece em handleSubmit ANTES de signUp(), E
     # (b) signOut esta' no destructure de useAuth() na linha 298.
-    green_already_applied = (
-        signup_in_else
-        and signout_in_else
+    green_in_place = (
+        signout_in_handlesubmit_before_signup
         and signout_in_destructure
     )
 
-    if green_already_applied:
-        # Caso a fase GREEN ja' tenha sido aplicada em alguma iteracao
-        # anterior, nao falhamos RED — deixamos os testes AC#1 e AC#2
-        # validarem com mais detalhes.
+    if green_in_place:
+        # Fix em vigor. Passa silenciosamente.
         return
 
     pytest.fail(

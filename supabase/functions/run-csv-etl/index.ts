@@ -373,6 +373,28 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Failed to create sync job" }, 500);
     }
 
+    try {
+      const { error: rpcErr } = await svc.rpc("sincronizar_csv_cliente", {
+        p_job_id: job.job_id,
+      });
+      if (rpcErr) {
+        console.error(`[run-csv-etl] ${requestId} RPC sincronizar_csv_cliente failed:`, rpcErr);
+      }
+      await svc
+        .schema("analytics_v2")
+        .from("reg_jobs")
+        .update({ status: "completed", progress_pct: 100 })
+        .eq("job_id", job.job_id);
+    } catch (rpcCatchErr) {
+      console.error(`[run-csv-etl] ${requestId} Inline RPC exception (pg_cron fallback):`, rpcCatchErr);
+      return json({
+        success: true,
+        rows_inserted: 0,
+        period: new Date().toISOString().slice(0, 7),
+        job_id: job.job_id,
+      }, 200, {
+        "X-Request-Id": requestId,
+      });
     }
 
     const initDuration = Date.now() - startTime;

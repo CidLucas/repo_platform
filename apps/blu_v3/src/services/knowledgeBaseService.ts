@@ -124,6 +124,29 @@ export function getAcceptedExtensions(): string {
   return '.pdf,.docx,.csv,.txt,.md,.json,.xml,.html,.xlsx,.pptx,.yaml,.yml'
 }
 
+export function inferCategory(fileName: string): KBCategory | 'sem_categoria' {
+  const prefixMap: Record<string, KBCategory> = {
+    'contrato_': 'documentos',
+    'relatorio_': 'documentos',
+    'nf_': 'dados_negocio',
+  }
+  const extensionMap: Record<string, KBCategory> = {
+    '.pdf': 'documentos',
+    '.csv': 'dados_negocio',
+  }
+  const lower = fileName.toLowerCase()
+  for (const prefix in prefixMap) {
+    if (lower.startsWith(prefix)) {
+      return prefixMap[prefix]
+    }
+  }
+  const ext = getExtension(fileName)
+  if (extensionMap[ext]) {
+    return extensionMap[ext]
+  }
+  return 'sem_categoria'
+}
+
 // ── Service functions ──────────────────────────────────────────
 
 export async function listDocuments(

@@ -2,7 +2,7 @@ import { useState, useRef, useMemo } from 'react'
 import { useAppStore } from '../../store/appStore'
 import { useAuth } from '../../hooks/useAuth'
 import { useKnowledgeBase } from '../../hooks/useKnowledgeBase'
-import { KB_CATEGORIES, KB_CATEGORY_TREE, isCsvFile, type KBDocument, type KBCategory, type KBCategoryNode } from '../../services/knowledgeBaseService'
+import { KB_CATEGORIES, KB_CATEGORY_TREE, inferCategory, isCsvFile, type KBDocument, type KBCategory, type KBCategoryNode } from '../../services/knowledgeBaseService'
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 import EmptyState from '../../components/shared/EmptyState'
@@ -449,7 +449,7 @@ export default function BibliotecaRoom() {
     if (isCsvFile(file.name)) {
       await kb.uploadCsv(file)
     } else {
-      await kb.upload(file, false, 'upload', { category: kbCategory })
+      await kb.upload(file, false, 'upload', { category: kbCategory || inferCategory(file.name) })
     }
   }
 

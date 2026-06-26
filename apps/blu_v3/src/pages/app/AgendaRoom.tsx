@@ -50,6 +50,8 @@ export default function AgendaRoom() {
   const qc = useQueryClient()
   const { data: integrations = [] } = useIntegrations()
   const [tab, setTab] = useState<Tab>('gantt')
+  const [hojeExpandedId, setHojeExpandedId] = useState<string | null>(null)
+  const toggleHojeDc = (id: string) => setHojeExpandedId(prev => prev === id ? null : id)
 
   // Invalidate after Google Calendar OAuth return
   useEffect(() => {
@@ -184,19 +186,31 @@ export default function AgendaRoom() {
                     description="Sua agenda está livre. O Blu avisará quando houver compromissos marcados."
                   />
                 )}
-                {todayEvents.map(ev => (
-                  <div key={ev.id} className="ev-row">
-                    <span className="ev-time">{formatTime(ev.start_at)}</span>
-                    <div className="ev-dot" style={{ background: DOT_COLORS[ev.agenda_source] ?? '#818cf8' }} />
-                    <div className="ev-body">
-                      <div className="ev-title">{ev.title}</div>
-                      {ev.location && <div className="ev-desc">{ev.location}</div>}
+                {todayEvents.map(ev => {
+                  const isExpanded = hojeExpandedId === ev.id
+                  return (
+                    <div key={ev.id} className={['dc', isExpanded ? 'expanded' : ''].filter(Boolean).join(' ')} id={ev.id}>
+                      <dc-row className="dc-row" onClick={() => toggleHojeDc(ev.id)}>
+                        <span className="ev-time">{formatTime(ev.start_at)}</span>
+                        <div className="ev-dot" style={{ background: DOT_COLORS[ev.agenda_source] ?? '#818cf8' }} />
+                        <span className="dc-row-summary">{ev.title}</span>
+                        {ev.agenda_source === 'approval' && (
+                          <span className="bdg bw">Pendente</span>
+                        )}
+                        <span className="dc-chev">▶</span>
+                      </dc-row>
+                      <div className="dc-expand">
+                        {ev.location && <div className="db">📍 {ev.location}</div>}
+                        {ev.contact && <div className="db">👤 {ev.contact}</div>}
+                        {ev.observation && <div className="db">📝 {ev.observation}</div>}
+                        <div className="dc-act">
+                          <button className="btn bp" onClick={() => openChatWith(`Confirmar presença em ${ev.title}`)}>✓ Confirmar</button>
+                          <button className="btn bg" onClick={() => openChatWith(`Remarcar reunião ${ev.title}`)}>↻ Remarcar</button>
+                        </div>
+                      </div>
                     </div>
-                    {ev.agenda_source === 'approval' && (
-                      <span className="bdg bw" style={{ marginTop: 2 }}>Pendente</span>
-                    )}
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
 

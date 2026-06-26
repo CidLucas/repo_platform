@@ -42,6 +42,12 @@ export interface EmbeddingProgress {
 
 export type KBDocumentSource = 'upload' | 'chat' | 'url' | 'api'
 
+export interface KBCategoryNode {
+  value: string
+  label: string
+  children?: { value: string; label: string }[]
+}
+
 export const KB_CATEGORIES = [
   { value: 'dados_negocio', label: 'Dados de Negócio' },
   { value: 'contexto_empresa', label: 'Contexto da Empresa' },
@@ -50,6 +56,45 @@ export const KB_CATEGORIES = [
 ] as const
 
 export type KBCategory = (typeof KB_CATEGORIES)[number]['value']
+
+export const KB_CATEGORY_TREE: KBCategoryNode[] = [
+  {
+    value: 'dados_negocio',
+    label: 'Dados de Negócio',
+    children: [
+      { value: 'vendas', label: 'Vendas' },
+      { value: 'clientes', label: 'Clientes' },
+      { value: 'produtos', label: 'Produtos' },
+    ],
+  },
+  {
+    value: 'contexto_empresa',
+    label: 'Contexto da Empresa',
+    children: [
+      { value: 'politicas', label: 'Políticas' },
+      { value: 'processos', label: 'Processos' },
+      { value: 'estrutura', label: 'Estrutura' },
+    ],
+  },
+  {
+    value: 'documentos',
+    label: 'Documentos',
+    children: [
+      { value: 'contratos', label: 'Contratos' },
+      { value: 'relatorios', label: 'Relatórios' },
+      { value: 'manuais', label: 'Manuais' },
+    ],
+  },
+  {
+    value: 'conhecimento_ia',
+    label: 'Conhecimento da IA',
+    children: [
+      { value: 'prompts', label: 'Prompts' },
+      { value: 'treinamentos', label: 'Treinamentos' },
+      { value: 'referencias', label: 'Referências' },
+    ],
+  },
+]
 
 // ── Constants ──────────────────────────────────────────────────
 

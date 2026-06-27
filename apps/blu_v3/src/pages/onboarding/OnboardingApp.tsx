@@ -452,11 +452,9 @@ interface SiteContext {
   company_name?: string
   cnpj?: string
   vertical?: string
-  cnpj?: string
   telefone?: string
   confidence: number
   suggested_agents?: string[]
-  telefone?: string
 }
 
 function formatCnpj(raw: string): string {
@@ -2054,7 +2052,6 @@ export default function OnboardingApp() {
   const [bqCredentialId, setBqCredentialId] = useState<number | null>(null)
   const [bqClientId, setBqClientId] = useState<string | null>(null)
   const [csvFiles, setCsvFiles] = useState<File[]>([])
-  const [csvSheetNames, setCsvSheetNames] = useState<string[]>([])
   const [csvSchemaType, setCsvSchemaType] = useState<string>('invoices')
   const [csvSourceId, setCsvSourceId] = useState<string | null>(null)
   const [driveFileId, setDriveFileId] = useState<string | null>(null)
@@ -2200,7 +2197,7 @@ export default function OnboardingApp() {
         onSkip={() => go('launch')}
         saveDraft={saveDraft}
         onMappingReady={setMappingResult}
-        onCsvFileReady={(file, sheetName, schemaType) => {
+        onCsvFileReady={(file, _sheetName, schemaType) => {
           if (!file) { setCsvFiles([]); return }
           setCsvFiles(prev => [...prev, file])
           if (schemaType) setCsvSchemaType(schemaType)

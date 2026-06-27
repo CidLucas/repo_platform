@@ -67,7 +67,7 @@ type CsvClassification = {
 const STEP_ORDER: Step[] = ['auth', 'info', 'data', 'mapping', 'launch']
 const STEP_LABELS = ['Conta', 'Empresa', 'Dados', 'Mapeamento']
 
-const VERTICALS = ['Comércio', 'Serviços', 'Indústria', 'Saúde', 'Educação', 'Agronegócio', 'Financeiro', 'Design', 'Buffet / Eventos', 'Construção', 'Logística', 'Consultoria', 'Outro']
+const VERTICALS = ['Comércio', 'Serviços', 'Indústria', 'Saúde', 'Educação', 'Agronegócio', 'Financeiro', 'Outro']
 const TEAM_SIZES = ['Só eu', '2–10 pessoas', '10–50 pessoas', '50+ pessoas']
 
 // Canonical field names for manual mapping — must match CANONICAL_SCHEMAS.invoices in match-columns
@@ -568,10 +568,12 @@ function StepInfo({
       }
       // Auto-fill telefone
       if (ctx.telefone && !telefone.trim()) setTelefone(ctx.telefone)
-      // Auto-fill vertical
+      // Auto-fill vertical — fallback to "Outro" if the detected
+      // value has no dedicated pill (design, buffet, construcao,
+      // logistica, consultoria, etc.)
       const detected = VERTICAL_DISPLAY[ctx.vertical as string]
       if (detected && ctx.confidence >= 0.3) {
-        setVertical(detected)
+        setVertical(VERTICALS.includes(detected) ? detected : 'Outro')
       }
       // Show context card for any confidence level to let user confirm/adjust
       if (ctx.vertical || ctx.company_name || ctx.cnpj || ctx.telefone) setSiteContext(ctx)

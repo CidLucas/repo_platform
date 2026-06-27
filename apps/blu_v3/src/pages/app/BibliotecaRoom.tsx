@@ -458,8 +458,10 @@ export default function BibliotecaRoom() {
   async function handleDrop(e: React.DragEvent) {
     e.preventDefault()
     setDragging(false)
-    const file = e.dataTransfer.files[0]
-    if (file) await handleUpload(file)
+    const files = e.dataTransfer.files
+    for (let i = 0; i < files.length; i++) {
+      await handleUpload(files[i])
+    }
   }
 
   function handleDownload(doc: KBDocument) {
@@ -511,10 +513,13 @@ export default function BibliotecaRoom() {
             type="file"
             style={{ display: 'none' }}
             accept=".pdf,.doc,.docx,.txt,.csv,.xlsx,.xls,.pptx,.md,.json"
+            multiple
             onChange={async e => {
-              const file = e.target.files?.[0]
-              if (!file) return
-              await handleUpload(file)
+              const files = e.target.files
+              if (!files) return
+              for (let i = 0; i < files.length; i++) {
+                await handleUpload(files[i])
+              }
               e.target.value = ''
             }}
           />

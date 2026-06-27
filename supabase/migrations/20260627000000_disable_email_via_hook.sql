@@ -21,8 +21,13 @@
 
 -- ── 1. send_email hook: no-op (Supabase uses this instead of
 --      the built-in provider, which is what unlocks the rate
---      limit. Returning '{}' is a no-op; we deliberately do
---      NOT call any email provider.) ──────────────────────
+--      limit. Returning {"skip": true} tells GoTrue to NOT
+--      invoke its built-in email provider — we deliberately do
+--      NOT call any email provider.)
+--
+--      Important: returning a bare '{}' is rejected by GoTrue with
+--      "output claims field is missing". The send_email hook contract
+--      requires an explicit 'skip' boolean in the response. ─────
 create or replace function public.send_email_hook(event jsonb)
 returns jsonb
 language plpgsql
@@ -30,10 +35,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  -- No-op: we don't want to send emails in dev.
-  -- The Supabase built-in provider is bypassed because this
-  -- hook is enabled, which removes the 2/h email rate limit.
-  return '{}'::jsonb;
+  return jsonb_build_object('skip', true);
 end;
 $$;
 

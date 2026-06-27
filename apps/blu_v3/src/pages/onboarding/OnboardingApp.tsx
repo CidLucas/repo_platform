@@ -67,7 +67,7 @@ type CsvClassification = {
 const STEP_ORDER: Step[] = ['auth', 'info', 'data', 'mapping', 'launch']
 const STEP_LABELS = ['Conta', 'Empresa', 'Dados', 'Mapeamento']
 
-const VERTICALS = ['Comércio', 'Serviços', 'Indústria', 'Saúde', 'Educação', 'Agronegócio', 'Financeiro', 'Outro']
+const VERTICALS = ['Comércio', 'Serviços', 'Indústria', 'Saúde', 'Educação', 'Agronegócio', 'Financeiro', 'Design', 'Buffet / Eventos', 'Construção', 'Logística', 'Consultoria', 'Outro']
 const TEAM_SIZES = ['Só eu', '2–10 pessoas', '10–50 pessoas', '50+ pessoas']
 
 // Canonical field names for manual mapping — must match CANONICAL_SCHEMAS.invoices in match-columns
@@ -87,6 +87,11 @@ const VERTICAL_DISPLAY: Record<string, string> = {
   educacao: 'Educação',
   agro: 'Agronegócio',
   financeiro: 'Financeiro',
+  design: 'Design',
+  buffet: 'Buffet / Eventos',
+  construcao: 'Construção',
+  logistica: 'Logística',
+  consultoria: 'Consultoria',
   outro: 'Outro',
 }
 

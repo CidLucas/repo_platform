@@ -209,11 +209,3 @@ verify_jwt = false
 [functions.website-context-builder]
 verify_jwt = false
 
-# ── Auth: No-op email hook ──────────────────────────────────────────────────
-# Replaces built-in email provider with a no-op Postgres hook to bypass
-# the 2/h email rate limit. Users are auto-confirmed immediately.
-[auth]
-[auth.hook]
-[auth.hook.send_email]
-enabled = true
-uri = "pg-functions://postgres/public/send_email_hook"

@@ -20,7 +20,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <ErrorBoundary fallback={<ErrorFallback />}>
       <QueryClientProvider client={queryClient}>
         <AuthProvider loginRedirectPath="/onboarding" onCalendarToken={captureCalendarToken} onDriveToken={captureDriveToken}>
-          <BrowserRouter>
+          <BrowserRouter future={{ v7_relativeSplatPath: true }}>
             <App />
           </BrowserRouter>
         </AuthProvider>

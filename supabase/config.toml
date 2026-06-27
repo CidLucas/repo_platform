@@ -2,6 +2,32 @@
 # directory name when running `supabase init`.
 project_id = "haruewffnubdgyofftut"
 
+# ── Auth: signup without email confirmation ──────────────────────────────────
+# IMPORTANT: `mailer_autoconfirm` is a REMOTE project setting, not a local
+# config.toml value — setting it here is documentation only. To apply, run:
+#   ./scripts/disable-email-confirm.sh
+# (or Dashboard → Authentication → Sign In/Up → "Confirm email" = OFF)
+#
+# Why: the Supabase built-in email provider rate-limits /auth/v1/signup to
+# 2 emails/hour. With autoconfirm OFF, signup sends a confirmation email and
+# counts against that limit. With autoconfirm ON, signup is silent and the
+# rate limit is 30/h by IP — enough for dev/test onboarding.
+#
+# ALTERNATIVE: a no-op `send_email` hook (see migration
+# 20260627000000_disable_email_via_hook.sql) achieves the same outcome —
+# Supabase stops using the built-in provider — without touching the
+# `mailer_autoconfirm` flag. Apply with `supabase config push`.
+
+# ── Auth: send_email hook (replaces built-in email provider) ───────────────
+# Combined with the auto-confirm trigger in
+# 20260627000000_disable_email_via_hook.sql, this makes signups fully silent:
+# no confirmation email, no 2/h rate limit, user is created and loginable
+# immediately. The hook is a no-op Postgres function — it deliberately
+# does NOT call any email provider.
+[auth.hook.send_email]
+enabled = true
+uri = "pg-functions://postgres/public/send_email_hook"
+
 [api]
 # Port to use for the API URL.
 port = 54321

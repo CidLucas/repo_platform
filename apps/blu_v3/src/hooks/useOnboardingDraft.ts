@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { supabase } from '@blu/auth'
 
 export type Vertical =
@@ -73,6 +73,25 @@ export function useOnboardingDraft(userEmail: string) {
     } catch {}
     return initialDraft(userEmail)
   })
+
+  // AC: Re-initialize draft when userEmail changes (signOut → signIn as a
+  // different user). useState's initializer only runs on first mount, so a
+  // stale draft from a previous session would otherwise bleed into the new
+  // one — the previous user's company name / CNPJ would appear in StepInfo.
+  const prevEmailRef = useRef(userEmail)
+  useEffect(() => {
+    if (prevEmailRef.current === userEmail) return
+    prevEmailRef.current = userEmail
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY(userEmail))
+      setDraft(raw
+        ? { ...initialDraft(userEmail), ...JSON.parse(raw) }
+        : initialDraft(userEmail)
+      )
+    } catch {
+      setDraft(initialDraft(userEmail))
+    }
+  }, [userEmail])
 
   const updateDraft = useCallback((patch: Partial<OnboardingDraft>) => {
     setDraft(prev => ({ ...prev, ...patch }))

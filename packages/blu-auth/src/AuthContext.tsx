@@ -286,9 +286,11 @@ export function AuthProvider({
     // Without this, the singleton `session`/`user`/`clientId`/`tier` state
     // from a previous sign-in leaks into the new signUp call, causing
     // onboarding to bootstrap with the previous tenant's data.
+    // Use the wrapper signOut() so onResetUser fires and local state is
+    // reset in lockstep with the SDK session (the SDK call alone races
+    // against onAuthStateChange SIGNED_OUT).
     console.info('[Auth] signUp — clearing previous session', { email, timestamp: new Date().toISOString() })
-    await supabase.auth.signOut()
-    setState({ session: null, user: null, clientId: null, tier: null, loading: false })
+    await signOut()
 
     const { error } = await supabase.auth.signUp({
       email,

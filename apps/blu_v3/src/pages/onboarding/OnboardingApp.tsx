@@ -316,6 +316,11 @@ function StepAuth({ onNext, mode }: { onNext: () => void; mode: 'login' | 'signu
 
   async function handleGoogle() {
     setError(null)
+    // AC: Force signOut first. The Supabase JS SDK silently skips the
+    // OAuth redirect when a session is already in memory (it would just
+    // return the existing user without bouncing to Google). Without this,
+    // a stale session from a previous user prevents Google auth entirely.
+    await signOut()
     const redirectTo = `${window.location.origin}/onboarding${mode === 'login' ? '?mode=login' : ''}`
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -324,7 +329,8 @@ function StepAuth({ onNext, mode }: { onNext: () => void; mode: 'login' | 'signu
     if (error) setError(error.message)
   }
 
-  async function handleSubmit() {
+  async function handleSubmit(e?: React.FormEvent) {
+    e?.preventDefault()
     setError(null)
     // AC#2: defence in depth — if a session is already active, force
     // signOut before processing the new submit. The signUp() path inside
@@ -375,51 +381,53 @@ function StepAuth({ onNext, mode }: { onNext: () => void; mode: 'login' | 'signu
 
           <div className="auth-divider">— ou —</div>
 
-          <div className="field">
-            <label>Email</label>
-            <input
-              type="email"
-              placeholder="carlos@suaempresa.com.br"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              disabled={submitting}
-            />
-          </div>
-          <div className="field">
-            <label>Senha</label>
-            <input
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              disabled={submitting}
-              onKeyDown={e => !isLogin ? undefined : e.key === 'Enter' && handleSubmit()}
-            />
-          </div>
-          {!isLogin && (
+          <form onSubmit={handleSubmit} noValidate>
             <div className="field">
-              <label>Confirmar senha</label>
+              <label>Email</label>
+              <input
+                type="email"
+                placeholder="carlos@suaempresa.com.br"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                disabled={submitting}
+                autoComplete="email"
+              />
+            </div>
+            <div className="field">
+              <label>Senha</label>
               <input
                 type="password"
                 placeholder="••••••••"
-                value={passwordConfirm}
-                onChange={e => setPasswordConfirm(e.target.value)}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
                 disabled={submitting}
-                onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+                autoComplete={isLogin ? 'current-password' : 'new-password'}
               />
             </div>
-          )}
+            {!isLogin && (
+              <div className="field">
+                <label>Confirmar senha</label>
+                <input
+                  type="password"
+                  placeholder="••••••••"
+                  value={passwordConfirm}
+                  onChange={e => setPasswordConfirm(e.target.value)}
+                  disabled={submitting}
+                  autoComplete="new-password"
+                />
+              </div>
+            )}
 
-          {error && (
-            <div style={{ fontSize: 12.5, color: 'var(--urg)', marginBottom: 4 }}>{error}</div>
-          )}
+            {error && (
+              <div style={{ fontSize: 12.5, color: 'var(--urg)', marginBottom: 4 }}>{error}</div>
+            )}
 
-          <button
-            className="btn btn-blue"
-            style={{ width: '100%' }}
-            onClick={handleSubmit}
-            disabled={submitting || !email || !password || (!isLogin && !passwordConfirm)}
-          >
+            <button
+              type="submit"
+              className="btn btn-blue"
+              style={{ width: '100%' }}
+              disabled={submitting || !email || !password || (!isLogin && !passwordConfirm)}
+            >
             {submitting ? 'Aguarde…' : isLogin ? 'Entrar' : 'Criar conta'}
           </button>
 
@@ -440,6 +448,7 @@ function StepAuth({ onNext, mode }: { onNext: () => void; mode: 'login' | 'signu
               <a href="/privacidade" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--blue3)' }}>Política de Privacidade</a>.
             </div>
           )}
+          </form>
         </div>
       </div>
     </div>
@@ -2165,6 +2174,7 @@ export default function OnboardingApp() {
   if (step === 'auth') {
     return (
       <StepAuth
+        key={user?.id ?? 'anon'}
         onNext={() => go('info')}
         mode={mode}
       />
@@ -2173,6 +2183,7 @@ export default function OnboardingApp() {
   if (step === 'info') {
     return (
       <StepInfo
+        key={user?.id ?? 'anon'}
         onNext={() => go('data')}
         // Suppress back button when user is already authenticated to avoid auth→info redirect loop
         onBack={user ? undefined : () => go('auth')}
@@ -2191,6 +2202,7 @@ export default function OnboardingApp() {
   if (step === 'data') {
     return (
       <StepData
+        key={user?.id ?? 'anon'}
         // CSV: go to mapping first (pre-launch). Drive/BQ/no-data: go straight to launch.
         onNext={(result) => result ? go('mapping') : go('launch')}
         onBack={() => go('info')}
@@ -2215,6 +2227,7 @@ export default function OnboardingApp() {
   if (step === 'mapping') {
     return (
       <StepMapping
+        key={user?.id ?? 'anon'}
         // Pre-launch (CSV): go to launch after confirm. Post-launch (BQ/Drive): go to /app.
         onNext={() => bqClientId ? navigate('/app', { replace: true }) : go('launch')}
         // Pre-launch: back to data. Post-launch: no back (bootstrap already ran).
@@ -2230,6 +2243,7 @@ export default function OnboardingApp() {
   }
   return (
     <StepLaunch
+      key={user?.id ?? 'anon'}
       bootstrap={bootstrap}
       pendingCredentials={pendingCredentials}
       website={draft.website || undefined}

@@ -1905,6 +1905,8 @@ function StepLaunch({ bootstrap, pendingCredentials, onDone, website, csvFiles, 
         // Upload CSV files if any were selected
         let uploadedSourceId: string | null = null
         if (csvFiles && csvFiles.length > 0 && result.client_id) {
+          const { data: { session } } = await supabase.auth.getSession()
+          const accessToken = session?.access_token ?? ''
           for (const file of csvFiles) {
             setLogs(prev => [...prev, `▸ Enviando ${file.name}…`])
             try {
@@ -1912,22 +1914,39 @@ function StepLaunch({ bootstrap, pendingCredentials, onDone, website, csvFiles, 
               form.append('file', file)
               form.append('client_id', result.client_id)
               form.append('schema_type', csvSchemaType || 'invoices')
-              const { data: uploadData, error: uploadErr } = await supabase.functions.invoke('upload-csv-source', {
-                body: form,
-              })
-              if (!uploadErr && uploadData?.source_id) {
-                if (!cancelledRef.current) {
-                  uploadedSourceId = uploadData.source_id
-                  setCsvSourceId(uploadData.source_id)
-                  setLogs(prev => [...prev, `▸ ${file.name} carregada — ${uploadData.columns?.length ?? 0} colunas.`])
-                  // Fire ETL with the mapping confirmed in StepMapping (non-blocking)
-                  if (confirmedColumnMapping && Object.keys(confirmedColumnMapping).length > 0) {
-                    supabase.functions.invoke('run-csv-etl', {
-                      body: { client_id: result.client_id, source_id: uploadData.source_id, column_mapping: confirmedColumnMapping },
-                    }).catch((e: unknown) => console.warn('[onboarding] run-csv-etl:', e))
+              // upload-csv-source expects multipart/form-data, not JSON.
+              // Use raw fetch instead of supabase.functions.invoke.
+              const uploadRes = await fetch(
+                `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-csv-source`,
+                {
+                  method: 'POST',
+                  headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                    apikey: import.meta.env.VITE_SUPABASE_ANON_KEY ?? '',
+                  },
+                  body: form,
+                },
+              )
+              if (uploadRes.ok) {
+                const uploadData = await uploadRes.json()
+                if (uploadData?.source_id) {
+                  if (!cancelledRef.current) {
+                    uploadedSourceId = uploadData.source_id
+                    setCsvSourceId(uploadData.source_id)
+                    setLogs(prev => [...prev, `▸ ${file.name} carregada — ${uploadData.columns?.length ?? 0} colunas.`])
+                    // Fire ETL with the mapping confirmed in StepMapping (non-blocking)
+                    if (confirmedColumnMapping && Object.keys(confirmedColumnMapping).length > 0) {
+                      supabase.functions.invoke('run-csv-etl', {
+                        body: { client_id: result.client_id, source_id: uploadData.source_id, column_mapping: confirmedColumnMapping },
+                      }).catch((e: unknown) => console.warn('[onboarding] run-csv-etl:', e))
+                    }
                   }
+                } else {
+                  if (!cancelledRef.current) setLogs(prev => [...prev, `⚠ Resposta inesperada ao enviar ${file.name}.`])
                 }
               } else {
+                const errText = await uploadRes.text().catch(() => '')
+                console.warn(`[onboarding] upload-csv-source ${uploadRes.status}: ${errText}`)
                 if (!cancelledRef.current) setLogs(prev => [...prev, `⚠ Falha ao enviar ${file.name}. Você pode reconectar depois.`])
               }
             } catch (e) {

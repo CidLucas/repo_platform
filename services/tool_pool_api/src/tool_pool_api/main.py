@@ -7,10 +7,10 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastmcp import FastMCP
-from slowapi import Limiter
 from slowapi.middleware import SlowAPIMiddleware
-from slowapi.util import get_remote_address
 from starlette.middleware.base import BaseHTTPMiddleware
+
+from tool_pool_api.limiter import limiter
 
 from tool_pool_api.api.admin_router import router as admin_router
 from tool_pool_api.api.business_memory_router import router as business_memory_router
@@ -151,8 +151,10 @@ else:
     origins = [
         "http://localhost:3000",
         "http://localhost:5173",
+        "http://localhost:5175",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5173",
+        "http://127.0.0.1:5175",
         "http://localhost:8080",
         "http://127.0.0.1:8080",
     ]
@@ -168,9 +170,23 @@ app.add_middleware(
 logger.info(f"CORS configured for: {origins}")
 
 # Rate limiting (RATE-01)
-limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_middleware(SlowAPIMiddleware)
+
+# Security headers (CSP-01 / SECHEAD-01)
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Strict-Transport-Security"] = (
+        "max-age=31536000; includeSubDomains"
+    )
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = (
+        "camera=(), microphone=(), geolocation=()"
+    )
+    return response
 
 
 # Health check endpoint that doesn't require MCP

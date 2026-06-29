@@ -224,16 +224,24 @@ def _load_save_insights() -> callable:
 
     body = _get_func_body(source)
 
-    # We need to exec the function. But the function has local imports
-    # (from datetime import date, datetime, timezone) and
-    # (from blu_supabase_client import get_supabase_client) inside the body.
-    # The exec() approach is tricky here due to the nested imports.
-    # Instead, we'll mock the get_supabase_client at module level.
+    # The function body has local imports (from datetime import ...;
+    # from blu_supabase_client import get_supabase_client) that would
+    # bypass our mock. Strip them so the exec'd function uses the
+    # namespace values instead.
+    import re as _re
 
-    # Patch the function's local imports by pre-defining them in namespace
+    body = _re.sub(
+        r"^\s*from datetime import.*\n", "", body, flags=_re.MULTILINE
+    )
+    body = _re.sub(
+        r"^\s*from blu_supabase_client import.*\n", "", body, flags=_re.MULTILINE
+    )
+
+    # Pre-define the needed symbols in namespace (from stripped imports)
     _NAMESPACE["date"] = __import__("datetime").date
     _NAMESPACE["datetime"] = __import__("datetime").datetime
     _NAMESPACE["timezone"] = __import__("datetime").timezone
+    _NAMESPACE["get_supabase_client"] = _stub_get_supabase_client
 
     # Execute the function definition
     exec(body, _NAMESPACE)

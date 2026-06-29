@@ -28,6 +28,7 @@ from pydantic import BaseModel, Field
 
 from blu_auth.core.models import AuthResult
 from blu_supabase_client import get_supabase_client
+from tool_pool_api.limiter import limiter
 from tool_pool_api.api.integrations_router import _get_auth_result
 
 logger = logging.getLogger(__name__)
@@ -169,6 +170,7 @@ async def fetch_run_payload(
 
 
 @router.post("/generate")
+@limiter.limit("10/minute")
 async def generate_report(
     payload: GenerateReportRequest,
     auth: AuthResult = Depends(_get_auth_result),

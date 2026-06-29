@@ -2972,6 +2972,23 @@ END;
 
 $function$;
 
+-- B-1: has_active_data_sources — RPC que retorna true se o cliente possui
+-- fontes de dados com sync_status ativo (ready/success/synced).
+-- Usa EXISTS para performance O(1) no melhor caso; STABLE para uso em queries;
+-- SECURITY INVOKER para respeitar RLS do caller.
+CREATE OR REPLACE FUNCTION public.has_active_data_sources(p_client_id uuid)
+RETURNS boolean
+LANGUAGE plpgsql STABLE SECURITY INVOKER
+AS $function$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.client_data_sources
+    WHERE client_id = p_client_id
+      AND sync_status IN ('ready', 'success', 'synced')
+  );
+END;
+$function$;
+
 CREATE OR REPLACE FUNCTION public.handle_new_auth_user()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -3000,7 +3017,8 @@ BEGIN
     now(),
     now()
   )
-  ON CONFLICT (external_user_id) DO NOTHING
+  ON CONFLICT (external_user_id) DO UPDATE SET
+    updated_at = now()
   RETURNING client_id INTO v_client_id;
 
   -- If row already existed (conflict), get its client_id
@@ -3511,6 +3529,11 @@ BEGIN
   END IF;
 
   v_notify := COALESCE(p_payload->>'notify_channel', 'app');
+
+  -- B-3/b: Lock the row to prevent lost-update on concurrent bootstrap calls
+  PERFORM 1 FROM public.clientes_blu
+  WHERE client_id = v_client_id
+  FOR UPDATE;
 
   UPDATE public.clientes_blu SET
     nome_empresa            = COALESCE(NULLIF(trim(p_payload->>'nome_empresa'), ''), nome_empresa),

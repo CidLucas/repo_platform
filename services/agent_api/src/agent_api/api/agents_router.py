@@ -40,6 +40,7 @@ from agent_api.api.schemas import (
 )
 from agent_api.core.factory import get_context_service, get_factory
 from agent_api.core.service import get_agent_service, get_chat_service
+from agent_api.limiter import limiter
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -82,6 +83,7 @@ async def list_catalog_nodes(auth_result: AuthResult = Depends(get_admin_auth_re
 
 
 @router.get("/catalog/agents", response_model=list[AgentInfo])
+@limiter.limit("60/minute")
 async def list_agents(client_tier: str = Query("BASIC")):
     """List active catalog agents accessible at *client_tier*."""
     db = get_supabase_client()
@@ -144,6 +146,7 @@ async def get_agent(agent_id: UUID):
 
 
 @router.post("/sessions")
+@limiter.limit("20/minute")
 async def create_session(
     body: CreateSessionRequest,
     auth_result: AuthResult = Depends(get_auth_result),
@@ -391,6 +394,7 @@ async def link_google_account(
 
 
 @router.post("/sessions/{session_id}/chat")
+@limiter.limit("10/minute")
 async def chat_agent(
     session_id: str,
     request: AgentChatRequest,
@@ -551,6 +555,7 @@ async def update_session_config(
 
 
 @router.post("/catalog/agents", response_model=CatalogAgentResponse, status_code=201)
+@limiter.limit("20/minute")
 async def create_catalog_agent(
     body: CatalogAgentCreateRequest,
     auth_result: AuthResult = Depends(get_admin_auth_result),
@@ -577,6 +582,7 @@ async def create_catalog_agent(
 
 
 @router.put("/catalog/agents/{agent_id}", response_model=CatalogAgentResponse)
+@limiter.limit("20/minute")
 async def update_catalog_agent(
     agent_id: UUID,
     body: CatalogAgentUpdateRequest,

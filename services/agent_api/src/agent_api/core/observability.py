@@ -44,7 +44,7 @@ def get_langfuse_config(
 
     from langfuse.langchain import CallbackHandler
 
-    resolved_trace_id = trace_id or str(uuid.uuid4())
+    resolved_trace_id = (trace_id or str(uuid.uuid4())).replace("-", "")
 
     # Langfuse v4 SDK: CallbackHandler accepts only public_key + trace_context.
     # session_id / user_id / tags / trace_name come from config["metadata"]

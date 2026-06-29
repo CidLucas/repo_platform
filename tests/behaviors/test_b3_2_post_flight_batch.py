@@ -214,6 +214,7 @@ _NAMESPACE: dict = {
     "logger": _stub_logger,
     "get_supabase_client": _stub_get_supabase_client,
     "register_module": MagicMock(return_value=lambda fn: fn),
+    "normalize_entity_name": lambda name: name.strip().lower(),
 }
 
 

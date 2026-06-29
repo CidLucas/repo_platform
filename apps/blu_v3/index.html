@@ -3,6 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'self';
+                   script-src 'self' https://apis.google.com https://accounts.google.com;
+                   style-src 'self' 'unsafe-inline';
+                   connect-src 'self' https://*.supabase.co https://*.vercel.app https://*.googleapis.com https://accounts.google.com;
+                   img-src 'self' data: https://*.googleusercontent.com;
+                   font-src 'self';
+                   frame-src 'self' https://accounts.google.com;
+                   object-src 'none';
+                   base-uri 'self';
+                   form-action 'self';" />
     <!-- Dev: CSP desabilitado para permitir Vite HMR + Supabase.
          Em produção, configurar via server header com nonce. -->
     <title>Blu — Escritório Virtual</title>

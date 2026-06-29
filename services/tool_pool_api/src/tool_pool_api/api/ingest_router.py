@@ -21,6 +21,7 @@ from blu_auth.core.models import AuthResult
 from blu_auth.fastapi.dependencies import get_auth_result
 from blu_parsers.parsers.docling_parser import DoclingParser
 from supabase import create_client
+from tool_pool_api.limiter import limiter
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1/ingest", tags=["Document Ingestion"])
@@ -47,6 +48,7 @@ class IngestResponse(BaseModel):
 
 
 @router.post("/document", response_model=IngestResponse, status_code=status.HTTP_200_OK)
+@limiter.limit("10/minute")
 async def ingest_document(
     body: IngestRequest,
     client_id: UUID = Depends(get_client_id_from_token),

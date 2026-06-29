@@ -100,6 +100,8 @@ services:
       MCP_AUTH_BASE_URL: ${MCP_AUTH_BASE_URL:-}
       CREDENTIALS_ENCRYPTION_KEY: ${CREDENTIALS_ENCRYPTION_KEY:-}
       DOCKER_MCP_ENABLED: "false"
+      # Tool Pool API URL — usado pelo RAG factory para chamar search-documents
+      TOOL_POOL_API_URL: ${TOOL_POOL_API_URL:-http://tool_pool_api:8000}
     ports:
       - "8006:8000"
 

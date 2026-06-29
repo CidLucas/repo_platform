@@ -12,11 +12,11 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from slowapi import Limiter
 from slowapi.middleware import SlowAPIMiddleware
-from slowapi.util import get_remote_address
+
+from agent_api.limiter import limiter
 
 from agent_api.api.agents_router import router as agents_router
 from agent_api.api.chat_router import router as chat_router
@@ -152,9 +152,23 @@ def create_app() -> FastAPI:
         )
 
     # Rate limiting (RATE-01)
-    limiter = Limiter(key_func=get_remote_address)
     app.state.limiter = limiter
     app.add_middleware(SlowAPIMiddleware)
+
+    # Security headers (CSP-01 / SECHEAD-01)
+    @app.middleware("http")
+    async def security_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=31536000; includeSubDomains"
+        )
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = (
+            "camera=(), microphone=(), geolocation=()"
+        )
+        return response
 
     # Routers
     app.include_router(chat_router, prefix="/v1")

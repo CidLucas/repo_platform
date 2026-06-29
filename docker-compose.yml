@@ -373,6 +373,8 @@ services:
       # Docker MCP integration
       DOCKER_MCP_ENABLED: ${DOCKER_MCP_ENABLED:-false}
       MCP_INTEGRATIONS: ${MCP_INTEGRATIONS:-}
+      # Tool Pool API URL — usado pelo RAG factory para chamar search-documents
+      TOOL_POOL_API_URL: ${TOOL_POOL_API_URL:-http://tool_pool_api:8000}
     depends_on:
       redis:
         condition: service_healthy

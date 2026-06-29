@@ -24,6 +24,7 @@ from agent_api.api.schemas import (
 )
 from agent_api.core.factory import get_context_service, get_mcp_manager
 from agent_api.core.service import get_chat_service
+from agent_api.limiter import limiter
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -39,6 +40,7 @@ def _get_context_service() -> ContextService:
 
 
 @router.post("/chat", response_model=ChatResponse)
+@limiter.limit("10/minute")
 async def chat_endpoint(
     body: ChatRequest,
     x_llm_model: str | None = Header(None, alias="X-LLM-Model"),
@@ -121,6 +123,7 @@ async def chat_endpoint(
 
 
 @router.post("/chat/stream")
+@limiter.limit("10/minute")
 async def chat_stream_endpoint(
     body: ChatRequest,
     x_llm_model: str | None = Header(None, alias="X-LLM-Model"),
@@ -175,6 +178,7 @@ async def chat_stream_endpoint(
 
 
 @router.get("/models")
+@limiter.limit("60/minute")
 async def list_models():
     """List available LLM models from the configured provider."""
     from blu_llm_service import MODEL_MAPPINGS, LLMProvider, ModelTier, get_llm_settings
@@ -204,6 +208,7 @@ async def list_models():
 
 
 @router.get("/context")
+@limiter.limit("30/minute")
 async def get_client_context(
     auth_result: AuthResult = Depends(get_auth_result),
     context_service: ContextService = Depends(_get_context_service),

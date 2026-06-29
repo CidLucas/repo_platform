@@ -15,6 +15,7 @@ from blu_auth.oauth2.oauth_manager import OAuthManager
 from blu_context_service.context_service import ContextService
 from tool_pool_api.core.config import get_settings
 from tool_pool_api.server.dependencies import get_context_service
+from tool_pool_api.limiter import limiter
 
 logger = logging.getLogger(__name__)
 
@@ -424,7 +425,8 @@ class ExportPoToSheetsRequest(BaseModel):
 
 
 @router.post("/tools/export_po_to_sheets")
-async def export_po_to_sheets_endpoint(
+@limiter.limit("5/minute")
+async def export_po_to_sheets(
     payload: ExportPoToSheetsRequest,
     auth: AuthResult = Depends(_get_auth_result),
 ):
@@ -547,6 +549,7 @@ async def draft_inbox_reply(
 
 
 @router.post("/inbox/threads/send")
+@limiter.limit("20/minute")
 async def send_inbox_reply(
     payload: SendReplyRequest,
     auth: AuthResult = Depends(_get_auth_result),

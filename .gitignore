@@ -1,3 +1,7 @@
+# Dependencies (node — never commit)
+node_modules/
+**/node_modules/
+
 # Ambientes Virtuais
 .venv/
 venv/

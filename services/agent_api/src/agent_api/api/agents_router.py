@@ -15,7 +15,7 @@ from uuid import UUID, uuid4
 
 from blu_supabase_client import get_supabase_client
 from blu_tool_registry.resource_resolver import ResourceResolver
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
 
 from agent_api.api.auth import AuthResult, get_admin_auth_result, get_auth_result
@@ -84,7 +84,10 @@ async def list_catalog_nodes(auth_result: AuthResult = Depends(get_admin_auth_re
 
 @router.get("/catalog/agents", response_model=list[AgentInfo])
 @limiter.limit("60/minute")
-async def list_agents(client_tier: str = Query("BASIC")):
+async def list_agents(
+    request: Request,
+    client_tier: str = Query("BASIC"),
+):
     """List active catalog agents accessible at *client_tier*."""
     db = get_supabase_client()
     result = db.table("agent_catalog").select(
@@ -148,6 +151,7 @@ async def get_agent(agent_id: UUID):
 @router.post("/sessions")
 @limiter.limit("20/minute")
 async def create_session(
+    request: Request,
     body: CreateSessionRequest,
     auth_result: AuthResult = Depends(get_auth_result),
 ):
@@ -396,8 +400,9 @@ async def link_google_account(
 @router.post("/sessions/{session_id}/chat")
 @limiter.limit("10/minute")
 async def chat_agent(
+    request: Request,
     session_id: str,
-    request: AgentChatRequest,
+    body: AgentChatRequest,
     auth_result: AuthResult = Depends(get_auth_result),
 ):
     """
@@ -422,7 +427,7 @@ async def chat_agent(
                 session_id=session_id,
                 client_id=auth_result.client_id,
                 agent_catalog_id=agent_catalog_id,
-                user_message=request.message,
+                user_message=body.message,
             ):
                 yield f"data: {json.dumps(event, default=str)}\n\n"
         except Exception as exc:
@@ -435,7 +440,7 @@ async def chat_agent(
 @router.post("/sessions/{session_id}/chat/agent")
 async def chat_agent_run(
     session_id: str,
-    request: AgentChatRequest,
+    body: AgentChatRequest,
     auth_result: AuthResult = Depends(get_auth_result),
 ):
     """Chat with the configured standalone agent (streaming SSE). Alias for /chat."""
@@ -456,7 +461,7 @@ async def chat_agent_run(
                 session_id=session_id,
                 client_id=auth_result.client_id,
                 agent_catalog_id=agent_catalog_id,
-                user_message=request.message,
+                user_message=body.message,
             ):
                 yield f"data: {json.dumps(event, default=str)}\n\n"
         except Exception as exc:
@@ -557,6 +562,7 @@ async def update_session_config(
 @router.post("/catalog/agents", response_model=CatalogAgentResponse, status_code=201)
 @limiter.limit("20/minute")
 async def create_catalog_agent(
+    request: Request,
     body: CatalogAgentCreateRequest,
     auth_result: AuthResult = Depends(get_admin_auth_result),
 ):
@@ -584,6 +590,7 @@ async def create_catalog_agent(
 @router.put("/catalog/agents/{agent_id}", response_model=CatalogAgentResponse)
 @limiter.limit("20/minute")
 async def update_catalog_agent(
+    request: Request,
     agent_id: UUID,
     body: CatalogAgentUpdateRequest,
     auth_result: AuthResult = Depends(get_admin_auth_result),

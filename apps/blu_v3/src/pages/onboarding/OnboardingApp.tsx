@@ -148,7 +148,9 @@ async function callMatchColumns(sourceColumns: string[], schemaType?: string): P
   try {
     // match-columns moved from a Deno EF to a Python service in Phase 3.2.
     // The endpoint is mounted at /v1/match-columns in tool_pool_api.
-    const toolPoolUrl = import.meta.env.VITE_TOOL_POOL_API_URL || 'http://localhost:8000'
+    // In dev, Vite proxies /api/tool-pool → http://localhost:8006 (see vite.config.ts).
+    // In prod (Vercel), set VITE_TOOL_POOL_API_URL=/_/tool_pool_api to hit the rewrite.
+    const toolPoolUrl = import.meta.env.VITE_TOOL_POOL_API_URL || '/api/tool-pool'
     const { data: { session } } = await supabase.auth.getSession()
     const resp = await fetch(`${toolPoolUrl}/v1/match-columns`, {
       method: 'POST',

@@ -1,0 +1,2997 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Blu v3 — Design System & Wireframes</title>
+<style>
+/* ============================================================
+   DESIGN TOKENS — espelho de apps/blu_v3/src/styles/global.css
+   ============================================================ */
+:root[data-theme="dark"] {
+  --bg:        #03071C;
+  --surface:   rgba(8,18,48,0.72);
+  --glass:     rgba(255,255,255,0.045);
+  --gl2:       rgba(255,255,255,0.07);
+  --gb:        rgba(255,255,255,0.08);
+  --gb2:       rgba(255,255,255,0.13);
+  --fg:        #DFE3EE;
+  --mu:        rgba(223,227,238,0.42);
+  --mu2:       rgba(223,227,238,0.64);
+  --ac:        #8C5FDB;
+  --ac-hi:     #a07ae8;
+  --adim:      rgba(140,95,219,0.15);
+  --ac-grad:   linear-gradient(135deg,#7E5CC8,#3A80D4);
+  --urg:       #EF4444;
+  --udim:      rgba(239,68,68,0.13);
+  --att:       #F59E0B;
+  --adm2:      rgba(245,158,11,0.13);
+  --ok:        #10B981;
+  --odim:      rgba(16,185,129,0.13);
+  --blue2:     #3B82F6;
+  --blue3:     #818cf8;
+  --pink:      #f472b6;
+  --teal:      #2dd4bf;
+  --yellow:    #fbbf24;
+  --orange:    #fb923c;
+  --violet:    #a78bfa;
+  --r:         8px;
+  --rl:        12px;
+  --rxl:       20px;
+  --body:      -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif;
+  --mono:      'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+  --shell-w:   220px;
+  --topbar-h:  56px;
+  --shadow-1:  0 2px 14px rgba(0,0,0,.28), inset 0 0 0 1px rgba(255,255,255,.05);
+  --shadow-2:  0 4px 22px rgba(0,0,0,.36), inset 0 0 0 1px rgba(255,255,255,.08);
+  --shadow-3:  0 12px 40px rgba(0,0,0,.6);
+}
+:root[data-theme="light"] {
+  --bg:        #F0EEE8;
+  --surface:   rgba(255,255,255,0.82);
+  --glass:     rgba(255,255,255,0.55);
+  --gl2:       rgba(255,255,255,0.75);
+  --gb:        rgba(0,0,0,0.09);
+  --gb2:       rgba(0,0,0,0.15);
+  --fg:        #111827;
+  --mu:        rgba(17,24,39,0.42);
+  --mu2:       rgba(17,24,39,0.62);
+  --ac:        #6D28D9;
+  --ac-hi:     #7C3AED;
+  --adim:      rgba(109,40,217,0.10);
+  --ac-grad:   linear-gradient(135deg,#6D28D9,#3A80D4);
+  --urg:       #DC2626;
+  --udim:      rgba(220,38,38,0.10);
+  --att:       #B45309;
+  --adm2:      rgba(180,83,9,0.12);
+  --ok:        #047857;
+  --odim:      rgba(4,120,87,0.10);
+  --blue2:     #2563EB;
+  --blue3:     #4F46E5;
+  --shadow-1:  0 2px 14px rgba(0,0,0,.08), inset 0 0 0 1px rgba(0,0,0,0.04);
+  --shadow-2:  0 4px 22px rgba(0,0,0,.10), inset 0 0 0 1px rgba(0,0,0,0.06);
+  --shadow-3:  0 12px 40px rgba(0,0,0,.18);
+}
+
+/* ============================================================
+   BASE
+   ============================================================ */
+*,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: var(--body);
+  font-size: 13px;
+  line-height: 1.5;
+  background: var(--bg);
+  color: var(--fg);
+  overflow: hidden;
+  transition: background .25s, color .25s;
+}
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(ellipse 70% 55% at 18% -5%, rgba(37,99,235,.18) 0%, transparent 100%),
+    radial-gradient(ellipse 55% 45% at 88% 108%, rgba(79,70,229,.14) 0%, transparent 100%),
+    radial-gradient(ellipse 40% 30% at 55% 50%, rgba(30,58,138,.08) 0%, transparent 100%);
+}
+[data-theme="light"] body::before {
+  background:
+    radial-gradient(ellipse 70% 55% at 18% -5%, rgba(109,40,217,.07) 0%, transparent 100%),
+    radial-gradient(ellipse 55% 45% at 88% 108%, rgba(79,70,229,.05) 0%, transparent 100%);
+}
+button { cursor: pointer; border: none; background: none; font: inherit; color: inherit; }
+input, select, textarea { font: inherit; color: inherit; }
+a { color: inherit; }
+svg { flex-shrink: 0; }
+code, kbd, pre { font-family: var(--mono); }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: var(--gb2); border-radius: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ============================================================
+   APP SHELL
+   ============================================================ */
+.app {
+  position: relative; z-index: 1;
+  display: grid;
+  grid-template-columns: var(--shell-w) 1fr;
+  grid-template-rows: var(--topbar-h) 1fr;
+  height: 100vh;
+}
+
+.topbar {
+  grid-column: 1 / -1;
+  display: flex; align-items: center;
+  padding: 0 16px 0 0;
+  background: rgba(5,7,14,.82);
+  backdrop-filter: blur(24px);
+  border-bottom: 1px solid var(--gb);
+  z-index: 50;
+}
+[data-theme="light"] .topbar { background: rgba(240,238,232,.92); }
+.topbar-logo {
+  width: var(--shell-w); flex-shrink: 0;
+  display: flex; align-items: center; gap: 9px;
+  padding: 0 18px;
+}
+.topbar-logo .logo-mark {
+  width: 28px; height: 28px; border-radius: 7px;
+  background: var(--ac-grad);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 800; font-size: 13px; letter-spacing: -.3px;
+}
+.topbar-logo .logo-name { font-size: 16px; font-weight: 700; letter-spacing: -.4px; }
+.topbar-logo .logo-sub { font-size: 10px; color: var(--mu); margin-top: 2px; }
+.topbar-mid { flex: 1; padding: 0 14px; }
+.topbar-mid .crumb { font-size: 12px; color: var(--mu); }
+.topbar-mid .crumb strong { color: var(--fg); font-weight: 600; }
+.topbar-end { display: flex; align-items: center; gap: 7px; }
+.ibtn {
+  width: 30px; height: 30px; border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--mu);
+  transition: background .12s, color .12s;
+}
+.ibtn:hover { background: var(--glass); color: var(--fg); }
+.av {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--ac), #B08AE8);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700; color: #fff; cursor: pointer;
+}
+
+.sidenav {
+  background: rgba(3,7,28,.72);
+  backdrop-filter: blur(20px);
+  border-right: 1px solid var(--gb);
+  padding: 12px 10px;
+  overflow-y: auto;
+  display: flex; flex-direction: column;
+  gap: 2px;
+}
+[data-theme="light"] .sidenav { background: rgba(235,233,227,.88); }
+.nav-group { margin-top: 8px; }
+.nav-group:first-child { margin-top: 0; }
+.nav-group-lbl {
+  font-size: 9px; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--mu);
+  padding: 6px 8px 4px;
+}
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: 7px;
+  cursor: pointer; color: var(--mu2); font-size: 12.5px;
+  transition: background .1s, color .1s;
+  position: relative;
+}
+.nav-item:hover { background: var(--glass); color: var(--fg); }
+.nav-item.on {
+  background: var(--gl2); color: var(--fg);
+}
+.nav-item.on::before {
+  content: ''; position: absolute; left: -10px; top: 50%;
+  transform: translateY(-50%); width: 2px; height: 18px;
+  background: var(--ac); border-radius: 1px;
+}
+.nav-item .ico { width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+.nav-item .lbl { flex: 1; }
+.nav-item .badge {
+  font-size: 9.5px; font-weight: 700;
+  background: var(--urg); color: #fff;
+  padding: 1px 5px; border-radius: 3px;
+}
+
+.main { overflow: hidden; position: relative; }
+.scroll {
+  height: 100%;
+  overflow-y: auto;
+  padding: 28px 36px 80px;
+}
+.section { display: block; }
+.section.hide { display: none; }
+
+/* ============================================================
+   SECTION HEADER
+   ============================================================ */
+.section-hd { margin-bottom: 28px; }
+.section-hd .eyebrow {
+  font-size: 11px; font-weight: 700; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--ac); margin-bottom: 6px;
+}
+.section-hd h1 {
+  font-size: 32px; font-weight: 800; letter-spacing: -1px;
+  margin-bottom: 8px;
+}
+.section-hd .lead {
+  font-size: 15px; color: var(--mu2); max-width: 720px; line-height: 1.55;
+}
+
+/* ============================================================
+   DS LAYOUT
+   ============================================================ */
+.ds-block { margin-bottom: 56px; }
+.ds-block h2 {
+  font-size: 20px; font-weight: 700; letter-spacing: -.3px;
+  margin-bottom: 6px;
+  display: flex; align-items: center; gap: 8px;
+}
+.ds-block h2 .num {
+  font-family: var(--mono); font-size: 11px; color: var(--ac);
+  background: var(--adim); padding: 2px 8px; border-radius: 4px;
+  font-weight: 700; letter-spacing: .05em;
+}
+.ds-block h3 {
+  font-size: 14px; font-weight: 600; color: var(--fg);
+  margin: 18px 0 10px;
+}
+.ds-block .desc { font-size: 12.5px; color: var(--mu); margin-bottom: 16px; max-width: 640px; line-height: 1.55; }
+
+.grid { display: grid; gap: 16px; }
+.grid-2 { grid-template-columns: repeat(2, 1fr); }
+.grid-3 { grid-template-columns: repeat(3, 1fr); }
+.grid-4 { grid-template-columns: repeat(4, 1fr); }
+.grid-5 { grid-template-columns: repeat(5, 1fr); }
+.grid-6 { grid-template-columns: repeat(6, 1fr); }
+@media (max-width: 1100px) {
+  .grid-4, .grid-5, .grid-6 { grid-template-columns: repeat(3, 1fr); }
+  .grid-3 { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 720px) {
+  .grid-2, .grid-3, .grid-4, .grid-5, .grid-6 { grid-template-columns: 1fr; }
+}
+
+/* ============================================================
+   COLOR SWATCH
+   ============================================================ */
+.swatch {
+  background: var(--surface);
+  border: 1px solid var(--gb);
+  border-radius: var(--r);
+  overflow: hidden;
+  box-shadow: var(--shadow-1);
+}
+.swatch .chip { height: 76px; }
+.swatch .body { padding: 10px 12px 12px; }
+.swatch .nm { font-size: 12px; font-weight: 600; margin-bottom: 2px; }
+.swatch .val { font-family: var(--mono); font-size: 11px; color: var(--mu); margin-bottom: 2px; }
+.swatch .role { font-size: 10.5px; color: var(--mu2); }
+
+/* ============================================================
+   PANEL
+   ============================================================ */
+.panel {
+  background: var(--glass);
+  border: 1px solid var(--gb);
+  border-radius: var(--rl);
+  backdrop-filter: blur(16px);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  box-shadow: var(--shadow-1);
+  transition: border-color .15s, box-shadow .15s;
+}
+.panel:hover { border-color: var(--gb2); box-shadow: var(--shadow-2); }
+.ph {
+  display: flex; align-items: center; gap: 8px;
+  padding: 13px 16px 11px;
+  border-bottom: 1px solid var(--gb);
+  flex-shrink: 0;
+}
+.ph-ico { font-size: 12px; }
+.ph-ttl {
+  font-size: 9.5px; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase;
+  color: rgba(223,227,238,0.88);
+}
+[data-theme="light"] .ph-ttl { color: rgba(17,24,39,0.78); }
+.ph-cnt {
+  margin-left: auto; font-size: 10px;
+  color: var(--mu); font-variant-numeric: tabular-nums;
+}
+.ph-lnk {
+  margin-left: auto; font-size: 10.5px; color: var(--ac);
+  cursor: pointer; opacity: .85; display: flex; align-items: center; gap: 3px;
+}
+.ph-lnk:hover { opacity: 1; }
+.ph-add { margin-left: auto; color: var(--mu); opacity: .5; cursor: pointer; font-size: 16px; }
+.ph-add:hover { opacity: 1; color: var(--ac); }
+.pb { padding: 12px 14px; }
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: 6px;
+  font-size: 12px; font-weight: 600;
+  transition: all .1s; white-space: nowrap; cursor: pointer;
+  border: 1px solid transparent;
+}
+.btn-lg { padding: 11px 22px; font-size: 14px; }
+.btn-sm { padding: 5px 11px; font-size: 11px; }
+.btn-p { background: var(--ac); color: #fff; }
+.btn-p:hover { background: var(--ac-hi); transform: translateY(-1px); }
+.btn-s { background: rgba(255,255,255,.08); color: var(--fg); border: 1px solid var(--gb); }
+[data-theme="light"] .btn-s { background: rgba(0,0,0,.05); }
+.btn-s:hover { background: rgba(255,255,255,.12); }
+.btn-g { color: var(--mu); padding: 6px 10px; }
+.btn-g:hover { color: var(--fg); background: var(--glass); }
+.btn-rd { background: var(--udim); color: var(--urg); }
+.btn-b { background: var(--blue2); color: #fff; }
+.btn-b:hover { background: #2563EB; }
+.btn-ok { background: var(--ok); color: #fff; }
+
+/* ============================================================
+   BADGES
+   ============================================================ */
+.bdg {
+  font-size: 9px; font-weight: 700; letter-spacing: .04em;
+  text-transform: uppercase; padding: 2px 6px; border-radius: 3px;
+  display: inline-block; line-height: 1.5;
+}
+.bdg.bu { background: var(--udim); color: var(--urg); }
+.bdg.bw { background: var(--adm2); color: var(--att); }
+.bdg.bo { background: var(--odim); color: var(--ok); }
+.bdg.ba { background: var(--adim); color: var(--ac); }
+.bdg.bb { background: rgba(59,130,246,.15); color: var(--blue2); }
+.bdg.neutral { background: var(--glass); color: var(--mu2); border: 1px solid var(--gb); }
+
+.ag {
+  font-size: 10px; font-weight: 600; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--mu);
+  display: flex; align-items: center; gap: 4px; flex-shrink: 0;
+}
+.agd { width: 5px; height: 5px; border-radius: 50%; }
+
+/* ============================================================
+   TABLES
+   ============================================================ */
+.tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+.tbl th {
+  text-align: left;
+  font-size: 10px; font-weight: 700; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--mu);
+  padding: 8px 12px; border-bottom: 1px solid var(--gb);
+}
+.tbl td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--gb);
+  color: var(--fg);
+  vertical-align: middle;
+}
+.tbl tr:last-child td { border-bottom: none; }
+.tbl tr:hover td { background: var(--glass); }
+.tbl td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* ============================================================
+   FORMS
+   ============================================================ */
+.field { margin-bottom: 14px; }
+.field label {
+  display: block; font-size: 11px; font-weight: 600;
+  color: var(--mu2); margin-bottom: 5px; letter-spacing: .03em;
+}
+.field input, .field select, .field textarea {
+  width: 100%;
+  background: rgba(255,255,255,.055);
+  border: 1px solid var(--gb2);
+  border-radius: 6px;
+  padding: 8px 12px; font-size: 12.5px; color: var(--fg);
+  outline: none; transition: border-color .12s;
+}
+[data-theme="light"] .field input,
+[data-theme="light"] .field select,
+[data-theme="light"] .field textarea {
+  background: #fff;
+  border-color: rgba(0,0,0,0.12);
+}
+.field input:focus, .field select:focus, .field textarea:focus { border-color: var(--ac); }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+.pills { display: flex; flex-wrap: wrap; gap: 5px; }
+.pill {
+  font-size: 10.5px; padding: 4px 10px; border-radius: 12px;
+  background: var(--glass); border: 1px solid var(--gb);
+  color: var(--mu2); cursor: pointer; transition: all .1s;
+}
+.pill:hover { border-color: var(--gb2); color: var(--fg); }
+.pill.on { background: var(--adim); border-color: rgba(140,95,219,.4); color: var(--ac); }
+
+.tog {
+  width: 30px; height: 16px; border-radius: 8px;
+  background: var(--gb); cursor: pointer; position: relative;
+  transition: background .14s; flex-shrink: 0;
+}
+.tog.on { background: var(--ok); }
+.tog::after {
+  content: ''; position: absolute;
+  width: 12px; height: 12px; border-radius: 50%;
+  background: #fff; top: 2px; left: 2px;
+  transition: left .14s;
+}
+.tog.on::after { left: 16px; }
+
+/* ============================================================
+   KPI
+   ============================================================ */
+.kpi {
+  background: rgba(0,0,0,.20);
+  border: 1px solid var(--gb);
+  border-radius: var(--r);
+  padding: 12px 14px;
+}
+[data-theme="light"] .kpi { background: rgba(255,255,255,.5); }
+.kpi-lbl {
+  font-size: 9.5px; color: var(--mu);
+  text-transform: uppercase; letter-spacing: .06em; margin-bottom: 3px;
+}
+.kpi-val {
+  font-size: 20px; font-weight: 700;
+  font-family: var(--mono); font-variant-numeric: tabular-nums;
+  letter-spacing: -.5px; line-height: 1.1;
+}
+.kpi-d { font-size: 10px; margin-top: 3px; font-family: var(--mono); }
+.kpi-d.up { color: var(--ok); }
+.kpi-d.dn { color: var(--urg); }
+
+/* ============================================================
+   DECISION CARD
+   ============================================================ */
+.dl { display: flex; flex-direction: column; gap: 2px; padding: 6px 4px; }
+.dc {
+  background: transparent;
+  border: 1px solid transparent;
+  border-left: 2.5px solid transparent;
+  border-radius: 4px;
+  transition: background .1s, border-color .1s;
+  overflow: hidden;
+}
+.dc:hover { background: var(--glass); }
+.dc.urg { border-left-color: var(--urg); }
+.dc.warn { border-left-color: var(--att); }
+.dc.done { opacity: .4; }
+.dc-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px; cursor: pointer;
+  user-select: none;
+}
+.dc-row-sum {
+  flex: 1; font-size: 12px; color: var(--mu2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.dc-row-sum strong { color: var(--fg); font-weight: 600; }
+.dc-chev { font-size: 10px; color: var(--mu); flex-shrink: 0; }
+.dc-time { font-family: var(--mono); font-size: 10px; color: var(--mu); flex-shrink: 0; }
+.dc-expand { display: none; padding: 0 12px 12px 12px; border-top: 1px solid var(--gb); }
+.dc.expanded .dc-expand { display: block; }
+.dc-body { font-size: 12.5px; color: var(--fg); line-height: 1.5; margin: 10px 0 8px; }
+.dc-body strong { font-weight: 600; }
+.dc-bullets { list-style: none; margin-bottom: 8px; display: flex; flex-direction: column; gap: 3px; }
+.dc-bullets li { font-size: 11.5px; color: var(--mu2); padding-left: 10px; position: relative; }
+.dc-bullets li::before { content: '·'; position: absolute; left: 0; color: var(--mu); }
+.dc-act { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 8px; }
+.dc-ins {
+  background: rgba(0,0,0,.25); border: 1px solid var(--gb);
+  border-radius: 5px; padding: 7px 10px;
+  font-size: 11px; color: var(--mu2); line-height: 1.4;
+  display: flex; gap: 6px;
+}
+[data-theme="light"] .dc-ins { background: rgba(0,0,0,.04); }
+
+/* ============================================================
+   PLANO / SEMANA CHIPS
+   ============================================================ */
+.pl-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 0; border-bottom: 1px solid var(--gb);
+  font-size: 11.5px;
+}
+.pl-item:last-child { border-bottom: none; }
+.pl-t { font-family: var(--mono); font-size: 10px; color: var(--mu); min-width: 36px; }
+.pl-d { width: 4px; height: 4px; border-radius: 50%; flex-shrink: 0; }
+.pl-txt { color: var(--mu2); flex: 1; }
+
+.sw-item {
+  display: flex; align-items: center; gap: 7px;
+  padding: 7px 0; border-bottom: 1px solid var(--gb);
+  font-size: 11.5px;
+}
+.sw-item:last-child { border-bottom: none; }
+.sw-day { font-size: 10.5px; font-weight: 600; min-width: 28px; color: var(--mu); }
+.sw-day.today { color: var(--ac); }
+.sw-desc { flex: 1; font-size: 11px; color: var(--mu2); }
+.sw-cnt {
+  font-size: 9.5px; font-weight: 600; padding: 2px 7px;
+  border-radius: 3px; font-variant-numeric: tabular-nums; font-family: var(--mono);
+}
+.sw-h { background: var(--adm2); color: var(--att); }
+.sw-ok { background: var(--odim); color: var(--ok); }
+
+/* ============================================================
+   INSIGHT CHIPS
+   ============================================================ */
+.ich {
+  background: var(--glass);
+  border: 1px solid var(--gb);
+  border-radius: var(--rl);
+  backdrop-filter: blur(16px);
+  padding: 11px 13px;
+  display: flex; align-items: flex-start; gap: 9px;
+  cursor: pointer;
+  transition: border-color .12s, background .12s;
+  overflow: hidden;
+}
+.ich:hover { border-color: var(--gb2); background: var(--gl2); }
+.ich-em { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+.ich-body { flex: 1; min-width: 0; }
+.ich-tag {
+  font-size: 9px; font-weight: 700; letter-spacing: .04em;
+  text-transform: uppercase; display: block; margin-bottom: 2px;
+}
+.tg-c { color: var(--blue3); }
+.tg-s { color: var(--att); }
+.tg-f { color: var(--ok); }
+.tg-a { color: var(--pink); }
+.tg-d { color: var(--teal); }
+.tg-e { color: var(--yellow); }
+.ich-txt { font-size: 11.5px; color: var(--mu2); line-height: 1.4; }
+
+/* ============================================================
+   NUMBERS CHIP
+   ============================================================ */
+.nums {
+  background: var(--glass);
+  border: 1px solid var(--gb);
+  border-radius: var(--rl);
+  backdrop-filter: blur(16px);
+  padding: 11px 14px;
+  display: flex; flex-direction: column; gap: 8px;
+  min-width: 240px;
+}
+.nums-head {
+  font-size: 9px; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--mu);
+  display: flex; align-items: center; gap: 4px;
+}
+.nums-row { display: flex; gap: 18px; }
+.nkpi { display: flex; flex-direction: column; }
+.nv {
+  font-size: 16px; font-weight: 700; font-family: var(--mono);
+  font-variant-numeric: tabular-nums; letter-spacing: -.5px; line-height: 1.1;
+}
+.nl { font-size: 10px; color: var(--mu); margin-top: 1px; }
+.nd { font-size: 9px; font-family: var(--mono); margin-top: 2px; }
+
+/* ============================================================
+   ROOM HEADER
+   ============================================================ */
+.rh {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--gb);
+  background: rgba(5,7,14,.45);
+  backdrop-filter: blur(16px);
+  flex-shrink: 0;
+}
+[data-theme="light"] .rh { background: rgba(255,255,255,.6); }
+.rav {
+  width: 34px; height: 34px; border-radius: var(--r);
+  background: var(--glass); border: 1px solid var(--gb);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px; flex-shrink: 0;
+}
+.rn { font-size: 15px; font-weight: 700; letter-spacing: -.3px; }
+.rd { font-size: 11px; color: var(--mu); margin-top: 1px; }
+.ra { margin-left: auto; display: flex; gap: 6px; }
+
+.tabs {
+  display: flex; gap: 4px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--gb);
+  background: rgba(3,7,28,.35);
+  flex-shrink: 0;
+}
+[data-theme="light"] .tabs { background: rgba(255,255,255,.5); }
+.tab {
+  padding: 10px 14px; font-size: 12.5px; font-weight: 500;
+  color: var(--mu); cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color .1s, border-color .1s;
+  display: flex; align-items: center; gap: 5px;
+}
+.tab:hover { color: var(--fg); }
+.tab.on { color: var(--fg); border-bottom-color: var(--ac); }
+.tab .tbdg {
+  font-size: 9px; font-weight: 700;
+  background: var(--urg); color: #fff;
+  padding: 1px 4px; border-radius: 3px;
+}
+
+/* ============================================================
+   WIREFRAME FRAME (mock browser)
+   ============================================================ */
+.wf-frame {
+  background: var(--surface);
+  border: 1px solid var(--gb2);
+  border-radius: var(--rxl);
+  overflow: hidden;
+  box-shadow: var(--shadow-3);
+  min-height: 700px;
+  display: flex; flex-direction: column;
+}
+.wf-frame > .wf-bar {
+  display: flex; align-items: center; gap: 6px;
+  padding: 10px 14px;
+  background: rgba(5,7,14,.7);
+  border-bottom: 1px solid var(--gb);
+  font-size: 11px; color: var(--mu);
+}
+.wf-frame > .wf-bar .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gb2); }
+.wf-frame > .wf-bar .dot.r { background: #ff5f57; }
+.wf-frame > .wf-bar .dot.y { background: #febc2e; }
+.wf-frame > .wf-bar .dot.g { background: #28c840; }
+.wf-frame > .wf-bar .ttl { margin-left: 8px; font-weight: 600; color: var(--fg); }
+.wf-frame > .wf-body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  min-height: 0;
+}
+.wf-sidebar {
+  background: rgba(3,7,28,.6);
+  border-right: 1px solid var(--gb);
+  padding: 8px 6px;
+  display: flex; flex-direction: column; gap: 4px;
+  align-items: center;
+}
+.wf-si {
+  width: 36px; height: 36px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--mu2); font-size: 15px; cursor: pointer;
+  transition: background .1s;
+}
+.wf-si:hover { background: var(--glass); }
+.wf-si.on { background: var(--adim); color: var(--ac); }
+.wf-content { padding: 14px; min-height: 0; overflow: auto; }
+
+.wf-callout {
+  border: 1px dashed var(--ac);
+  background: rgba(140,95,219,0.05);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 11px;
+  color: var(--mu2);
+  margin-top: 8px;
+}
+.wf-callout strong { color: var(--ac); }
+.wf-placeholder {
+  border: 1.5px dashed var(--gb2);
+  border-radius: 6px;
+  background: rgba(255,255,255,.02);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--mu); font-size: 11px; font-style: italic;
+  min-height: 60px; padding: 8px; text-align: center;
+}
+
+/* ============================================================
+   GRID SYSTEM PREVIEW
+   ============================================================ */
+.gsys {
+  background: var(--surface);
+  border: 1px solid var(--gb);
+  border-radius: var(--r);
+  padding: 20px;
+}
+.gsys-grid {
+  display: grid; grid-template-columns: repeat(12, 1fr); gap: 8px;
+  margin-bottom: 16px;
+}
+.gsys-cell {
+  background: var(--adim);
+  border: 1px solid var(--ac);
+  border-radius: 4px;
+  height: 40px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 10px; color: var(--ac);
+}
+.gsys-cell.s1 { grid-column: span 1; }
+.gsys-cell.s2 { grid-column: span 2; }
+.gsys-cell.s3 { grid-column: span 3; }
+.gsys-cell.s4 { grid-column: span 4; }
+.gsys-cell.s6 { grid-column: span 6; }
+.gsys-cell.s12 { grid-column: span 12; }
+
+/* ============================================================
+   BAR / PROGRESS
+   ============================================================ */
+.bar-track { background: var(--gb); border-radius: 2px; height: 4px; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 2px; }
+.bar-label {
+  display: flex; justify-content: space-between;
+  font-size: 10.5px; color: var(--mu2); margin-bottom: 3px;
+}
+.bars {
+  display: flex; align-items: flex-end; gap: 6px;
+  height: 110px; padding: 10px;
+  background: var(--glass);
+  border: 1px solid var(--gb);
+  border-radius: var(--r);
+}
+.bar-v {
+  flex: 1; min-width: 0;
+  background: linear-gradient(to top, var(--ac), rgba(140,95,219,.4));
+  border-radius: 3px 3px 0 0;
+  min-height: 6px;
+  position: relative;
+}
+.bar-v .lbl {
+  position: absolute; bottom: -18px; left: 0; right: 0;
+  text-align: center; font-size: 9px; color: var(--mu);
+  font-family: var(--mono);
+}
+
+/* ============================================================
+   MOBILE PREVIEW
+   ============================================================ */
+.mob {
+  width: 280px; height: 540px;
+  border: 8px solid #1a1f2e;
+  border-radius: 32px;
+  background: var(--bg);
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 30px 60px rgba(0,0,0,.5);
+  margin: 0 auto;
+}
+.mob-notch {
+  position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 100px; height: 18px; background: #1a1f2e;
+  border-radius: 0 0 14px 14px; z-index: 5;
+}
+.mob-body { height: 100%; display: flex; flex-direction: column; }
+.mob-top {
+  padding: 24px 14px 8px;
+  border-bottom: 1px solid var(--gb);
+  display: flex; align-items: center; gap: 8px;
+}
+.mob-content { flex: 1; padding: 12px; overflow: auto; }
+.mob-nav {
+  height: 56px; border-top: 1px solid var(--gb);
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(3,7,28,.94);
+}
+.mob-burger {
+  width: 48px; height: 48px; border-radius: 50%;
+  background: var(--ac-grad);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; box-shadow: 0 4px 16px rgba(140,95,219,.45);
+}
+
+/* ============================================================
+   TOAST
+   ============================================================ */
+.toast {
+  background: rgba(14,18,30,.96);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--gb2);
+  border-radius: var(--r);
+  padding: 10px 14px;
+  display: flex; align-items: center; gap: 10px;
+  font-size: 12.5px; min-width: 260px;
+  box-shadow: 0 8px 28px rgba(0,0,0,.5);
+}
+.toast.ok { border-left: 2px solid var(--ok); }
+.toast.no { border-left: 2px solid var(--urg); }
+.toast.sn { border-left: 2px solid var(--att); }
+.toast .t-ttl { font-weight: 600; margin-bottom: 1px; }
+.toast .t-msg { font-size: 11px; color: var(--mu2); }
+
+/* ============================================================
+   EMPTY STATE
+   ============================================================ */
+.empty {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; padding: 32px 20px;
+  text-align: center; gap: 6px;
+}
+.ei { font-size: 28px; margin-bottom: 6px; }
+.et { font-size: 13px; font-weight: 600; color: var(--mu2); }
+.eb { font-size: 11.5px; color: var(--mu); max-width: 240px; line-height: 1.5; }
+
+/* ============================================================
+   INTEGRATION CARD
+   ============================================================ */
+.intg {
+  background: var(--glass);
+  border: 1px solid var(--gb);
+  border-left: 2.5px solid transparent;
+  border-radius: var(--r);
+  padding: 12px 14px;
+  display: flex; align-items: center; gap: 10px;
+  transition: border-color .12s;
+}
+.intg:hover { border-color: var(--gb2); }
+.intg.conn { border-left-color: var(--ok); }
+.intg-ico { font-size: 22px; flex-shrink: 0; }
+.intg-nm { font-size: 12.5px; font-weight: 600; margin-bottom: 1px; }
+.intg-dc { font-size: 11px; color: var(--mu); }
+.intg-foot { margin-left: auto; }
+.conn-pill {
+  font-size: 10px; font-weight: 600;
+  padding: 2px 7px; border-radius: 8px;
+  background: var(--odim); color: var(--ok);
+}
+
+/* ============================================================
+   USER ROW
+   ============================================================ */
+.usr-row {
+  display: flex; align-items: center; gap: 11px;
+  padding: 11px 13px;
+  background: var(--glass);
+  border: 1px solid var(--gb);
+  border-radius: var(--r);
+  margin-bottom: 6px;
+}
+.usr-av {
+  width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: #fff; flex-shrink: 0;
+}
+.usr-nm { font-size: 12.5px; font-weight: 600; }
+.usr-ml { font-size: 11px; color: var(--mu); }
+.usr-perm { margin-left: auto; font-size: 10.5px; color: var(--mu); }
+
+/* ============================================================
+   GANTT
+   ============================================================ */
+.gantt { padding: 10px 12px; overflow-x: auto; }
+.gantt-hd { display: flex; margin-left: 70px; margin-bottom: 5px; border-bottom: 1px solid var(--gb); padding-bottom: 5px; }
+.gantt-wk { font-size: 9px; font-weight: 600; color: var(--mu); text-transform: uppercase; letter-spacing: .05em; flex: 1; text-align: center; }
+.gantt-row { display: flex; align-items: center; margin-bottom: 6px; min-height: 22px; }
+.gantt-lbl { width: 70px; flex-shrink: 0; font-size: 10px; color: var(--mu2); font-weight: 500; padding-right: 8px; }
+.gantt-track { flex: 1; background: rgba(255,255,255,.02); border-radius: 3px; height: 18px; position: relative; border: 1px solid var(--gb); }
+.gantt-block { position: absolute; top: 2px; height: 14px; border-radius: 2px; font-size: 8.5px; color: #fff; display: flex; align-items: center; padding: 0 5px; font-weight: 500; white-space: nowrap; overflow: hidden; }
+
+/* ============================================================
+   UTILITIES
+   ============================================================ */
+.mono { font-family: var(--mono); }
+.muted { color: var(--mu); }
+.muted2 { color: var(--mu2); }
+.up { color: var(--ok); }
+.dn { color: var(--urg); }
+.att-color { color: var(--att); }
+.ac-color { color: var(--ac); }
+.flex { display: flex; }
+.flex-c { display: flex; align-items: center; }
+.flex-1 { flex: 1; }
+.gap-4 { gap: 4px; } .gap-6 { gap: 6px; } .gap-8 { gap: 8px; } .gap-12 { gap: 12px; } .gap-16 { gap: 16px; }
+.mt-8 { margin-top: 8px; } .mt-12 { margin-top: 12px; } .mt-16 { margin-top: 16px; } .mt-24 { margin-top: 24px; }
+.mb-8 { margin-bottom: 8px; } .mb-12 { margin-bottom: 12px; } .mb-16 { margin-bottom: 16px; } .mb-24 { margin-bottom: 24px; }
+.tnum { font-variant-numeric: tabular-nums; }
+.center { text-align: center; }
+.hide { display: none; }
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 1024px) {
+  :root { --shell-w: 180px; }
+  .scroll { padding: 20px 24px 60px; }
+}
+@media (max-width: 768px) {
+  .app { grid-template-columns: 1fr; }
+  .sidenav { display: none; }
+  .grid-2, .grid-3, .grid-4, .grid-5, .grid-6 { grid-template-columns: 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <header class="topbar">
+    <div class="topbar-logo">
+      <div class="logo-mark">b</div>
+      <div>
+        <div class="logo-name">blu <span class="logo-sub">design system</span></div>
+      </div>
+    </div>
+    <div class="topbar-mid">
+      <span class="crumb">Documentação / <strong id="crumb-current">Visão geral</strong></span>
+    </div>
+    <div class="topbar-end">
+      <button class="ibtn" id="themeToggle" title="Alternar tema">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="4"/>
+          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+        </svg>
+      </button>
+      <div class="av" title="Você">DS</div>
+    </div>
+  </header>
+
+  <nav class="sidenav">
+    <div class="nav-group">
+      <div class="nav-group-lbl">Design System</div>
+      <div class="nav-item on" data-go="overview"><span class="ico">◈</span><span class="lbl">Visão geral</span></div>
+      <div class="nav-item" data-go="tokens"><span class="ico">◆</span><span class="lbl">Tokens</span></div>
+      <div class="nav-item" data-go="typography"><span class="ico">Aa</span><span class="lbl">Tipografia</span></div>
+      <div class="nav-item" data-go="icons"><span class="ico">★</span><span class="lbl">Iconografia</span></div>
+      <div class="nav-item" data-go="grid"><span class="ico">▦</span><span class="lbl">Grid & Espaço</span></div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-lbl">Componentes</div>
+      <div class="nav-item" data-go="comp-buttons"><span class="ico">▣</span><span class="lbl">Botões</span></div>
+      <div class="nav-item" data-go="comp-panels"><span class="ico">▤</span><span class="lbl">Painéis</span></div>
+      <div class="nav-item" data-go="comp-badges"><span class="ico">●</span><span class="lbl">Badges</span></div>
+      <div class="nav-item" data-go="comp-forms"><span class="ico">▢</span><span class="lbl">Formulários</span></div>
+      <div class="nav-item" data-go="comp-tables"><span class="ico">≡</span><span class="lbl">Tabelas</span></div>
+      <div class="nav-item" data-go="comp-decisions"><span class="ico">⚡</span><span class="lbl">Decisões</span></div>
+      <div class="nav-item" data-go="comp-feedback"><span class="ico">◉</span><span class="lbl">Feedback</span></div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-lbl">Wireframes</div>
+      <div class="nav-item" data-go="wf-shell"><span class="ico">▣</span><span class="lbl">Shell & Layout</span></div>
+      <div class="nav-item" data-go="wf-home"><span class="ico">🏠</span><span class="lbl">Home</span></div>
+      <div class="nav-item" data-go="wf-compras"><span class="ico">🛒</span><span class="lbl">Compras</span></div>
+      <div class="nav-item" data-go="wf-financeiro"><span class="ico">📊</span><span class="lbl">Financeiro</span></div>
+      <div class="nav-item" data-go="wf-agenda"><span class="ico">📅</span><span class="lbl">Agenda</span></div>
+      <div class="nav-item" data-go="wf-estrategia"><span class="ico">🎯</span><span class="lbl">Estratégia</span></div>
+      <div class="nav-item" data-go="wf-clientes"><span class="ico">👥</span><span class="lbl">Clientes</span></div>
+      <div class="nav-item" data-go="wf-biblioteca"><span class="ico">📚</span><span class="lbl">Biblioteca</span></div>
+      <div class="nav-item" data-go="wf-atividade"><span class="ico">🔔</span><span class="lbl">Atividade</span></div>
+      <div class="nav-item" data-go="wf-admin"><span class="ico">⚙</span><span class="lbl">Admin</span></div>
+      <div class="nav-item" data-go="wf-mobile"><span class="ico">📱</span><span class="lbl">Mobile</span></div>
+    </div>
+  </nav>
+
+  <main class="main">
+    <div class="scroll" id="mainScroll">
+      <!-- OVERVIEW -->
+      <section class="section" data-section="overview">
+        <div class="section-hd">
+          <div class="eyebrow">Documentação v3</div>
+          <h1>Blu — Design System & Wireframes</h1>
+          <p class="lead">
+            Este documento padroniza todos os tokens, componentes e telas do <strong>blu v3</strong> — o escritório virtual com IA para empresas brasileiras.
+            Use-o como referência única para implementar novas features, revisar PRs visuais e alinhar produto/design/engenharia.
+          </p>
+        </div>
+
+        <div class="grid grid-3 mb-24">
+          <div class="panel">
+            <div class="ph"><span class="ph-ico">🎨</span><span class="ph-ttl">Identidade</span></div>
+            <div class="pb">
+              <p class="muted2 mb-12">Marca em gradiente roxo→azul, glassmorphism escuro, vibe "escritório noturno".</p>
+              <div class="flex gap-6">
+                <div style="width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#7E5CC8,#3A80D4)"></div>
+                <div style="width:36px;height:36px;border-radius:8px;background:var(--ac)"></div>
+                <div style="width:36px;height:36px;border-radius:8px;background:var(--bg);border:1px solid var(--gb)"></div>
+                <div style="width:36px;height:36px;border-radius:8px;background:var(--surface);border:1px solid var(--gb)"></div>
+              </div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="ph"><span class="ph-ico">🧱</span><span class="ph-ttl">Stack técnica</span></div>
+            <div class="pb">
+              <ul style="list-style:none;display:flex;flex-direction:column;gap:6px;font-size:12px">
+                <li>• React 18 + Vite</li>
+                <li>• React Router 6</li>
+                <li>• TanStack Query v5</li>
+                <li>• Zustand (UI state)</li>
+                <li>• Phosphor Icons</li>
+                <li>• CSS vanilla + custom properties</li>
+              </ul>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="ph"><span class="ph-ico">🗺️</span><span class="ph-ttl">10 salas (rooms)</span></div>
+            <div class="pb">
+              <div class="grid grid-2" style="gap:6px;font-size:11.5px">
+                <div><span class="agd" style="background:#818cf8;display:inline-block"></span> Compras</div>
+                <div><span class="agd" style="background:#34d399;display:inline-block"></span> Financeiro</div>
+                <div><span class="agd" style="background:#f472b6;display:inline-block"></span> Clientes</div>
+                <div><span class="agd" style="background:#fbbf24;display:inline-block"></span> Estoque</div>
+                <div><span class="agd" style="background:#2dd4bf;display:inline-block"></span> Documentos</div>
+                <div><span class="agd" style="background:#fb923c;display:inline-block"></span> Agenda</div>
+                <div><span class="agd" style="background:#a78bfa;display:inline-block"></span> Estratégia</div>
+                <div><span class="agd" style="background:#818cf8;display:inline-block"></span> Biblioteca</div>
+                <div><span class="agd" style="background:#f59e0b;display:inline-block"></span> Atividade</div>
+                <div><span class="agd" style="background:#6b7280;display:inline-block"></span> Admin</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="ph"><span class="ph-ico">📐</span><span class="ph-ttl">Princípios de design</span></div>
+          <div class="pb">
+            <div class="grid grid-4">
+              <div>
+                <h3 class="ac-color">Humano-no-comando</h3>
+                <p class="muted" style="font-size:12px">IA prepara, humano decide. Nada acontece sem aprovação visível.</p>
+              </div>
+              <div>
+                <h3 class="ac-color">Densidade informacional</h3>
+                <p class="muted" style="font-size:12px">Power-user app: alta densidade, hierarquia clara, sem whitespace inútil.</p>
+              </div>
+              <div>
+                <h3 class="ac-color">Glass & depth</h3>
+                <p class="muted" style="font-size:12px">Painéis translúcidos, blur 16-24px, sombras inset sutis para hierarquia.</p>
+              </div>
+              <div>
+                <h3 class="ac-color">Roxo = Blu</h3>
+                <p class="muted" style="font-size:12px">Acento roxo reservado para CTAs primários, estado ativo e insights de IA.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TOKENS -->
+      <section class="section hide" data-section="tokens">
+        <div class="section-hd">
+          <div class="eyebrow">01 / Tokens</div>
+          <h1>Tokens de design</h1>
+          <p class="lead">CSS custom properties são a fonte da verdade. Nunca use valores hard-coded — sempre referencie uma variável.</p>
+        </div>
+
+        <div class="ds-block">
+          <h2><span class="num">1.1</span> Cores — semânticas</h2>
+          <p class="desc">Cores principais do tema escuro. O tema claro sobrescreve as mesmas variáveis em <code>:root[data-theme="light"]</code>.</p>
+          <div class="grid grid-4">
+            <div class="swatch"><div class="chip" style="background:var(--bg);border-bottom:1px solid var(--gb)"></div><div class="body"><div class="nm">--bg</div><div class="val">#03071C</div><div class="role">Background principal</div></div></div>
+            <div class="swatch"><div class="chip" style="background:var(--surface)"></div><div class="body"><div class="nm">--surface</div><div class="val">rgba(8,18,48,.72)</div><div class="role">Superfície elevada</div></div></div>
+            <div class="swatch"><div class="chip" style="background:var(--glass)"></div><div class="body"><div class="nm">--glass</div><div class="val">rgba(255,255,255,.045)</div><div class="role">Painel translúcido</div></div></div>
+            <div class="swatch"><div class="chip" style="background:var(--gl2)"></div><div class="body"><div class="nm">--gl2</div><div class="val">rgba(255,255,255,.07)</div><div class="role">Painel hover/state</div></div></div>
+            <div class="swatch"><div class="chip" style="background:var(--gb)"></div><div class="body"><div class="nm">--gb</div><div class="val">rgba(255,255,255,.08)</div><div class="role">Borda padrão</div></div></div>
+            <div class="swatch"><div class="chip" style="background:var(--gb2)"></div><div class="body"><div class="nm">--gb2</div><div class="val">rgba(255,255,255,.13)</div><div class="role">Borda hover</div></div></div>
+            <div class="swatch"><div class="chip" style="background:var(--fg)"></div><div class="body"><div class="nm">--fg</div><div class="val">#DFE3EE</div><div class="role">Texto primário</div></div></div>
+            <div class="swatch"><div class="chip" style="background:var(--mu)"></div><div class="body"><div class="nm">--mu</div><div class="val">rgba(223,227,238,.42)</div><div class="role">Texto muted</div></div></div>
+            <div class="swatch"><div class="chip" style="background:var(--mu2)"></div><div class="body"><div class="nm">--mu2</div><div class="val">rgba(223,227,238,.64)</div><div class="role">Texto secundário</div></div></div>
+          </div>
+        </div>
+
+        <div class="ds-block">
+          <h2><span class="num">1.2</span> Cores — acento & status</h2>
+          <p class="desc">Acento da marca (roxo) e cores de estado. Use <code>--ac</code> para CTAs primários e <code>--adim</code> para backgrounds suaves do mesmo matiz.</p>
+          <div class="grid grid-4">
+            <div class="swatch"><div class="chip" style="background:var(--ac)"></div><div class="body"><div class="nm">--ac</div><div class="val">#8C5FDB</div><div class="role">Roxo Blu · CTAs</div></div></div>
+            <div class="swatch"><div class="chip" style="background:var(--adim)"></div><div class="body"><div class="nm">--adim</div><div class="val">rgba(140,95,219,.15)</div><div class="role">Acento dim</div></div></div>
+            <div class="swatch"><div class="chip" style="background:var(--urg)"></div><div class="body"><div class="nm">--urg</div><div class="val">#EF4444</div><div class="role">Erro / Urgente</div></div></div>
+            <div class="swatch"><div class="chip" style="background:var(--att)"></div><div class="body"><div class="nm">--att</div><div class="val">#F59E0B</div><div class="role">Atenção / Warning</div></div></div>
+            <div class="swatch"><div class="chip" style="background:var(--ok)"></div><div class="body"><div class="nm">--ok</div><div class="val">#10B981</div><div class="role">Sucesso / Aprovado</div></div></div>
+            <div class="swatch"><div class="chip" style="background:var(--blue2)"></div><div class="body"><div class="nm">--blue2</div><div class="val">#3B82F6</div><div class="role">Azul secundário</div></div></div>
+            <div class="swatch"><div class="chip" style="background:var(--blue3)"></div><div class="body"><div class="nm">--blue3</div><div class="val">#818cf8</div><div class="role">Azul claro / tags</div></div></div>
+            <div class="swatch"><div class="chip" style="background:linear-gradient(135deg,#7E5CC8,#3A80D4)"></div><div class="body"><div class="nm">--ac-grad</div><div class="val">linear-gradient</div><div class="role">Gradiente da marca</div></div></div>
+          </div>
+        </div>
+
+        <div class="ds-block">
+          <h2><span class="num">1.3</span> Cores — agentes</h2>
+          <p class="desc">Cada agente/sala tem uma cor canônica (definida em <code>utils/constants.ts → AGENT_COLORS</code>). Use para dots, ícones e bordas-left.</p>
+          <div class="grid grid-6">
+            <div class="swatch"><div class="chip" style="background:#818cf8"></div><div class="body"><div class="nm">compras</div><div class="val">#818cf8</div></div></div>
+            <div class="swatch"><div class="chip" style="background:#34d399"></div><div class="body"><div class="nm">financeiro</div><div class="val">#34d399</div></div></div>
+            <div class="swatch"><div class="chip" style="background:#f472b6"></div><div class="body"><div class="nm">clientes</div><div class="val">#f472b6</div></div></div>
+            <div class="swatch"><div class="chip" style="background:#fbbf24"></div><div class="body"><div class="nm">estoque</div><div class="val">#fbbf24</div></div></div>
+            <div class="swatch"><div class="chip" style="background:#2dd4bf"></div><div class="body"><div class="nm">documentos</div><div class="val">#2dd4bf</div></div></div>
+            <div class="swatch"><div class="chip" style="background:#fb923c"></div><div class="body"><div class="nm">agenda</div><div class="val">#fb923c</div></div></div>
+            <div class="swatch"><div class="chip" style="background:#a78bfa"></div><div class="body"><div class="nm">estrategia</div><div class="val">#a78bfa</div></div></div>
+            <div class="swatch"><div class="chip" style="background:#ef4444"></div><div class="body"><div class="nm">urgente</div><div class="val">#ef4444</div></div></div>
+            <div class="swatch"><div class="chip" style="background:#10b981"></div><div class="body"><div class="nm">sucesso</div><div class="val">#10b981</div></div></div>
+            <div class="swatch"><div class="chip" style="background:#94a3b8"></div><div class="body"><div class="nm">default</div><div class="val">#94a3b8</div></div></div>
+            <div class="swatch"><div class="chip" style="background:#3b82f6"></div><div class="body"><div class="nm">info</div><div class="val">#3b82f6</div></div></div>
+            <div class="swatch"><div class="chip" style="background:#6b7280"></div><div class="body"><div class="nm">neutral</div><div class="val">#6b7280</div></div></div>
+          </div>
+        </div>
+
+        <div class="ds-block">
+          <h2><span class="num">1.4</span> Raio, sombra, motion</h2>
+          <div class="grid grid-3">
+            <div class="panel"><div class="ph"><span class="ph-ttl">Border-radius</span></div>
+              <div class="pb">
+                <div class="flex-c gap-12 mb-12"><div style="width:60px;height:40px;background:var(--ac);border-radius:4px"></div><div><div class="mono">--r: 8px</div><div class="muted" style="font-size:11px">Botões, inputs</div></div></div>
+                <div class="flex-c gap-12 mb-12"><div style="width:60px;height:40px;background:var(--ac);border-radius:12px"></div><div><div class="mono">--rl: 12px</div><div class="muted" style="font-size:11px">Painéis, modais</div></div></div>
+                <div class="flex-c gap-12"><div style="width:60px;height:40px;background:var(--ac);border-radius:20px"></div><div><div class="mono">--rxl: 20px</div><div class="muted" style="font-size:11px">Sheets mobile</div></div></div>
+              </div>
+            </div>
+            <div class="panel"><div class="ph"><span class="ph-ttl">Sombras</span></div>
+              <div class="pb">
+                <div class="flex-c gap-12 mb-12" style="background:var(--bg);padding:14px;border-radius:8px"><div style="width:50px;height:30px;background:var(--surface);border-radius:6px;box-shadow:var(--shadow-1)"></div><div><div class="mono">--shadow-1</div><div class="muted" style="font-size:11px">Painéis em repouso</div></div></div>
+                <div class="flex-c gap-12 mb-12" style="background:var(--bg);padding:14px;border-radius:8px"><div style="width:50px;height:30px;background:var(--surface);border-radius:6px;box-shadow:var(--shadow-2)"></div><div><div class="mono">--shadow-2</div><div class="muted" style="font-size:11px">Painéis em hover</div></div></div>
+                <div class="flex-c gap-12" style="background:var(--bg);padding:14px;border-radius:8px"><div style="width:50px;height:30px;background:var(--surface);border-radius:6px;box-shadow:var(--shadow-3)"></div><div><div class="mono">--shadow-3</div><div class="muted" style="font-size:11px">Modais, popovers</div></div></div>
+              </div>
+            </div>
+            <div class="panel"><div class="ph"><span class="ph-ttl">Motion</span></div>
+              <div class="pb">
+                <div class="flex-c gap-12 mb-12"><div style="width:50px;height:30px;background:var(--ac);border-radius:6px;animation:pulse 2s infinite"></div><div><div class="mono">pulse 2s</div><div class="muted" style="font-size:11px">Notificações</div></div></div>
+                <div class="flex-c gap-12 mb-12"><div style="width:50px;height:30px;background:var(--ac);border-radius:6px"></div><div><div class="mono">transition: .1s</div><div class="muted" style="font-size:11px">Hover em botões</div></div></div>
+                <div class="flex-c gap-12"><div style="width:50px;height:30px;background:var(--ac);border-radius:6px"></div><div><div class="mono">fi .15s</div><div class="muted" style="font-size:11px">Fade-in de telas</div></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TYPOGRAPHY -->
+      <section class="section hide" data-section="typography">
+        <div class="section-hd">
+          <div class="eyebrow">02 / Tipografia</div>
+          <h1>Tipografia</h1>
+          <p class="lead">Sans-serif do sistema (Inter, SF, -apple-system) + JetBrains Mono para números e timestamps. Hierarquia em 8 tamanhos.</p>
+        </div>
+
+        <div class="panel">
+          <div class="ph"><span class="ph-ico">🔤</span><span class="ph-ttl">Families</span></div>
+          <div class="pb">
+            <div class="grid grid-2">
+              <div>
+                <div class="muted mb-8" style="font-size:11px">Sans (body)</div>
+                <code style="font-size:13px">-apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif</code>
+              </div>
+              <div>
+                <div class="muted mb-8" style="font-size:11px">Mono (num/tabela)</div>
+                <code style="font-size:13px">'JetBrains Mono', 'SF Mono', ui-monospace, monospace</code>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ds-block">
+          <h2><span class="num">2.1</span> Escala tipográfica</h2>
+          <div class="panel">
+            <div class="ph"><span class="ph-ttl">Hero / Display</span></div>
+            <div class="pb">
+              <h1 style="font-size:32px;font-weight:800;letter-spacing:-1px;line-height:1.1;margin-bottom:6px">clamp(36, 6vw, 72) / 800</h1>
+              <p class="muted" style="font-size:12px">Landing page hero (lp-h1)</p>
+            </div>
+          </div>
+          <div class="panel mt-12">
+            <div class="ph"><span class="ph-ttl">Seções</span></div>
+            <div class="pb">
+              <div style="font-size:24px;font-weight:800;letter-spacing:-.5px;line-height:1.2;margin-bottom:6px">24px / 800 — H1 interno</div>
+              <div style="font-size:20px;font-weight:700;letter-spacing:-.3px;line-height:1.2;margin-bottom:6px">20px / 700 — H2 seção</div>
+              <div style="font-size:18px;font-weight:700;letter-spacing:-.3px;line-height:1.2;margin-bottom:6px">18px / 700 — H3 room header</div>
+            </div>
+          </div>
+          <div class="panel mt-12">
+            <div class="ph"><span class="ph-ttl">Corpo</span></div>
+            <div class="pb">
+              <div class="mb-8"><span style="font-size:14px;font-weight:600">14px / 600 — body strong</span> <span class="muted">lead de parágrafo, sub-títulos</span></div>
+              <div class="mb-8"><span style="font-size:13px">13px / 400 — body base</span> <span class="muted">parágrafos, default do app</span></div>
+              <div class="mb-8"><span style="font-size:12.5px">12.5px / 500 — body small</span> <span class="muted">inputs, table cells</span></div>
+              <div class="mb-8"><span style="font-size:12px">12px / 500 — secondary</span> <span class="muted">botões secundários, legendas</span></div>
+              <div class="mb-8"><span style="font-size:11.5px">11.5px / 400 — small muted</span> <span class="muted">descrições, hints</span></div>
+            </div>
+          </div>
+          <div class="panel mt-12">
+            <div class="ph"><span class="ph-ttl">Caption / Eyebrow</span></div>
+            <div class="pb">
+              <div class="mb-8"><span style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ac)">11px / 700 / .1em — EYEBROW ROXO</span></div>
+              <div class="mb-8"><span style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mu)">10px / 700 / .08em — panel header</span></div>
+              <div class="mb-8"><span style="font-size:9.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--mu)">9.5px / 700 / .07em — Kpi label</span></div>
+              <div class="mb-8"><span style="font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase">9px / 700 / .04em — Badge</span></div>
+              <div><span class="mono" style="font-size:11px;color:var(--mu)">10-12px mono — números, timestamps, IDs</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ds-block">
+          <h2><span class="num">2.2</span> Pesos & letter-spacing</h2>
+          <div class="grid grid-2">
+            <div class="panel">
+              <div class="ph"><span class="ph-ttl">Pesos</span></div>
+              <div class="pb">
+                <div style="font-weight:400;font-size:14px">400 Regular · corpo de texto</div>
+                <div style="font-weight:500;font-size:14px">500 Medium · body strong</div>
+                <div style="font-weight:600;font-size:14px">600 Semibold · botões, labels</div>
+                <div style="font-weight:700;font-size:14px">700 Bold · títulos, h3</div>
+                <div style="font-weight:800;font-size:14px">800 ExtraBold · h1, hero</div>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="ph"><span class="ph-ttl">Tracking</span></div>
+              <div class="pb">
+                <div style="letter-spacing:-1px;font-size:20px;font-weight:800">-1px · Headlines</div>
+                <div style="letter-spacing:-.4px;font-size:14px">-.4px · Logo</div>
+                <div style="letter-spacing:0;font-size:14px">0 · Body</div>
+                <div style="letter-spacing:.04em;font-size:12px;font-weight:700;text-transform:uppercase">.04em · Badges</div>
+                <div style="letter-spacing:.08em;font-size:10px;font-weight:700;text-transform:uppercase">.08em · Panel headers</div>
+                <div style="letter-spacing:.1em;font-size:11px;font-weight:700;text-transform:uppercase">.1em · Eyebrow</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ICONS -->
+      <section class="section hide" data-section="icons">
+        <div class="section-hd">
+          <div class="eyebrow">03 / Iconografia</div>
+          <h1>Iconografia</h1>
+          <p class="lead">Phosphor Icons (regular weight) como padrão. Sempre em SVG inline, com <code>currentColor</code> para herdar cor do contexto.</p>
+        </div>
+
+        <div class="panel">
+          <div class="ph"><span class="ph-ico">★</span><span class="ph-ttl">Navegação principal (10 rooms)</span></div>
+          <div class="pb">
+            <div class="grid grid-5" style="text-align:center;font-size:11px;color:var(--mu)">
+              <div><div style="font-size:28px">🏠</div><div class="mt-8">Home</div></div>
+              <div><div style="font-size:28px">🛒</div><div class="mt-8">Compras</div></div>
+              <div><div style="font-size:28px">📊</div><div class="mt-8">Financeiro</div></div>
+              <div><div style="font-size:28px">📅</div><div class="mt-8">Agenda</div></div>
+              <div><div style="font-size:28px">🎯</div><div class="mt-8">Estratégia</div></div>
+              <div><div style="font-size:28px">👥</div><div class="mt-8">Clientes</div></div>
+              <div><div style="font-size:28px">📚</div><div class="mt-8">Biblioteca</div></div>
+              <div><div style="font-size:28px">🔔</div><div class="mt-8">Atividade</div></div>
+              <div><div style="font-size:28px">⚙</div><div class="mt-8">Admin</div></div>
+              <div><div style="font-size:28px">🖥</div><div class="mt-8">AgentOps</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ds-block">
+          <h2><span class="num">3.1</span> Emojis auxiliares</h2>
+          <p class="desc">Para dots de status e ilustrações inline, usamos emojis curados para evitar dependência de pacote de ícones gigante.</p>
+          <div class="grid grid-6" style="font-size:11.5px">
+            <div class="panel"><div class="pb center"><div style="font-size:22px">⚡</div><div class="mt-8">Ação / Decidir agora</div></div></div>
+            <div class="panel"><div class="pb center"><div style="font-size:22px">📋</div><div class="mt-8">Plano / Lista</div></div></div>
+            <div class="panel"><div class="pb center"><div style="font-size:22px">🔮</div><div class="mt-8">Visão / Previsão</div></div></div>
+            <div class="panel"><div class="pb center"><div style="font-size:22px">📈</div><div class="mt-8">Crescimento</div></div></div>
+            <div class="panel"><div class="pb center"><div style="font-size:22px">💡</div><div class="mt-8">Insight</div></div></div>
+            <div class="panel"><div class="pb center"><div style="font-size:22px">⚠️</div><div class="mt-8">Alerta</div></div></div>
+            <div class="panel"><div class="pb center"><div style="font-size:22px">⏰</div><div class="mt-8">Adiar / Tempo</div></div></div>
+            <div class="panel"><div class="pb center"><div style="font-size:22px">👍</div><div class="mt-8">Aprovar</div></div></div>
+            <div class="panel"><div class="pb center"><div style="font-size:22px">✗</div><div class="mt-8">Rejeitar</div></div></div>
+            <div class="panel"><div class="pb center"><div style="font-size:22px">✦</div><div class="mt-8">IA / Rotina</div></div></div>
+            <div class="panel"><div class="pb center"><div style="font-size:22px">📹</div><div class="mt-8">Meet / Hangout</div></div></div>
+            <div class="panel"><div class="pb center"><div style="font-size:22px">🔍</div><div class="mt-8">Buscar (⌘K)</div></div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- GRID -->
+      <section class="section hide" data-section="grid">
+        <div class="section-hd">
+          <div class="eyebrow">04 / Grid & Espaçamento</div>
+          <h1>Grid e espaçamento</h1>
+          <p class="lead">Grid 12 colunas no conteúdo. Painéis internos usam 8-12px gaps. Hierarquia vertical: 4 / 8 / 12 / 16 / 20 / 24 / 36 / 48.</p>
+        </div>
+
+        <div class="ds-block">
+          <h2><span class="num">4.1</span> Escala de espaçamento</h2>
+          <div class="panel">
+            <div class="pb">
+              <div class="flex gap-16" style="align-items:flex-end">
+                <div><div style="width:48px;height:4px;background:var(--ac);border-radius:2px"></div><div class="mono mt-8" style="font-size:11px">4</div></div>
+                <div><div style="width:48px;height:8px;background:var(--ac);border-radius:2px"></div><div class="mono mt-8" style="font-size:11px">8</div></div>
+                <div><div style="width:48px;height:12px;background:var(--ac);border-radius:2px"></div><div class="mono mt-8" style="font-size:11px">12</div></div>
+                <div><div style="width:48px;height:16px;background:var(--ac);border-radius:2px"></div><div class="mono mt-8" style="font-size:11px">16</div></div>
+                <div><div style="width:48px;height:20px;background:var(--ac);border-radius:2px"></div><div class="mono mt-8" style="font-size:11px">20</div></div>
+                <div><div style="width:48px;height:24px;background:var(--ac);border-radius:2px"></div><div class="mono mt-8" style="font-size:11px">24</div></div>
+                <div><div style="width:48px;height:36px;background:var(--ac);border-radius:2px"></div><div class="mono mt-8" style="font-size:11px">36</div></div>
+                <div><div style="width:48px;height:48px;background:var(--ac);border-radius:2px"></div><div class="mono mt-8" style="font-size:11px">48</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ds-block">
+          <h2><span class="num">4.2</span> Grid 12 colunas</h2>
+          <div class="gsys">
+            <div class="gsys-grid">
+              <div class="gsys-cell s12">12 colunas · full</div>
+              <div class="gsys-cell s6">6 · metade</div>
+              <div class="gsys-cell s6">6 · metade</div>
+              <div class="gsys-cell s4">4 · terço</div>
+              <div class="gsys-cell s4">4 · terço</div>
+              <div class="gsys-cell s4">4 · terço</div>
+              <div class="gsys-cell s3">3</div>
+              <div class="gsys-cell s3">3</div>
+              <div class="gsys-cell s3">3</div>
+              <div class="gsys-cell s3">3</div>
+              <div class="gsys-cell s2">2</div>
+              <div class="gsys-cell s2">2</div>
+              <div class="gsys-cell s2">2</div>
+              <div class="gsys-cell s2">2</div>
+              <div class="gsys-cell s2">2</div>
+              <div class="gsys-cell s2">2</div>
+            </div>
+            <p class="muted" style="font-size:11.5px">Gap padrão 8px. Container max-width 1100px em páginas internas, 100% no shell.</p>
+          </div>
+        </div>
+
+        <div class="ds-block">
+          <h2><span class="num">4.3</span> App shell — grid layout</h2>
+          <div class="panel">
+            <div class="pb">
+              <pre class="mono" style="font-size:11.5px;line-height:1.6;background:rgba(0,0,0,.25);padding:12px;border-radius:6px;color:var(--mu2);overflow:auto">
+.shell {
+  display: grid;
+  grid-template-columns: var(--sw) 1fr;     /* 56px sidebar | main */
+  grid-template-rows: var(--th) 1fr;        /* 68px topbar | content */
+  height: 100vh;
+}
+
+.home-grid {
+  display: grid;
+  grid-template-columns: 1fr var(--rcol-w); /* main | right col */
+  grid-template-rows: 1fr 120px;            /* top | bottom strip */
+  gap: 20px; padding: 18px;
+}
+
+.bstrip {
+  grid-column: 1 / -1;                      /* full-width bottom */
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr auto auto;
+  gap: 14px;
+}</pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- COMPONENTS / BUTTONS -->
+      <section class="section hide" data-section="comp-buttons">
+        <div class="section-hd">
+          <div class="eyebrow">Componentes / 01</div>
+          <h1>Botões</h1>
+          <p class="lead">3 variantes principais (primary, secondary, ghost) × 3 tamanhos (sm, base, lg). Use ícones via emoji ou SVG inline.</p>
+        </div>
+
+        <div class="ds-block">
+          <h2><span class="num">5.1</span> Variantes</h2>
+          <div class="panel">
+            <div class="ph"><span class="ph-ttl">Variantes base</span></div>
+            <div class="pb">
+              <div class="flex gap-12" style="flex-wrap:wrap;align-items:center">
+                <button class="btn btn-p">👍 Aprovar</button>
+                <button class="btn btn-s">✗ Rejeitar</button>
+                <button class="btn btn-g">⏰ Depois</button>
+                <button class="btn btn-b">📹 Entrar</button>
+                <button class="btn btn-ok">✓ Concluído</button>
+                <button class="btn btn-rd">🚨 Cancelar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ds-block">
+          <h2><span class="num">5.2</span> Tamanhos</h2>
+          <div class="panel">
+            <div class="ph"><span class="ph-ttl">SM · base · LG</span></div>
+            <div class="pb">
+              <div class="flex gap-12" style="align-items:center">
+                <button class="btn btn-p btn-sm">+ Nova</button>
+                <button class="btn btn-p">+ Nova Missão</button>
+                <button class="btn btn-p btn-lg">Criar conta grátis</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ds-block">
+          <h2><span class="num">5.3</span> Botão-ícone & estados</h2>
+          <div class="grid grid-2">
+            <div class="panel">
+              <div class="ph"><span class="ph-ttl">Icon buttons</span></div>
+              <div class="pb">
+                <div class="flex gap-8">
+                  <button class="ibtn" title="Buscar"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></button>
+                  <button class="ibtn" title="Notificações"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></button>
+                  <button class="ibtn" title="Tema"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/></svg></button>
+                </div>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="ph"><span class="ph-ttl">Estados</span></div>
+              <div class="pb">
+                <div class="flex gap-12" style="align-items:center;flex-wrap:wrap">
+                  <button class="btn btn-p">Normal</button>
+                  <button class="btn btn-p" style="background:#a07ae8;transform:translateY(-1px)">Hover</button>
+                  <button class="btn btn-p" style="opacity:.6;cursor:not-allowed">Disabled</button>
+                  <button class="btn btn-p" style="box-shadow:0 0 0 3px rgba(140,95,219,.3)">Focus</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- COMPONENTS / PANELS -->
+      <section class="section hide" data-section="comp-panels">
+        <div class="section-hd">
+          <div class="eyebrow">Componentes / 02</div>
+          <h1>Painéis & Cards</h1>
+          <p class="lead">Container fundamental do app. Glass translúcido com blur 16px, header de 38px, hover aumenta border.</p>
+        </div>
+
+        <div class="ds-block">
+          <h2><span class="num">6.1</span> Painel padrão</h2>
+          <div class="grid grid-2">
+            <div class="panel">
+              <div class="ph">
+                <span class="ph-ico">⚡</span>
+                <span class="ph-ttl">Decidir Agora</span>
+                <span class="ph-cnt">5 pendentes</span>
+                <span class="ph-lnk">Ver todas →</span>
+              </div>
+              <div class="pb">
+                <p class="muted2" style="font-size:12px">Painel de decisões. O header tem ícone + título uppercase + contador à direita + ação "ver todas".</p>
+              </div>
+            </div>
+            <div class="panel" style="border-color:var(--ac)">
+              <div class="ph">
+                <span class="ph-ico">📋</span>
+                <span class="ph-ttl">Plano de Hoje</span>
+                <span class="ph-lnk">Agenda →</span>
+              </div>
+              <div class="pb">
+                <p class="muted2" style="font-size:12px">Variante com <code>border-color: var(--ac)</code> indica estado ativo/foco.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ds-block">
+          <h2><span class="num">6.2</span> Decision card (padrão do app)</h2>
+          <div class="panel" style="max-width:560px">
+            <div class="ph"><span class="ph-ico">⚡</span><span class="ph-ttl">Decidir Agora</span><span class="ph-cnt">3 pendentes</span></div>
+            <div class="pb" style="padding:8px">
+              <div class="dl">
+                <div class="dc urg">
+                  <div class="dc-row">
+                    <div class="ag"><div class="agd" style="background:#818cf8"></div>Compras</div>
+                    <span class="bdg bu">Urgente</span>
+                    <span class="dc-row-sum"><strong>3 cotações prontas</strong> — Fornecedor Silva, R$ 1.240</span>
+                    <span class="dc-time">10:32</span>
+                    <span class="dc-chev">▶</span>
+                  </div>
+                </div>
+                <div class="dc warn">
+                  <div class="dc-row">
+                    <div class="ag"><div class="agd" style="background:#34d399"></div>Financeiro</div>
+                    <span class="bdg bw">Amanhã</span>
+                    <span class="dc-row-sum"><strong>Boleto Claro Empresas</strong> — R$ 847,50 vence amanhã</span>
+                    <span class="dc-time">09:15</span>
+                    <span class="dc-chev">▶</span>
+                  </div>
+                </div>
+                <div class="dc warn expanded">
+                  <div class="dc-row">
+                    <div class="ag"><div class="agd" style="background:#fbbf24"></div>Estoque</div>
+                    <span class="bdg bw">2 dias</span>
+                    <span class="dc-row-sum"><strong>Estoque de café</strong> crítico — Café do Sul, 3 kg, R$ 282</span>
+                    <span class="dc-time">08:47</span>
+                    <span class="dc-chev">▼</span>
+                  </div>
+                  <div class="dc-expand" style="display:block">
+                    <div class="dc-body"><strong>Estoque de café</strong> crítico. Café do Sul: 3 kg, <strong>R$ 282</strong> (★★★★☆).</div>
+                    <div class="dc-act">
+                      <button class="btn btn-p">👍 Aprovar</button>
+                      <button class="btn btn-g">⏰ Depois</button>
+                      <button class="btn btn-s">✗ Rejeitar</button>
+                    </div>
+                    <div class="dc-ins"><span>💡</span>Entrega amanhã mesmo. Histórico: 0 atrasos em 4 meses.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ds-block">
+          <h2><span class="num">6.3</span> Insight chip (strip inferior)</h2>
+          <div class="grid grid-3">
+            <div class="ich"><span class="ich-em">📈</span><div class="ich-body"><span class="ich-tag tg-c">Clientes</span><div class="ich-txt">Cliente Central +40% este mês — considere desconto de fidelidade</div></div></div>
+            <div class="ich"><span class="ich-em">⏱️</span><div class="ich-body"><span class="ich-tag tg-s">Compras</span><div class="ich-txt">2 fornecedores com prazo crescendo: Max (+3d) e Gamma (+2d)</div></div></div>
+            <div class="ich"><span class="ich-em">💰</span><div class="ich-body"><span class="ich-tag tg-f">Financeiro</span><div class="ich-txt">Internet +15% em 3 meses — contrato vence em 90 dias</div></div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- COMPONENTS / BADGES -->
+      <section class="section hide" data-section="comp-badges">
+        <div class="section-hd">
+          <div class="eyebrow">Componentes / 03</div>
+          <h1>Badges & Status</h1>
+          <p class="lead">Badges compactos (9-10px, uppercase, 700) + agent tags com dot colorido. Use para status de aprovação, prioridade e categoria.</p>
+        </div>
+
+        <div class="ds-block">
+          <h2><span class="num">7.1</span> Priority badges</h2>
+          <div class="panel">
+            <div class="ph"><span class="ph-ttl">Status de decisão</span></div>
+            <div class="pb flex gap-8" style="flex-wrap:wrap">
+              <span class="bdg bu">Urgente</span>
+              <span class="bdg bu">Alto</span>
+              <span class="bdg bw">Médio</span>
+              <span class="bdg bw">Normal</span>
+              <span class="bdg bo">✓ Aprovado</span>
+              <span class="bdg ba">⏰ Adiado</span>
+              <span class="bdg bb">IA</span>
+              <span class="bdg neutral">Neutral</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="ds-block">
+          <h2><span class="num">7.2</span> Agent tags (cor + dot)</h2>
+          <div class="panel">
+            <div class="ph"><span class="ph-ttl">Por sala / agente</span></div>
+            <div class="pb">
+              <div class="grid grid-3 gap-8" style="font-size:12px">
+                <div class="ag"><div class="agd" style="background:#818cf8"></div>Compras</div>
+                <div class="ag"><div class="agd" style="background:#34d399"></div>Financeiro</div>
+                <div class="ag"><div class="agd" style="background:#f472b6"></div>Clientes</div>
+                <div class="ag"><div class="agd" style="background:#fbbf24"></div>Estoque</div>
+                <div class="ag"><div class="agd" style="background:#2dd4bf"></div>Documentos</div>
+                <div class="ag"><div class="agd" style="background:#fb923c"></div>Agenda</div>
+                <div class="ag"><div class="agd" style="background:#a78bfa"></div>Estratégia</div>
+                <div class="ag"><div class="agd" style="background:#ef4444"></div>Urgente</div>
+                <div class="ag"><div class="agd" style="background:#10b981"></div>Aprovado</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ds-block">
+          <h2><span class="num">7.3</span> Tags de insight (ich-tag)</h2>
+          <div class="panel">
+            <div class="ph"><span class="ph-ttl">.tg-* classes</span></div>
+            <div class="pb">
+              <p class="muted mb-12" style="font-size:12px">Tags uppercase 9px 700 com letter-spacing .04em. Usadas em ich-txt dentro de insight chips.</p>
+              <div class="flex gap-12" style="flex-wrap:wrap;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase">
+                <span class="tg-c">Clientes</span>
+                <span class="tg-s">Compras</span>
+                <span class="tg-f">Financeiro</span>
+                <span class="tg-a">Agenda</span>
+                <span class="tg-d">Documentos</span>
+                <span class="tg-e">Estoque</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- COMPONENTS / FORMS -->
+      <section class="section hide" data-section="comp-forms">
+        <div class="section-hd">
+          <div class="eyebrow">Componentes / 04</div>
+          <h1>Formulários</h1>
+          <p class="lead">Inputs compactos (8px padding, raio 6px) com focus border-ac. Labels acima do campo, sempre 11-12px peso 600.</p>
+        </div>
+
+        <div class="ds-block">
+          <h2><span class="num">8.1</span> Inputs</h2>
+          <div class="grid grid-2">
+            <div class="panel">
+              <div class="ph"><span class="ph-ttl">Campos</span></div>
+              <div class="pb">
+                <div class="field">
+                  <label>Razão social</label>
+                  <input type="text" placeholder="Empresa Exemplo LTDA" />
+                </div>
+                <div class="field">
+                  <label>CNPJ</label>
+                  <input type="text" placeholder="00.000.000/0000-00" />
+                </div>
+                <div class="field">
+                  <label>Segmento</label>
+                  <select>
+                    <option>Indústria</option>
+                    <option>Varejo</option>
+                    <option>Serviços</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label>Observações</label>
+                  <textarea rows="3" placeholder="Detalhes adicionais..."></textarea>
+                </div>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="ph"><span class="ph-ttl">Estados & helpers</span></div>
+              <div class="pb">
+                <div class="field">
+                  <label>Default</label>
+                  <input type="text" placeholder="Placeholder" />
+                </div>
+                <div class="field">
+                  <label>Focus</label>
+                  <input type="text" value="valor digitado" style="border-color:var(--ac)" />
+                </div>
+                <div class="field">
+                  <label>Disabled</label>
+                  <input type="text" value="Não editável" disabled style="opacity:.5" />
+                </div>
+                <div class="field">
+                  <label>Error</label>
+                  <input type="text" value="inválido" style="border-color:var(--urg)" />
+                  <div class="muted" style="font-size:11px;color:var(--urg);margin-top:4px">CNPJ deve ter 14 dígitos</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ds-block">
+          <h2><span class="num">8.2</span> Pills & toggles</h2>
+          <div class="grid grid-2">
+            <div class="panel">
+              <div class="ph"><span class="ph-ttl">Filter pills</span></div>
+              <div class="pb">
+                <div class="pills mb-12">
+                  <span class="pill on">Tudo</span>
+                  <span class="pill">Pendentes</span>
+                  <span class="pill">Aprovados</span>
+                  <span class="pill">Rejeitados</span>
+                  <span class="pill">Adiados</span>
+                </div>
+                <div class="pills">
+                  <span class="pill">30 dias</span>
+                  <span class="pill on">90 dias</span>
+                  <span class="pill">1 ano</span>
+                </div>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="ph"><span class="ph-ttl">Toggles</span></div>
+              <div class="pb">
+                <div class="flex-c gap-12 mb-12"><div class="tog on"></div><span>Aprovar similar automaticamente</span></div>
+                <div class="flex-c gap-12 mb-12"><div class="tog"></div><span>Notificações push</span></div>
+                <div class="flex-c gap-12"><div class="tog on"></div><span>Modo escuro</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- COMPONENTS / TABLES -->
+      <section class="section hide" data-section="comp-tables">
+        <div class="section-hd">
+          <div class="eyebrow">Componentes / 05</div>
+          <h1>Tabelas & Listas</h1>
+          <p class="lead">Tabelas densas (10-12px texto), separadores por linha com var(--gb). Números sempre em mono com tabular-nums.</p>
+        </div>
+
+        <div class="ds-block">
+          <h2><span class="num">9.1</span> Tabela de dados</h2>
+          <div class="panel">
+            <table class="tbl">
+              <thead><tr>
+                <th>Fornecedor</th>
+                <th>Categoria</th>
+                <th>Última compra</th>
+                <th>Total (12m)</th>
+                <th>Rating</th>
+                <th>Status</th>
+                <th></th>
+              </tr></thead>
+              <tbody>
+                <tr><td>Distribuidora Silva</td><td>Material de escritório</td><td>12/05/2026</td><td class="num">R$ 24.580</td><td class="up">★★★★★</td><td><span class="bdg bo">Ativo</span></td><td><button class="btn btn-g btn-sm">Ver</button></td></tr>
+                <tr><td>Café do Sul</td><td>Café & lanchonete</td><td>10/05/2026</td><td class="num">R$ 3.420</td><td class="up">★★★★☆</td><td><span class="bdg bo">Ativo</span></td><td><button class="btn btn-g btn-sm">Ver</button></td></tr>
+                <tr><td>Gamma Suprimentos</td><td>Limpeza</td><td>02/04/2026</td><td class="num">R$ 8.910</td><td class="att-color">★★★☆☆</td><td><span class="bdg bw">Atenção</span></td><td><button class="btn btn-g btn-sm">Ver</button></td></tr>
+                <tr><td>Max Industrial</td><td>EPIs</td><td>28/02/2026</td><td class="num">R$ 12.100</td><td class="dn">★★☆☆☆</td><td><span class="bdg bu">Risco</span></td><td><button class="btn btn-g btn-sm">Ver</button></td></tr>
+                <tr><td>Papelaria Central</td><td>Material de escritório</td><td>15/05/2026</td><td class="num">R$ 6.740</td><td class="up">★★★★★</td><td><span class="bdg bo">Ativo</span></td><td><button class="btn btn-g btn-sm">Ver</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="ds-block">
+          <h2><span class="num">9.2</span> KPIs</h2>
+          <div class="grid grid-4">
+            <div class="kpi"><div class="kpi-lbl">Faturamento (30d)</div><div class="kpi-val">R$ 543,8K</div><div class="kpi-d up">↑ 12,4% vs anterior</div></div>
+            <div class="kpi"><div class="kpi-lbl">Margem bruta</div><div class="kpi-val">42,5%</div><div class="kpi-d up">↑ 2,1pp</div></div>
+            <div class="kpi"><div class="kpi-lbl">Clientes únicos</div><div class="kpi-val">313</div><div class="kpi-d up">↑ 23 novos</div></div>
+            <div class="kpi"><div class="kpi-lbl">Inadimplência</div><div class="kpi-val">4,2%</div><div class="kpi-d dn">↑ 0,8pp</div></div>
+          </div>
+        </div>
+
+        <div class="ds-block">
+          <h2><span class="num">9.3</span> Bar chart</h2>
+          <div class="panel">
+            <div class="ph"><span class="ph-ttl">Faturamento semanal</span></div>
+            <div class="pb">
+              <div class="bars">
+                <div class="bar-v" style="height:40%"><div class="lbl">S1</div></div>
+                <div class="bar-v" style="height:55%"><div class="lbl">S2</div></div>
+                <div class="bar-v" style="height:62%"><div class="lbl">S3</div></div>
+                <div class="bar-v" style="height:48%"><div class="lbl">S4</div></div>
+                <div class="bar-v" style="height:70%"><div class="lbl">S5</div></div>
+                <div class="bar-v" style="height:78%"><div class="lbl">S6</div></div>
+                <div class="bar-v" style="height:85%"><div class="lbl">S7</div></div>
+                <div class="bar-v" style="height:92%"><div class="lbl">S8</div></div>
+                <div class="bar-v" style="height:100%"><div class="lbl">S9</div></div>
+                <div class="bar-v" style="height:88%"><div class="lbl">S10</div></div>
+                <div class="bar-v" style="height:74%"><div class="lbl">S11</div></div>
+                <div class="bar-v" style="height:96%"><div class="lbl">S12</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- COMPONENTS / DECISIONS -->
+      <section class="section hide" data-section="comp-decisions">
+        <div class="section-hd">
+          <div class="eyebrow">Componentes / 06</div>
+          <h1>Cards de Decisão</h1>
+          <p class="lead">Componente central do Blu. A IA prepara; o humano decide. Estados: collapsed (1 linha) e expanded (com ações).</p>
+        </div>
+
+        <div class="ds-block">
+          <h2><span class="num">10.1</span> Estados do card</h2>
+          <div class="grid grid-2">
+            <div class="panel">
+              <div class="ph"><span class="ph-ttl">Urgente (collapsed)</span></div>
+              <div class="pb" style="padding:6px">
+                <div class="dc urg"><div class="dc-row">
+                  <div class="ag"><div class="agd" style="background:#818cf8"></div>Compras</div>
+                  <span class="bdg bu">Urgente</span>
+                  <span class="dc-row-sum"><strong>3 cotações prontas</strong> — Silva R$ 1.240</span>
+                  <span class="dc-time">10:32</span>
+                  <span class="dc-chev">▶</span>
+                </div></div>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="ph"><span class="ph-ttl">Aprovado (done)</span></div>
+              <div class="pb" style="padding:6px">
+                <div class="dc done"><div class="dc-row">
+                  <div class="ag"><div class="agd" style="background:#34d399"></div>Financeiro</div>
+                  <span class="bdg bo">Aprovado</span>
+                  <span class="dc-row-sum"><strong>NF-e 4521</strong> autorizada</span>
+                  <span class="dc-time">09:15</span>
+                </div></div>
+              </div>
+            </div>
+            <div class="panel" style="grid-column:span 2">
+              <div class="ph"><span class="ph-ttl">Expanded (com ações)</span></div>
+              <div class="pb" style="padding:6px">
+                <div class="dc warn expanded">
+                  <div class="dc-row">
+                    <div class="ag"><div class="agd" style="background:#fbbf24"></div>Estoque</div>
+                    <span class="bdg bw">2 dias</span>
+                    <span class="dc-row-sum"><strong>Estoque de café</strong> crítico</span>
+                    <span class="dc-time">08:47</span>
+                    <span class="dc-chev">▼</span>
+                  </div>
+                  <div class="dc-expand" style="display:block">
+                    <div class="dc-body"><strong>Estoque de café</strong> crítico. Café do Sul: 3 kg, <strong>R$ 282</strong> (★★★★☆).</div>
+                    <ul class="dc-bullets"><li>Consumo médio: 1,2kg/dia</li><li>Estoque atual: 1,8kg</li><li>Reposição necessária: hoje</li></ul>
+                    <div class="dc-act">
+                      <button class="btn btn-p">👍 Aprovar</button>
+                      <button class="btn btn-g">⏰ Depois</button>
+                      <button class="btn btn-s">✗ Rejeitar</button>
+                    </div>
+                    <div class="dc-ins"><span>💡</span>Entrega amanhã mesmo. Histórico: 0 atrasos em 4 meses.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ds-block">
+          <h2><span class="num">10.2</span> Routine activation card (IA)</h2>
+          <div class="panel" style="max-width:600px">
+            <div class="ph"><span class="ph-ttl">Ativação de rotina</span></div>
+            <div class="pb" style="padding:6px">
+              <div class="dc warn expanded">
+                <div class="dc-row">
+                  <div class="ag"><div class="agd" style="background:#818cf8"></div>Rotina</div>
+                  <span class="bdg ba" style="background:rgba(129,140,248,.12);color:#818cf8">✦ IA</span>
+                  <span class="dc-row-sum">Sincronizar boletos toda segunda 08:00</span>
+                  <span class="dc-time">agora</span>
+                  <span class="dc-chev">▼</span>
+                </div>
+                <div class="dc-expand" style="display:block">
+                  <div style="font-size:10px;color:var(--mu);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">3 passos</div>
+                  <div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:6px">
+                    <div style="width:18px;height:18px;border-radius:9px;background:#6366f1;color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0;margin-top:1px">1</div>
+                    <div style="flex:1"><div style="font-size:11.5px;font-weight:500">Conectar à API do banco</div><div style="font-size:10px;color:var(--mu)">skill: bank-connect</div></div>
+                  </div>
+                  <div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:6px">
+                    <div style="width:18px;height:18px;border-radius:9px;background:#6366f1;color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0;margin-top:1px">2</div>
+                    <div style="flex:1"><div style="font-size:11.5px;font-weight:500">Buscar boletos a vencer em 7 dias</div><div style="font-size:10px;color:var(--mu)">skill: finance-fetch</div></div>
+                  </div>
+                  <div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:10px">
+                    <div style="width:18px;height:18px;border-radius:9px;background:#6366f1;color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0;margin-top:1px">3</div>
+                    <div style="flex:1"><div style="font-size:11.5px;font-weight:500">Notificar gestor via painel</div><div style="font-size:10px;color:var(--mu)">action: notify</div></div>
+                  </div>
+                  <div class="dc-act">
+                    <button class="btn btn-p">👍 Ativar</button>
+                    <button class="btn btn-s">✗ Rejeitar</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- COMPONENTS / FEEDBACK -->
+      <section class="section hide" data-section="comp-feedback">
+        <div class="section-hd">
+          <div class="eyebrow">Componentes / 07</div>
+          <h1>Feedback & Toasts</h1>
+          <p class="lead">Toasts no canto inferior direito, 3 variantes (ok, error, snooze). Empty states para listas vazias.</p>
+        </div>
+
+        <div class="ds-block">
+          <h2><span class="num">11.1</span> Toasts</h2>
+          <div class="grid grid-3">
+            <div class="toast ok">
+              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="color:var(--ok)"><polyline points="20 6 9 17 4 12"/></svg>
+              <div><div class="t-ttl">Aprovado</div><div class="t-msg">3 cotações prontas</div></div>
+            </div>
+            <div class="toast no">
+              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="color:var(--urg)"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              <div><div class="t-ttl">Erro</div><div class="t-msg">Não foi possível aprovar</div></div>
+            </div>
+            <div class="toast sn">
+              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="color:var(--att)"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <div><div class="t-ttl">Adiado</div><div class="t-msg">Lembrete em 2 horas</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ds-block">
+          <h2><span class="num">11.2</span> Empty state</h2>
+          <div class="panel" style="max-width:480px">
+            <div class="pb" style="padding:0">
+              <div class="empty">
+                <div class="ei">✓</div>
+                <div class="et">Tudo em dia</div>
+                <div class="eb">Nenhuma decisão pendente no momento. O Blu irá notificá-lo quando precisar de sua atenção.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ds-block">
+          <h2><span class="num">11.3</span> Modais & overlays</h2>
+          <p class="desc">Estrutura comum dos modais. Wrapper <code>.intg-modal</code> cobre a tela com blur; box centralizada com padding generoso.</p>
+          <div class="panel" style="max-width:540px;margin:0 auto;border:1px dashed var(--ac)">
+            <div class="ph"><span class="ph-ttl">Ex: modal de integração</span></div>
+            <div class="pb">
+              <h3 style="font-size:15px;font-weight:700;margin-bottom:3px">Conectar Google Calendar</h3>
+              <p class="muted" style="font-size:11.5px;margin-bottom:14px">Sincronize seus eventos para que o Blu prepare suas reuniões.</p>
+              <div class="field"><label>Conta Google</label><input type="text" placeholder="seu.email@gmail.com" /></div>
+              <div class="field"><label>Permissões</label><select><option>Leitura + escrita</option><option>Apenas leitura</option></select></div>
+              <div class="flex gap-8" style="justify-content:flex-end;margin-top:14px">
+                <button class="btn btn-g">Cancelar</button>
+                <button class="btn btn-p">Conectar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- WF / SHELL -->
+      <section class="section hide" data-section="wf-shell">
+        <div class="section-hd">
+          <div class="eyebrow">Wireframes / 01</div>
+          <h1>App shell & layout</h1>
+          <p class="lead">Container raiz. Grid 2×2: topbar (full-width, 56px), sidebar (220px, 100vh), main (flex). Mobile colapsa a sidebar.</p>
+        </div>
+
+        <div class="grid grid-2">
+          <div>
+            <h3 style="margin-bottom:12px">Desktop</h3>
+            <div class="wf-frame">
+              <div class="wf-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><div class="ttl">blu v3 — shell</div></div>
+              <div class="wf-body">
+                <div class="wf-sidebar">
+                  <div class="wf-si">b</div>
+                  <div style="height:8px"></div>
+                  <div class="wf-si on">🏠</div>
+                  <div class="wf-si">🛒</div>
+                  <div class="wf-si">📊</div>
+                  <div class="wf-si">📅</div>
+                  <div class="wf-si">🎯</div>
+                  <div class="wf-si">👥</div>
+                  <div class="wf-si">📚</div>
+                </div>
+                <div class="wf-content">
+                  <div style="height:36px;background:var(--glass);border:1px solid var(--gb);border-radius:6px;display:flex;align-items:center;padding:0 12px;font-size:11px;color:var(--mu)">Topbar · 56px · breadcrumb + actions</div>
+                  <div style="height:8px"></div>
+                  <div class="wf-placeholder" style="min-height:340px">Conteúdo da room ativa (Home / Compras / etc)</div>
+                </div>
+              </div>
+            </div>
+            <div class="wf-callout"><strong>Sidebar colapsada em mobile.</strong> No desktop exibe tooltip on hover. Active state tem barra esquerda roxa de 2px.</div>
+          </div>
+          <div>
+            <h3 style="margin-bottom:12px">Mobile (≤768px)</h3>
+            <div class="mob">
+              <div class="mob-notch"></div>
+              <div class="mob-body">
+                <div class="mob-top">
+                  <div style="width:24px;height:24px;border-radius:5px;background:var(--ac-grad);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800">b</div>
+                  <div style="font-size:13px;font-weight:700">blu</div>
+                </div>
+                <div class="mob-content">
+                  <div class="wf-placeholder" style="min-height:300px">Conteúdo scrollável</div>
+                </div>
+                <div class="mob-nav">
+                  <div class="mob-burger">
+                    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="wf-callout"><strong>Bottom sheet menu.</strong> Burger abre grid 3×3 de ícones com labels. Tap fora fecha.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- WF / HOME -->
+      <section class="section hide" data-section="wf-home">
+        <div class="section-hd">
+          <div class="eyebrow">Wireframes / 02</div>
+          <h1>Home</h1>
+          <p class="lead">Tela padrão pós-login. Saudação + 4 zonas: Decisões (esquerda grande), Plano/Semana (coluna direita), Insight strip (rodapé), Numbers chip.</p>
+        </div>
+
+        <div class="wf-frame">
+          <div class="wf-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><div class="ttl">blu — Home</div></div>
+          <div class="wf-body">
+            <div class="wf-sidebar">
+              <div class="wf-si">b</div>
+              <div style="height:8px"></div>
+              <div class="wf-si on">🏠</div>
+              <div class="wf-si">🛒</div>
+              <div class="wf-si">📊</div>
+              <div class="wf-si">📅</div>
+              <div class="wf-si">🎯</div>
+              <div class="wf-si">👥</div>
+              <div class="wf-si">📚</div>
+            </div>
+            <div class="wf-content" style="background:rgba(3,7,28,.4)">
+              <!-- Room header -->
+              <div style="display:flex;align-items:center;gap:11px;padding:11px 14px 10px;border-bottom:1px solid var(--gb);background:rgba(5,7,14,.45);margin:-14px -14px 14px">
+                <div style="width:32px;height:32px;border-radius:8px;background:var(--glass);border:1px solid var(--gb);display:flex;align-items:center;justify-content:center;font-size:16px">🏠</div>
+                <div><div style="font-size:14px;font-weight:700">Home</div><div style="font-size:11px;color:var(--mu)">Visão geral do Blu</div></div>
+                <div style="margin-left:auto;display:flex;gap:6px">
+                  <button class="btn btn-s btn-sm">← Início</button>
+                  <button class="btn btn-p btn-sm">+ Nova Missão</button>
+                </div>
+              </div>
+
+              <!-- Grid 2x2 -->
+              <div style="display:grid;grid-template-columns:1fr 320px;grid-template-rows:1fr 110px;gap:12px;height:calc(100% - 60px)">
+                <!-- Decidir Agora -->
+                <div class="panel">
+                  <div class="ph"><span class="ph-ico">⚡</span><span class="ph-ttl">Decidir Agora</span><span class="ph-cnt">3 pendentes</span><span class="ph-lnk">Ver todas →</span></div>
+                  <div class="pb" style="padding:6px">
+                    <div class="dl">
+                      <div class="dc urg">
+                        <div class="dc-row">
+                          <div class="ag"><div class="agd" style="background:#818cf8"></div>Compras</div>
+                          <span class="bdg bu">Urgente</span>
+                          <span class="dc-row-sum"><strong>3 cotações prontas</strong> — Silva, R$ 1.240</span>
+                          <span class="dc-time">10:32</span>
+                          <span class="dc-chev">▶</span>
+                        </div>
+                      </div>
+                      <div class="dc warn">
+                        <div class="dc-row">
+                          <div class="ag"><div class="agd" style="background:#34d399"></div>Financeiro</div>
+                          <span class="bdg bw">Amanhã</span>
+                          <span class="dc-row-sum"><strong>Boleto Claro</strong> — R$ 847,50</span>
+                          <span class="dc-time">09:15</span>
+                          <span class="dc-chev">▶</span>
+                        </div>
+                      </div>
+                      <div class="dc warn">
+                        <div class="dc-row">
+                          <div class="ag"><div class="agd" style="background:#fbbf24"></div>Estoque</div>
+                          <span class="bdg bw">2 dias</span>
+                          <span class="dc-row-sum"><strong>Estoque de café</strong> crítico</span>
+                          <span class="dc-time">08:47</span>
+                          <span class="dc-chev">▶</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Right column: Plano + Semana -->
+                <div style="display:flex;flex-direction:column;gap:9px;min-height:0;overflow:auto">
+                  <div class="panel">
+                    <div class="ph"><span class="ph-ico">📋</span><span class="ph-ttl">Plano de Hoje</span><span class="ph-lnk">Agenda →</span></div>
+                    <div class="pb" style="padding:8px 12px">
+                      <div class="pl-item"><span class="pl-t">08:00</span><div class="pl-d" style="background:#818cf8"></div><span class="pl-txt">Revisar cotações</span></div>
+                      <div class="pl-item"><span class="pl-t">10:00</span><div class="pl-d" style="background:#34d399"></div><span class="pl-txt">Aprovar NF-e</span></div>
+                      <div class="pl-item"><span class="pl-t">11:30</span><div class="pl-d" style="background:#f472b6"></div><span class="pl-txt">Assinar proposta</span></div>
+                      <div class="pl-item"><span class="pl-t">14:00</span><div class="pl-d" style="background:#2dd4bf"></div><span class="pl-txt">Follow-up clientes</span></div>
+                    </div>
+                  </div>
+                  <div class="panel">
+                    <div class="ph"><span class="ph-ico">🔮</span><span class="ph-ttl">Visão da Semana</span></div>
+                    <div class="pb" style="padding:8px 12px">
+                      <div class="sw-item"><span class="sw-day today">Seg</span><span class="sw-desc">Hoje — cotações + boleto</span><span class="sw-cnt sw-h">5</span></div>
+                      <div class="sw-item"><span class="sw-day">Ter</span><span class="sw-desc">Fornecedores — 3 pendentes</span><span class="sw-cnt sw-h">2</span></div>
+                      <div class="sw-item"><span class="sw-day">Qua</span><span class="sw-desc">Fechamento mensal</span><span class="sw-cnt sw-h">1</span></div>
+                      <div class="sw-item"><span class="sw-day">Qui</span><span class="sw-desc">Análise de margem</span><span class="sw-cnt sw-ok">✓</span></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Bottom strip: Insights + Numbers + Rotinas -->
+                <div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr 1fr auto auto;gap:10px;min-height:0">
+                  <div class="ich"><span class="ich-em">📈</span><div class="ich-body"><span class="ich-tag tg-c">Clientes</span><div class="ich-txt">Cliente Central +40% — considere fidelidade</div></div></div>
+                  <div class="ich"><span class="ich-em">⏱️</span><div class="ich-body"><span class="ich-tag tg-s">Compras</span><div class="ich-txt">2 fornecedores com prazo crescendo</div></div></div>
+                  <div class="ich"><span class="ich-em">💰</span><div class="ich-body"><span class="ich-tag tg-f">Financeiro</span><div class="ich-txt">Internet +15% em 3 meses</div></div></div>
+                  <div class="nums">
+                    <div class="nums-head">📊 Números →</div>
+                    <div class="nums-row">
+                      <div class="nkpi"><span class="nv">543,8K</span><span class="nl">Faturamento</span><span class="nd up">↑ 12%</span></div>
+                      <div class="nkpi"><span class="nv">42,5%</span><span class="nl">Margem</span><span class="nd up">↑ 2pp</span></div>
+                      <div class="nkpi"><span class="nv">313</span><span class="nl">Clientes</span><span class="nd up">↑ 23</span></div>
+                    </div>
+                  </div>
+                  <div class="panel" style="padding:11px 14px;display:flex;flex-direction:column;gap:5px;min-width:160px">
+                    <div class="nums-head">⚙ Rotinas</div>
+                    <div class="routine-item"><div class="routine-dot" style="background:#34d399;width:4px;height:4px;border-radius:50%"></div><span class="routine-name" style="color:var(--mu2);font-size:10.5px;flex:1">Sync boletos</span><span class="routine-time" style="font-family:var(--mono);font-size:10px;color:var(--mu)">Seg 8h</span></div>
+                    <div class="routine-item"><div class="routine-dot" style="background:#34d399;width:4px;height:4px;border-radius:50%"></div><span class="routine-name" style="color:var(--mu2);font-size:10.5px;flex:1">Cotação semanal</span><span class="routine-time" style="font-family:var(--mono);font-size:10px;color:var(--mu)">Sex 17h</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-2 mt-16">
+          <div class="panel">
+            <div class="ph"><span class="ph-ttl">Estados</span></div>
+            <div class="pb">
+              <ul style="list-style:none;display:flex;flex-direction:column;gap:6px;font-size:12px">
+                <li>• <strong>Carregando:</strong> skeleton placeholders nos painéis</li>
+                <li>• <strong>Vazio:</strong> empty state ✓ "Tudo em dia"</li>
+                <li>• <strong>Sem calendar:</strong> CTAs para conectar Google Calendar</li>
+                <li>• <strong>Com dados:</strong> 3 colunas de insights + números</li>
+              </ul>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="ph"><span class="ph-ttl">Interações chave</span></div>
+            <div class="pb">
+              <ul style="list-style:none;display:flex;flex-direction:column;gap:6px;font-size:12px">
+                <li>• <strong>Click no decision card:</strong> expande inline com ações</li>
+                <li>• <strong>Click no insight chip:</strong> abre popover com prompts</li>
+                <li>• <strong>Click no evento:</strong> expande + ações (entrar meet / preparar)</li>
+                <li>• <strong>⌘K:</strong> spotlight search global</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- WF / COMPRAS -->
+      <section class="section hide" data-section="wf-compras">
+        <div class="section-hd">
+          <div class="eyebrow">Wireframes / 03</div>
+          <h1>Compras</h1>
+          <p class="lead">Sala do agente de Compras. 4 abas: Decisões, Tarefas, Histórico, Config (rotinas). Padrão 3 colunas: fornecedores | decisões | detalhes.</p>
+        </div>
+
+        <div class="wf-frame">
+          <div class="wf-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><div class="ttl">blu — Compras</div></div>
+          <div class="wf-body">
+            <div class="wf-sidebar">
+              <div class="wf-si">b</div>
+              <div style="height:8px"></div>
+              <div class="wf-si">🏠</div>
+              <div class="wf-si on">🛒</div>
+              <div class="wf-si">📊</div>
+              <div class="wf-si">📅</div>
+              <div class="wf-si">🎯</div>
+              <div class="wf-si">👥</div>
+              <div class="wf-si">📚</div>
+            </div>
+            <div class="wf-content" style="padding:0">
+              <div class="rh">
+                <div class="rav" style="background:rgba(129,140,248,.15);color:#818cf8">🛒</div>
+                <div><div class="rn">Compras</div><div class="rd">Cotações, fornecedores, pedidos e rotinas</div></div>
+                <div class="ra">
+                  <span class="pills"><span class="pill on">30 dias</span><span class="pill">90 dias</span><span class="pill">1 ano</span></span>
+                  <button class="btn btn-p btn-sm">+ Nova cotação</button>
+                </div>
+              </div>
+              <div class="tabs">
+                <div class="tab on">⚡ Decisões <span class="tbdg">3</span></div>
+                <div class="tab">📋 Tarefas</div>
+                <div class="tab">📚 Histórico</div>
+                <div class="tab">⚙ Config</div>
+              </div>
+              <div style="display:grid;grid-template-columns:240px 1fr 280px;height:calc(100% - 110px);padding:14px;gap:14px;overflow:auto">
+                <!-- Fornecedores -->
+                <div class="panel">
+                  <div class="ph"><span class="ph-ttl">Fornecedores</span><span class="ph-cnt">12</span></div>
+                  <div class="pb" style="padding:6px">
+                    <div style="padding:8px;border-bottom:1px solid var(--gb)"><div style="font-size:12px;font-weight:600">Silva</div><div class="muted" style="font-size:10.5px">★★★★★ · 24 pedidos</div></div>
+                    <div style="padding:8px;border-bottom:1px solid var(--gb);background:var(--adim)"><div style="font-size:12px;font-weight:600">Café do Sul</div><div class="muted" style="font-size:10.5px">★★★★☆ · 8 pedidos</div></div>
+                    <div style="padding:8px;border-bottom:1px solid var(--gb)"><div style="font-size:12px;font-weight:600">Gamma</div><div class="muted" style="font-size:10.5px">★★★☆☆ · 15 pedidos</div></div>
+                    <div style="padding:8px"><div style="font-size:12px;font-weight:600">Max Industrial</div><div class="muted" style="font-size:10.5px">★★☆☆☆ · 6 pedidos</div></div>
+                  </div>
+                </div>
+                <!-- Decisões -->
+                <div class="panel">
+                  <div class="ph"><span class="ph-ico">⚡</span><span class="ph-ttl">Decisões pendentes</span><span class="ph-cnt">3</span></div>
+                  <div class="pb" style="padding:6px">
+                    <div class="dl">
+                      <div class="dc urg">
+                        <div class="dc-row">
+                          <div class="ag"><div class="agd" style="background:#818cf8"></div>Compras</div>
+                          <span class="bdg bu">Urgente</span>
+                          <span class="dc-row-sum"><strong>3 cotações</strong> — Toner HP 107A</span>
+                          <span class="dc-chev">▶</span>
+                        </div>
+                      </div>
+                      <div class="dc warn">
+                        <div class="dc-row">
+                          <div class="ag"><div class="agd" style="background:#818cf8"></div>Compras</div>
+                          <span class="bdg bw">2 dias</span>
+                          <span class="dc-row-sum"><strong>Café do Sul</strong> — 3kg R$ 282</span>
+                          <span class="dc-chev">▶</span>
+                        </div>
+                      </div>
+                      <div class="dc warn">
+                        <div class="dc-row">
+                          <div class="ag"><div class="agd" style="background:#818cf8"></div>Compras</div>
+                          <span class="bdg bw">5 dias</span>
+                          <span class="dc-row-sum"><strong>EPIs</strong> — luvas e máscaras</span>
+                          <span class="dc-chev">▶</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <!-- Detalhes / KPIs -->
+                <div style="display:flex;flex-direction:column;gap:9px;min-height:0;overflow:auto">
+                  <div class="panel">
+                    <div class="ph"><span class="ph-ttl">KPIs (30d)</span></div>
+                    <div class="pb" style="padding:10px 12px;display:flex;flex-direction:column;gap:8px">
+                      <div class="kpi" style="padding:8px 10px"><div class="kpi-lbl">Pedidos</div><div class="kpi-val" style="font-size:18px">142</div><div class="kpi-d up">↑ 8%</div></div>
+                      <div class="kpi" style="padding:8px 10px"><div class="kpi-lbl">Gasto total</div><div class="kpi-val" style="font-size:18px">R$ 87K</div><div class="kpi-d up">↑ 4%</div></div>
+                      <div class="kpi" style="padding:8px 10px"><div class="kpi-lbl">Prazo médio</div><div class="kpi-val" style="font-size:18px">3,2d</div><div class="kpi-d dn">↑ 0,4d</div></div>
+                    </div>
+                  </div>
+                  <div class="panel">
+                    <div class="ph"><span class="ph-ttl">Histórico recente</span></div>
+                    <div class="pb" style="padding:8px 12px">
+                      <div class="cli-row"><div class="cli-av" style="width:24px;height:24px;font-size:9px">SI</div><div class="cli-name" style="font-size:11.5px">Silva · Toner</div><div class="cli-val" style="font-size:10.5px">R$ 1.240</div></div>
+                      <div class="cli-row"><div class="cli-av" style="width:24px;height:24px;font-size:9px;background:rgba(129,140,248,.3)">CS</div><div class="cli-name" style="font-size:11.5px">Café Sul · 5kg</div><div class="cli-val" style="font-size:10.5px">R$ 470</div></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="wf-callout mt-12"><strong>Abas:</strong> Decisões (default) · Tarefas (fluxos em execução) · Histórico (pedidos passados) · Config (rotinas, gatilhos, integrações).</div>
+      </section>
+
+      <!-- WF / FINANCEIRO -->
+      <section class="section hide" data-section="wf-financeiro">
+        <div class="section-hd">
+          <div class="eyebrow">Wireframes / 04</div>
+          <h1>Financeiro</h1>
+          <p class="lead">Dashboard do agente financeiro. KPIs no topo, fluxo de caixa, contas a pagar/receber e contexto do negócio.</p>
+        </div>
+
+        <div class="wf-frame">
+          <div class="wf-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><div class="ttl">blu — Financeiro</div></div>
+          <div class="wf-body">
+            <div class="wf-sidebar">
+              <div class="wf-si">b</div>
+              <div style="height:8px"></div>
+              <div class="wf-si">🏠</div>
+              <div class="wf-si">🛒</div>
+              <div class="wf-si on">📊</div>
+              <div class="wf-si">📅</div>
+              <div class="wf-si">🎯</div>
+              <div class="wf-si">👥</div>
+              <div class="wf-si">📚</div>
+            </div>
+            <div class="wf-content" style="padding:0">
+              <div class="rh">
+                <div class="rav" style="background:rgba(52,211,153,.15);color:#34d399">📊</div>
+                <div><div class="rn">Financeiro</div><div class="rd">Receitas, despesas, fluxo de caixa e indicadores</div></div>
+                <div class="ra">
+                  <span class="pills"><span class="pill">7d</span><span class="pill on">30d</span><span class="pill">90d</span><span class="pill">1a</span></span>
+                  <button class="btn btn-s btn-sm">📥 Exportar</button>
+                </div>
+              </div>
+              <div class="tabs">
+                <div class="tab on">Visão geral</div>
+                <div class="tab">Contas a pagar</div>
+                <div class="tab">Contas a receber</div>
+                <div class="tab">Fluxo de caixa</div>
+                <div class="tab">DRE</div>
+              </div>
+              <div style="padding:14px;height:calc(100% - 110px);overflow:auto">
+                <!-- KPIs -->
+                <div class="grid grid-4 mb-12">
+                  <div class="kpi"><div class="kpi-lbl">Faturamento</div><div class="kpi-val">R$ 543,8K</div><div class="kpi-d up">↑ 12,4%</div></div>
+                  <div class="kpi"><div class="kpi-lbl">Margem bruta</div><div class="kpi-val">42,5%</div><div class="kpi-d up">↑ 2,1pp</div></div>
+                  <div class="kpi"><div class="kpi-lbl">EBITDA</div><div class="kpi-val">R$ 124K</div><div class="kpi-d up">↑ 18%</div></div>
+                  <div class="kpi"><div class="kpi-lbl">Inadimplência</div><div class="kpi-val">4,2%</div><div class="kpi-d dn">↑ 0,8pp</div></div>
+                </div>
+                <div class="grid grid-2">
+                  <!-- Fluxo de caixa -->
+                  <div class="panel">
+                    <div class="ph"><span class="ph-ico">📈</span><span class="ph-ttl">Faturamento 12 semanas</span></div>
+                    <div class="pb"><div class="bars">
+                      <div class="bar-v" style="height:30%"></div>
+                      <div class="bar-v" style="height:42%"></div>
+                      <div class="bar-v" style="height:55%"></div>
+                      <div class="bar-v" style="height:48%"></div>
+                      <div class="bar-v" style="height:60%"></div>
+                      <div class="bar-v" style="height:75%"></div>
+                      <div class="bar-v" style="height:70%"></div>
+                      <div class="bar-v" style="height:85%"></div>
+                      <div class="bar-v" style="height:100%"></div>
+                      <div class="bar-v" style="height:88%"></div>
+                      <div class="bar-v" style="height:78%"></div>
+                      <div class="bar-v" style="height:96%"></div>
+                    </div></div>
+                  </div>
+                  <!-- Contas -->
+                  <div class="panel">
+                    <div class="ph"><span class="ph-ico">💸</span><span class="ph-ttl">A pagar esta semana</span><span class="ph-cnt">8 itens</span></div>
+                    <div class="pb" style="padding:4px 12px">
+                      <div class="cli-row"><div class="cli-dot" style="background:var(--urg)"></div><div class="cli-name" style="font-size:12px">Claro Empresas</div><div class="cli-val" style="font-size:11.5px">R$ 847</div></div>
+                      <div class="cli-row"><div class="cli-dot" style="background:var(--att)"></div><div class="cli-name" style="font-size:12px">Energia Elétrica</div><div class="cli-val" style="font-size:11.5px">R$ 2.140</div></div>
+                      <div class="cli-row"><div class="cli-dot" style="background:var(--att)"></div><div class="cli-name" style="font-size:12px">Folha (parcial)</div><div class="cli-val" style="font-size:11.5px">R$ 18.500</div></div>
+                      <div class="cli-row"><div class="cli-dot" style="background:var(--ok)"></div><div class="cli-name" style="font-size:12px">Aluguel</div><div class="cli-val" style="font-size:11.5px">R$ 5.200</div></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- WF / AGENDA -->
+      <section class="section hide" data-section="wf-agenda">
+        <div class="section-hd">
+          <div class="eyebrow">Wireframes / 05</div>
+          <h1>Agenda</h1>
+          <p class="lead">Calendário com múltiplas fontes (Google Calendar, Notion, eventos internos). Visões: dia, semana, mês.</p>
+        </div>
+
+        <div class="wf-frame">
+          <div class="wf-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><div class="ttl">blu — Agenda</div></div>
+          <div class="wf-body">
+            <div class="wf-sidebar">
+              <div class="wf-si">b</div>
+              <div style="height:8px"></div>
+              <div class="wf-si">🏠</div>
+              <div class="wf-si">🛒</div>
+              <div class="wf-si">📊</div>
+              <div class="wf-si on">📅</div>
+              <div class="wf-si">🎯</div>
+              <div class="wf-si">👥</div>
+              <div class="wf-si">📚</div>
+            </div>
+            <div class="wf-content" style="padding:0">
+              <div class="rh">
+                <div class="rav" style="background:rgba(251,146,60,.15);color:#fb923c">📅</div>
+                <div><div class="rn">Agenda</div><div class="rd">Reuniões, prazos e rotinas agendadas</div></div>
+                <div class="ra">
+                  <span class="pills"><span class="pill">Dia</span><span class="pill on">Semana</span><span class="pill">Mês</span></span>
+                  <button class="btn btn-s btn-sm">‹</button>
+                  <button class="btn btn-s btn-sm">›</button>
+                  <button class="btn btn-p btn-sm">+ Evento</button>
+                </div>
+              </div>
+              <div style="padding:14px;display:grid;grid-template-columns:1fr 280px;gap:14px;height:calc(100% - 80px);overflow:auto">
+                <!-- Calendar grid -->
+                <div class="panel">
+                  <div class="ph"><span class="ph-ico">📅</span><span class="ph-ttl">Semana 18–24 de maio</span></div>
+                  <div class="pb" style="padding:8px">
+                    <div style="display:grid;grid-template-columns:60px repeat(7,1fr);gap:4px;font-size:10px;color:var(--mu);margin-bottom:6px">
+                      <div></div>
+                      <div class="center">Seg 18</div>
+                      <div class="center">Ter 19</div>
+                      <div class="center">Qua 20</div>
+                      <div class="center">Qui 21</div>
+                      <div class="center">Sex 22</div>
+                      <div class="center">Sáb 23</div>
+                      <div class="center">Dom 24</div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:60px repeat(7,1fr);gap:4px">
+                      <div style="font-size:10px;color:var(--mu);padding:4px 0">08:00</div>
+                      <div style="background:rgba(129,140,248,.2);border-left:2px solid #818cf8;padding:4px 6px;font-size:10.5px;border-radius:0 4px 4px 0">Stand-up</div>
+                      <div></div><div></div><div></div><div></div><div></div><div></div>
+
+                      <div style="font-size:10px;color:var(--mu);padding:4px 0">09:00</div>
+                      <div></div>
+                      <div style="background:rgba(52,211,153,.2);border-left:2px solid #34d399;padding:4px 6px;font-size:10.5px;border-radius:0 4px 4px 0">Aprovar NF-e</div>
+                      <div style="background:rgba(244,114,182,.2);border-left:2px solid #f472b6;padding:4px 6px;font-size:10.5px;border-radius:0 4px 4px 0">Cliente Central</div>
+                      <div></div><div></div><div></div><div></div>
+
+                      <div style="font-size:10px;color:var(--mu);padding:4px 0">10:00</div>
+                      <div></div><div></div>
+                      <div style="background:rgba(167,139,250,.2);border-left:2px solid #a78bfa;padding:4px 6px;font-size:10.5px;border-radius:0 4px 4px 0">Review Q2</div>
+                      <div></div><div></div><div></div><div></div>
+
+                      <div style="font-size:10px;color:var(--mu);padding:4px 0">11:00</div>
+                      <div></div><div></div><div></div>
+                      <div style="background:rgba(129,140,248,.2);border-left:2px solid #818cf8;padding:4px 6px;font-size:10.5px;border-radius:0 4px 4px 0">Cotação Silva</div>
+                      <div></div><div></div><div></div>
+
+                      <div style="font-size:10px;color:var(--mu);padding:4px 0">14:00</div>
+                      <div></div><div></div><div></div><div></div>
+                      <div style="background:rgba(45,212,191,.2);border-left:2px solid #2dd4bf;padding:4px 6px;font-size:10.5px;border-radius:0 4px 4px 0">Follow-up</div>
+                      <div></div><div></div>
+                    </div>
+                  </div>
+                </div>
+                <!-- Up next -->
+                <div style="display:flex;flex-direction:column;gap:9px">
+                  <div class="panel">
+                    <div class="ph"><span class="ph-ico">⏰</span><span class="ph-ttl">Próximas reuniões</span></div>
+                    <div class="pb" style="padding:8px 12px">
+                      <div class="ev-row"><span class="ev-time">10:00</span><div class="ev-dot" style="background:#f472b6"></div><div class="ev-body"><div class="ev-title">Cliente Central</div><div class="ev-desc">Proposta Q2 · meet</div></div></div>
+                      <div class="ev-row"><span class="ev-time">11:00</span><div class="ev-dot" style="background:#818cf8"></div><div class="ev-body"><div class="ev-title">Cotação Silva</div><div class="ev-desc">Apresentar comparativo</div></div></div>
+                      <div class="ev-row"><span class="ev-time">15:30</span><div class="ev-dot" style="background:#a78bfa"></div><div class="ev-body"><div class="ev-title">Review Q2</div><div class="ev-desc">Estratégia</div></div></div>
+                    </div>
+                  </div>
+                  <div class="panel">
+                    <div class="ph"><span class="ph-ico">📅</span><span class="ph-ttl">Fontes</span></div>
+                    <div class="pb" style="padding:8px 12px">
+                      <div class="intg conn"><div class="intg-ico">📆</div><div><div class="intg-nm">Google Calendar</div><div class="intg-dc">Sincronizado</div></div><div class="intg-foot"><span class="conn-pill">Conectado</span></div></div>
+                      <div class="intg" style="margin-top:6px"><div class="intg-ico">📝</div><div><div class="intg-nm">Notion</div><div class="intg-dc">Prazos e entregas</div></div><div class="intg-foot"><span class="bdg bw">Pendente</span></div></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- WF / ESTRATEGIA -->
+      <section class="section hide" data-section="wf-estrategia">
+        <div class="section-hd">
+          <div class="eyebrow">Wireframes / 06</div>
+          <h1>Estratégia</h1>
+          <p class="lead">OKRs, iniciativas e roadmap. Visualização tipo Gantt para timeline + cards de iniciativa.</p>
+        </div>
+
+        <div class="wf-frame">
+          <div class="wf-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><div class="ttl">blu — Estratégia</div></div>
+          <div class="wf-body">
+            <div class="wf-sidebar">
+              <div class="wf-si">b</div>
+              <div style="height:8px"></div>
+              <div class="wf-si">🏠</div>
+              <div class="wf-si">🛒</div>
+              <div class="wf-si">📊</div>
+              <div class="wf-si">📅</div>
+              <div class="wf-si on">🎯</div>
+              <div class="wf-si">👥</div>
+              <div class="wf-si">📚</div>
+            </div>
+            <div class="wf-content" style="padding:0">
+              <div class="rh">
+                <div class="rav" style="background:rgba(167,139,250,.15);color:#a78bfa">🎯</div>
+                <div><div class="rn">Estratégia</div><div class="rd">OKRs, iniciativas e metas do trimestre</div></div>
+                <div class="ra"><button class="btn btn-p btn-sm">+ Objetivo</button></div>
+              </div>
+              <div class="tabs">
+                <div class="tab on">Visão geral</div>
+                <div class="tab">OKRs</div>
+                <div class="tab">Roadmap</div>
+                <div class="tab">Iniciativas</div>
+              </div>
+              <div style="padding:14px;height:calc(100% - 110px);overflow:auto">
+                <div class="grid grid-2 mb-12">
+                  <div class="kpi"><div class="kpi-lbl">Progresso Q2</div><div class="kpi-val">68%</div><div class="kpi-d up">↑ 12% vs Q1</div></div>
+                  <div class="kpi"><div class="kpi-lbl">Iniciativas ativas</div><div class="kpi-val">14</div><div class="kpi-d up">3 concluídas</div></div>
+                </div>
+                <div class="panel">
+                  <div class="ph"><span class="ph-ico">📅</span><span class="ph-ttl">Roadmap Q2</span></div>
+                  <div class="gantt">
+                    <div class="gantt-hd">
+                      <div class="gantt-wk">Mai</div>
+                      <div class="gantt-wk">Jun</div>
+                      <div class="gantt-wk">Jul</div>
+                      <div class="gantt-wk">Ago</div>
+                    </div>
+                    <div class="gantt-row"><div class="gantt-lbl">Lançar v3</div><div class="gantt-track"><div class="gantt-block" style="left:0;width:25%;background:var(--ac)">Sprint 1-4</div></div></div>
+                    <div class="gantt-row"><div class="gantt-lbl">Integração ERP</div><div class="gantt-track"><div class="gantt-block" style="left:25%;width:30%;background:#34d399">Backend</div></div></div>
+                    <div class="gantt-row"><div class="gantt-lbl">Onboarding redesign</div><div class="gantt-track"><div class="gantt-block" style="left:0;width:20%;background:#fbbf24">Design</div><div class="gantt-block" style="left:20%;width:25%;background:#818cf8">Build</div></div></div>
+                    <div class="gantt-row"><div class="gantt-lbl">Mobile nativo</div><div class="gantt-track"><div class="gantt-block" style="left:50%;width:40%;background:#a78bfa">Q3</div></div></div>
+                    <div class="gantt-row"><div class="gantt-lbl">LGPD audit</div><div class="gantt-track"><div class="gantt-block" style="left:0;width:15%;background:#ef4444">Urgente</div></div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- WF / CLIENTES -->
+      <section class="section hide" data-section="wf-clientes">
+        <div class="section-hd">
+          <div class="eyebrow">Wireframes / 07</div>
+          <h1>Clientes</h1>
+          <p class="lead">CRM leve integrado. Lista de clientes + detalhes (compras, histórico, comunicações, NPS).</p>
+        </div>
+
+        <div class="wf-frame">
+          <div class="wf-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><div class="ttl">blu — Clientes</div></div>
+          <div class="wf-body">
+            <div class="wf-sidebar">
+              <div class="wf-si">b</div>
+              <div style="height:8px"></div>
+              <div class="wf-si">🏠</div>
+              <div class="wf-si">🛒</div>
+              <div class="wf-si">📊</div>
+              <div class="wf-si">📅</div>
+              <div class="wf-si">🎯</div>
+              <div class="wf-si on">👥</div>
+              <div class="wf-si">📚</div>
+            </div>
+            <div class="wf-content" style="padding:0">
+              <div class="rh">
+                <div class="rav" style="background:rgba(244,114,182,.15);color:#f472b6">👥</div>
+                <div><div class="rn">Clientes</div><div class="rd">Base ativa, histórico e oportunidades</div></div>
+                <div class="ra">
+                  <div class="aud-search" style="background:var(--glass);border:1px solid var(--gb);border-radius:6px;padding:6px 10px;display:flex;align-items:center;gap:6px;width:200px"><svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><span style="font-size:11px;color:var(--mu)">Buscar cliente...</span></div>
+                  <button class="btn btn-p btn-sm">+ Novo cliente</button>
+                </div>
+              </div>
+              <div class="tabs">
+                <div class="tab on">Todos <span class="tbdg">313</span></div>
+                <div class="tab">Ativos</div>
+                <div class="tab">Inadimplentes</div>
+                <div class="tab">Novos (30d)</div>
+                <div class="tab">Em risco</div>
+              </div>
+              <div style="display:grid;grid-template-columns:340px 1fr;height:calc(100% - 110px);padding:14px;gap:14px;overflow:auto">
+                <!-- Lista -->
+                <div class="panel">
+                  <div class="ph"><span class="ph-ttl">Lista</span><span class="ph-cnt">313</span></div>
+                  <div class="pb" style="padding:0">
+                    <div style="display:grid;grid-template-columns:24px 1fr auto;gap:8px;padding:9px 12px;align-items:center;background:var(--adim);border-left:2px solid var(--ac);border-bottom:1px solid var(--gb)"><div class="cli-av" style="width:24px;height:24px;font-size:9px;background:#f472b6">CC</div><div><div style="font-size:12px;font-weight:600">Cliente Central</div><div class="muted" style="font-size:10.5px">★★★★★ · 47 pedidos</div></div><div class="cli-val">R$ 124K</div></div>
+                    <div style="display:grid;grid-template-columns:24px 1fr auto;gap:8px;padding:9px 12px;align-items:center;border-bottom:1px solid var(--gb)"><div class="cli-av" style="width:24px;height:24px;font-size:9px;background:#34d399">AC</div><div><div style="font-size:12px;font-weight:600">Acme Co</div><div class="muted" style="font-size:10.5px">★★★★☆ · 22 pedidos</div></div><div class="cli-val">R$ 38K</div></div>
+                    <div style="display:grid;grid-template-columns:24px 1fr auto;gap:8px;padding:9px 12px;align-items:center;border-bottom:1px solid var(--gb)"><div class="cli-av" style="width:24px;height:24px;font-size:9px;background:#818cf8">BS</div><div><div style="font-size:12px;font-weight:600">Beta S.A.</div><div class="muted" style="font-size:10.5px">★★★★☆ · 18 pedidos</div></div><div class="cli-val">R$ 21K</div></div>
+                    <div style="display:grid;grid-template-columns:24px 1fr auto;gap:8px;padding:9px 12px;align-items:center;border-bottom:1px solid var(--gb)"><div class="cli-av" style="width:24px;height:24px;font-size:9px;background:#fbbf24">DL</div><div><div style="font-size:12px;font-weight:600">Delta Ltda</div><div class="muted" style="font-size:10.5px;display:flex;gap:4px;align-items:center">★★★☆☆ <span class="bdg bw">Atraso</span></div></div><div class="cli-val">R$ 8.2K</div></div>
+                    <div style="display:grid;grid-template-columns:24px 1fr auto;gap:8px;padding:9px 12px;align-items:center"><div class="cli-av" style="width:24px;height:24px;font-size:9px;background:#a78bfa">EM</div><div><div style="font-size:12px;font-weight:600">Echo ME</div><div class="muted" style="font-size:10.5px">★★★★★ · Novo</div></div><div class="cli-val">R$ 4.8K</div></div>
+                  </div>
+                </div>
+                <!-- Detalhe -->
+                <div class="panel">
+                  <div class="ph"><span class="ph-ico">👤</span><span class="ph-ttl">Cliente Central</span><span class="ph-lnk">Abrir CRM →</span></div>
+                  <div class="pb" style="padding:14px">
+                    <div class="grid grid-3 mb-12">
+                      <div class="kpi"><div class="kpi-lbl">LTV (12m)</div><div class="kpi-val" style="font-size:18px">R$ 124K</div><div class="kpi-d up">↑ 40%</div></div>
+                      <div class="kpi"><div class="kpi-lbl">Pedidos</div><div class="kpi-val" style="font-size:18px">47</div><div class="kpi-d up">↑ 8</div></div>
+                      <div class="kpi"><div class="kpi-lbl">NPS</div><div class="kpi-val" style="font-size:18px">72</div><div class="kpi-d up">Promotor</div></div>
+                    </div>
+                    <h3 style="font-size:13px;font-weight:600;margin-bottom:8px">Últimas interações</h3>
+                    <div class="cli-row"><div class="cli-dot" style="background:var(--ok)"></div><div class="cli-name" style="font-size:12px">Proposta enviada</div><div class="cli-val" style="font-size:10.5px">12/05</div></div>
+                    <div class="cli-row"><div class="cli-dot" style="background:var(--blue2)"></div><div class="cli-name" style="font-size:12px">Reunião trimestral</div><div class="cli-val" style="font-size:10.5px">02/05</div></div>
+                    <div class="cli-row"><div class="cli-dot" style="background:var(--ac)"></div><div class="cli-name" style="font-size:12px">Renovação de contrato</div><div class="cli-val" style="font-size:10.5px">15/04</div></div>
+                    <div class="wf-callout"><strong>Insight ativo:</strong> Cliente Central +40% este mês. Considere programa de fidelidade ou desconto por volume.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- WF / BIBLIOTECA -->
+      <section class="section hide" data-section="wf-biblioteca">
+        <div class="section-hd">
+          <div class="eyebrow">Wireframes / 08</div>
+          <h1>Biblioteca (Business Memory)</h1>
+          <p class="lead">Conhecimento estruturado do negócio. Cards expansíveis com metadata, tags, JSON cru e markdown.</p>
+        </div>
+
+        <div class="wf-frame">
+          <div class="wf-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><div class="ttl">blu — Biblioteca</div></div>
+          <div class="wf-body">
+            <div class="wf-sidebar">
+              <div class="wf-si">b</div>
+              <div style="height:8px"></div>
+              <div class="wf-si">🏠</div>
+              <div class="wf-si">🛒</div>
+              <div class="wf-si">📊</div>
+              <div class="wf-si">📅</div>
+              <div class="wf-si">🎯</div>
+              <div class="wf-si">👥</div>
+              <div class="wf-si on">📚</div>
+            </div>
+            <div class="wf-content">
+              <div style="display:flex;align-items:center;gap:11px;padding:14px 24px;border-bottom:1px solid var(--gb)">
+                <div style="width:34px;height:34px;border-radius:8px;background:rgba(129,140,248,.15);color:#818cf8;display:flex;align-items:center;justify-content:center;font-size:16px">📚</div>
+                <div><div style="font-size:18px;font-weight:700">Biblioteca</div><div style="font-size:11.5px;color:var(--mu)">Conhecimento estruturado do Blu</div></div>
+                <div style="margin-left:auto;display:flex;gap:6px">
+                  <span class="pills"><span class="pill on">Tudo</span><span class="pill">Clientes</span><span class="pill">Produtos</span><span class="pill">Processos</span><span class="pill">SLA</span></span>
+                  <button class="btn btn-p btn-sm">+ Card</button>
+                </div>
+              </div>
+              <div style="padding:18px 24px;display:flex;flex-direction:column;gap:8px">
+                <div class="panel" style="border-color:rgba(140,95,219,.4);background:var(--gl2)">
+                  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;gap:12px">
+                    <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
+                      <span style="font-size:14px">🏢</span>
+                      <div style="min-width:0">
+                        <div style="font-size:13px;font-weight:600">Cliente Central — Contrato Master 2026</div>
+                        <div style="display:flex;align-items:center;gap:6px;margin-top:3px"><span class="bdg ba" style="background:rgba(140,95,219,.15);color:#818cf8">Cliente</span><span class="muted" style="font-size:10.5px">atualizado 12/05/2026 · 1 página</span></div>
+                      </div>
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center">
+                      <span class="bm-alert-badge">⚠ Renova em 28d</span>
+                      <span style="color:var(--mu);font-size:12px">▼</span>
+                    </div>
+                  </div>
+                  <div style="padding:0 16px 16px;border-top:1px solid var(--gb)">
+                    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:14px 0">
+                      <div><div style="font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--mu);margin-bottom:3px">CNPJ</div><div style="font-size:12.5px">12.345.678/0001-90</div></div>
+                      <div><div style="font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--mu);margin-bottom:3px">Contato</div><div style="font-size:12.5px">maria@clientecentral.com</div></div>
+                      <div><div style="font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--mu);margin-bottom:3px">SLA resposta</div><div style="font-size:12.5px">2h úteis</div></div>
+                    </div>
+                    <div style="margin-top:6px">
+                      <div style="font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--mu);margin-bottom:6px">Notas</div>
+                      <div style="font-size:12.5px;line-height:1.65;color:var(--fg);background:rgba(140,95,219,.08);padding:10px 14px;border-radius:8px;border-left:3px solid var(--ac)">Cliente VIP. Aceita upgrades de plano. Sempre avisar antes de mudar fornecedor de papel.</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="panel">
+                  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;gap:12px">
+                    <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
+                      <span style="font-size:14px">📦</span>
+                      <div style="min-width:0">
+                        <div style="font-size:13px;font-weight:600">Toner HP 107A — especificação</div>
+                        <div style="display:flex;align-items:center;gap:6px;margin-top:3px"><span class="bdg bo" style="background:rgba(16,185,129,.12);color:#10b981">Produto</span><span class="muted" style="font-size:10.5px">3 fornecedores homologados</span></div>
+                      </div>
+                    </div>
+                    <span style="color:var(--mu);font-size:12px">▶</span>
+                  </div>
+                </div>
+
+                <div class="panel">
+                  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;gap:12px">
+                    <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
+                      <span style="font-size:14px">⚙</span>
+                      <div style="min-width:0">
+                        <div style="font-size:13px;font-weight:600">Processo de aprovação — pedidos > R$ 5.000</div>
+                        <div style="display:flex;align-items:center;gap:6px;margin-top:3px"><span class="bdg bw" style="background:rgba(245,158,11,.12);color:#f59e0b">Processo</span><span class="muted" style="font-size:10.5px">3 etapas</span></div>
+                      </div>
+                    </div>
+                    <span style="color:var(--mu);font-size:12px">▶</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- WF / ATIVIDADE -->
+      <section class="section hide" data-section="wf-atividade">
+        <div class="section-hd">
+          <div class="eyebrow">Wireframes / 09</div>
+          <h1>Atividade (Log de auditoria)</h1>
+          <p class="lead">Audit trail completo. Quem fez o quê, quando, com qual status. Filtrável por agente, usuário, sala e período.</p>
+        </div>
+
+        <div class="wf-frame">
+          <div class="wf-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><div class="ttl">blu — Atividade</div></div>
+          <div class="wf-body">
+            <div class="wf-sidebar">
+              <div class="wf-si">b</div>
+              <div style="height:8px"></div>
+              <div class="wf-si">🏠</div>
+              <div class="wf-si">🛒</div>
+              <div class="wf-si">📊</div>
+              <div class="wf-si">📅</div>
+              <div class="wf-si">🎯</div>
+              <div class="wf-si">👥</div>
+              <div class="wf-si">📚</div>
+              <div class="wf-si on" style="margin-top:auto">🔔</div>
+            </div>
+            <div class="wf-content" style="padding:0">
+              <div class="rh">
+                <div class="rav" style="background:rgba(245,158,11,.15);color:#f59e0b">🔔</div>
+                <div><div class="rn">Atividade</div><div class="rd">Log de auditoria · todas as ações dos agentes</div></div>
+                <div class="ra">
+                  <span class="pills"><span class="pill on">24h</span><span class="pill">7d</span><span class="pill">30d</span><span class="pill">custom</span></span>
+                </div>
+              </div>
+              <div style="padding:14px;height:calc(100% - 80px);overflow:auto">
+                <div class="panel">
+                  <div class="ph"><span class="ph-ico">📋</span><span class="ph-ttl">Eventos recentes</span><span class="ph-cnt">1.247</span></div>
+                  <div class="pb" style="padding:0">
+                    <div style="display:grid;grid-template-columns:100px 8px 1fr 120px 60px;gap:8px;padding:8px 14px;align-items:center;border-bottom:1px solid var(--gb);font-size:11.5px;cursor:pointer">
+                      <div class="mono" style="color:var(--mu);font-size:10px">14:32:08</div>
+                      <div style="width:6px;height:6px;border-radius:50%;background:#34d399"></div>
+                      <div><span style="color:var(--mu2)">Compras ·</span> <strong>aprovou cotação</strong> <span style="color:var(--mu)">— Fornecedor Silva · R$ 1.240</span></div>
+                      <div style="font-size:10.5px;color:var(--mu)">por Lucas</div>
+                      <div><span class="bdg bo">OK</span></div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:100px 8px 1fr 120px 60px;gap:8px;padding:8px 14px;align-items:center;border-bottom:1px solid var(--gb);background:var(--glass);font-size:11.5px;cursor:pointer">
+                      <div class="mono" style="color:var(--mu);font-size:10px">14:18:42</div>
+                      <div style="width:6px;height:6px;border-radius:50%;background:#34d399"></div>
+                      <div><span style="color:var(--mu2)">Financeiro ·</span> <strong>agendou pagamento</strong> <span style="color:var(--mu)">— Claro · R$ 847,50 · 06/05</span></div>
+                      <div style="font-size:10.5px;color:var(--mu)">IA · auto</div>
+                      <div><span class="bdg bo">OK</span></div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:100px 8px 1fr 120px 60px;gap:8px;padding:8px 14px;align-items:center;border-bottom:1px solid var(--gb);font-size:11.5px;cursor:pointer">
+                      <div class="mono" style="color:var(--mu);font-size:10px">13:55:21</div>
+                      <div style="width:6px;height:6px;border-radius:50%;background:#ef4444"></div>
+                      <div><span style="color:var(--mu2)">Clientes ·</span> <strong>rejeitou proposta</strong> <span style="color:var(--mu)">— Cliente Beta · sem resposta há 14d</span></div>
+                      <div style="font-size:10.5px;color:var(--mu)">por Maria</div>
+                      <div><span class="bdg bu">NO</span></div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:100px 8px 1fr 120px 60px;gap:8px;padding:8px 14px;align-items:center;border-bottom:1px solid var(--gb);font-size:11.5px;cursor:pointer">
+                      <div class="mono" style="color:var(--mu);font-size:10px">12:09:55</div>
+                      <div style="width:6px;height:6px;border-radius:50%;background:#f59e0b"></div>
+                      <div><span style="color:var(--mu2)">Rotina ·</span> <strong>sincronização falhou</strong> <span style="color:var(--mu)">— Banco Itaú · 3 retries</span></div>
+                      <div style="font-size:10.5px;color:var(--mu)">sistema</div>
+                      <div><span class="bdg bw">WARN</span></div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:100px 8px 1fr 120px 60px;gap:8px;padding:8px 14px;align-items:center;font-size:11.5px;cursor:pointer">
+                      <div class="mono" style="color:var(--mu);font-size:10px">11:48:00</div>
+                      <div style="width:6px;height:6px;border-radius:50%;background:#34d399"></div>
+                      <div><span style="color:var(--mu2)">Estratégia ·</span> <strong>gerou insight</strong> <span style="color:var(--mu)">— Q2 OKR on track (68%)</span></div>
+                      <div style="font-size:10.5px;color:var(--mu)">IA · analítico</div>
+                      <div><span class="bdg bo">OK</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- WF / ADMIN -->
+      <section class="section hide" data-section="wf-admin">
+        <div class="section-hd">
+          <div class="eyebrow">Wireframes / 10</div>
+          <h1>Admin</h1>
+          <p class="lead">Visível apenas para <code>owner</code>. Integrações, usuários, permissões, LGPD, contexto de memória.</p>
+        </div>
+
+        <div class="grid grid-2">
+          <div class="wf-frame" style="min-height:520px">
+            <div class="wf-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><div class="ttl">Admin · Integrações</div></div>
+            <div class="wf-body">
+              <div class="wf-sidebar">
+                <div class="wf-si">b</div>
+                <div style="height:8px"></div>
+                <div class="wf-si">⚙</div>
+              </div>
+              <div class="wf-content" style="padding:0">
+                <div class="rh">
+                  <div class="rav" style="background:rgba(107,114,128,.15);color:#9ca3af">⚙</div>
+                  <div><div class="rn">Admin</div><div class="rd">Configurações da conta e permissões</div></div>
+                </div>
+                <div class="tabs">
+                  <div class="tab on">Integrações</div>
+                  <div class="tab">Usuários</div>
+                  <div class="tab">Contexto</div>
+                  <div class="tab">LGPD</div>
+                  <div class="tab">Faturamento</div>
+                </div>
+                <div style="padding:14px;overflow:auto">
+                  <div class="intg conn"><div class="intg-ico">📆</div><div><div class="intg-nm">Google Calendar</div><div class="intg-dc">Sincronização de eventos</div></div><div class="intg-foot"><span class="conn-pill">Conectado</span></div></div>
+                  <div class="intg conn" style="margin-top:6px"><div class="intg-ico">💬</div><div><div class="intg-nm">Slack</div><div class="intg-dc">Notificações da equipe</div></div><div class="intg-foot"><span class="conn-pill">Conectado</span></div></div>
+                  <div class="intg" style="margin-top:6px"><div class="intg-ico">🏦</div><div><div class="intg-nm">Itaú</div><div class="intg-dc">Open Finance · saldos e boletos</div></div><div class="intg-foot"><span class="bdg bw">Pendente</span></div></div>
+                  <div class="intg" style="margin-top:6px"><div class="intg-ico">📊</div><div><div class="intg-nm">Omie ERP</div><div class="intg-dc">Notas fiscais e produtos</div></div><div class="intg-foot"><span class="bdg bw">Pendente</span></div></div>
+                  <div class="intg" style="margin-top:6px"><div class="intg-ico">📝</div><div><div class="intg-nm">Notion</div><div class="intg-dc">Docs e base de conhecimento</div></div><div class="intg-foot"><button class="btn btn-s btn-sm">Conectar</button></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="wf-frame" style="min-height:520px">
+            <div class="wf-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><div class="ttl">Admin · Usuários</div></div>
+            <div class="wf-body">
+              <div class="wf-sidebar">
+                <div class="wf-si">b</div>
+                <div style="height:8px"></div>
+                <div class="wf-si">⚙</div>
+              </div>
+              <div class="wf-content" style="padding:0">
+                <div class="rh">
+                  <div class="rav" style="background:rgba(107,114,128,.15);color:#9ca3af">⚙</div>
+                  <div><div class="rn">Admin</div><div class="rd">Configurações da conta e permissões</div></div>
+                </div>
+                <div class="tabs">
+                  <div class="tab">Integrações</div>
+                  <div class="tab on">Usuários</div>
+                  <div class="tab">Contexto</div>
+                  <div class="tab">LGPD</div>
+                  <div class="tab">Faturamento</div>
+                </div>
+                <div style="padding:14px;overflow:auto">
+                  <div class="usr-row">
+                    <div class="usr-av" style="background:linear-gradient(135deg,#8C5FDB,#3A80D4)">LC</div>
+                    <div style="flex:1"><div class="usr-nm">Lucas Cruz <span class="bdg ba" style="margin-left:6px">owner</span></div><div class="usr-ml">lucas@empresa.com</div></div>
+                    <div class="usr-perm">acesso total</div>
+                  </div>
+                  <div class="usr-row">
+                    <div class="usr-av" style="background:#34d399">MA</div>
+                    <div style="flex:1"><div class="usr-nm">Maria Alves <span class="bdg bb" style="margin-left:6px">admin</span></div><div class="usr-ml">maria@empresa.com</div></div>
+                    <div class="usr-perm">8 salas</div>
+                  </div>
+                  <div class="usr-row">
+                    <div class="usr-av" style="background:#fbbf24">JP</div>
+                    <div style="flex:1"><div class="usr-nm">João Pedro</div><div class="usr-ml">joao@empresa.com</div></div>
+                    <div class="usr-perm">5 salas</div>
+                  </div>
+                  <div class="usr-row">
+                    <div class="usr-av" style="background:#f472b6">CF</div>
+                    <div style="flex:1"><div class="usr-nm">Carla Ferreira</div><div class="usr-ml">carla@empresa.com</div></div>
+                    <div class="usr-perm">3 salas</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- WF / MOBILE -->
+      <section class="section hide" data-section="wf-mobile">
+        <div class="section-hd">
+          <div class="eyebrow">Wireframes / 11</div>
+          <h1>Mobile (≤768px)</h1>
+          <p class="lead">Sidebar colapsa. Bottom-nav com burger abre bottom sheet com grid 3×3 de salas. Paineis empilham verticalmente.</p>
+        </div>
+
+        <div class="grid grid-3" style="align-items:start">
+          <!-- Home mobile -->
+          <div>
+            <h3 class="center mb-12">Home</h3>
+            <div class="mob">
+              <div class="mob-notch"></div>
+              <div class="mob-body">
+                <div class="mob-top">
+                  <div style="width:24px;height:24px;border-radius:5px;background:var(--ac-grad);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800">b</div>
+                  <div style="flex:1;font-size:12px;font-weight:700">Bom dia, Lucas ☀️</div>
+                  <div style="width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,var(--ac),#B08AE8);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff">LC</div>
+                </div>
+                <div class="mob-content" style="padding:10px;display:flex;flex-direction:column;gap:10px">
+                  <div class="panel">
+                    <div class="ph" style="padding:8px 12px"><span class="ph-ttl">Decisões</span><span class="ph-cnt">3</span></div>
+                    <div style="padding:6px">
+                      <div class="dc urg"><div class="dc-row" style="padding:6px 8px">
+                        <div class="ag"><div class="agd" style="background:#818cf8"></div>Co</div>
+                        <span class="dc-row-sum"><strong>3 cotações</strong> R$ 1.240</span>
+                      </div></div>
+                      <div class="dc warn"><div class="dc-row" style="padding:6px 8px">
+                        <div class="ag"><div class="agd" style="background:#34d399"></div>Fi</div>
+                        <span class="dc-row-sum"><strong>Boleto</strong> R$ 847</span>
+                      </div></div>
+                    </div>
+                  </div>
+                  <div class="panel">
+                    <div class="ph" style="padding:8px 12px"><span class="ph-ttl">Plano</span></div>
+                    <div style="padding:6px 12px">
+                      <div class="pl-item" style="padding:5px 0"><span class="pl-t">10:00</span><div class="pl-d" style="background:#34d399"></div><span class="pl-txt" style="font-size:11px">Aprovar NF-e</span></div>
+                      <div class="pl-item" style="padding:5px 0"><span class="pl-t">14:00</span><div class="pl-d" style="background:#2dd4bf"></div><span class="pl-txt" style="font-size:11px">Follow-up</span></div>
+                    </div>
+                  </div>
+                  <div class="nums">
+                    <div class="nums-head">📊 Números →</div>
+                    <div class="nums-row">
+                      <div class="nkpi"><span class="nv">543K</span><span class="nl">Fat</span></div>
+                      <div class="nkpi"><span class="nv">42%</span><span class="nl">Marg</span></div>
+                      <div class="nkpi"><span class="nv">313</span><span class="nl">Cli</span></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="mob-nav"><div class="mob-burger"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Menu sheet -->
+          <div>
+            <h3 class="center mb-12">Menu sheet (bottom)</h3>
+            <div class="mob">
+              <div class="mob-notch"></div>
+              <div class="mob-body" style="background:rgba(3,7,28,.7)">
+                <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end">
+                  <div style="background:rgba(8,12,36,.97);border:1px solid var(--gb2);border-radius:20px 20px 0 0;padding:14px 14px 80px">
+                    <div style="width:36px;height:4px;background:var(--gb2);border-radius:2px;margin:0 auto 14px"></div>
+                    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+                      <div style="display:flex;flex-direction:column;align-items:center;gap:5px;padding:14px 8px;border-radius:8px;color:var(--ac);background:var(--adim);border:1px solid rgba(140,95,219,.28)"><span style="font-size:24px">🏠</span><span style="font-size:11px;font-weight:500">Início</span></div>
+                      <div style="display:flex;flex-direction:column;align-items:center;gap:5px;padding:14px 8px;border-radius:8px;color:var(--mu2)"><span style="font-size:24px">🛒</span><span style="font-size:11px;font-weight:500">Compras</span></div>
+                      <div style="display:flex;flex-direction:column;align-items:center;gap:5px;padding:14px 8px;border-radius:8px;color:var(--mu2)"><span style="font-size:24px">📊</span><span style="font-size:11px;font-weight:500">Financeiro</span></div>
+                      <div style="display:flex;flex-direction:column;align-items:center;gap:5px;padding:14px 8px;border-radius:8px;color:var(--mu2)"><span style="font-size:24px">📅</span><span style="font-size:11px;font-weight:500">Agenda</span></div>
+                      <div style="display:flex;flex-direction:column;align-items:center;gap:5px;padding:14px 8px;border-radius:8px;color:var(--mu2)"><span style="font-size:24px">🎯</span><span style="font-size:11px;font-weight:500">Estratégia</span></div>
+                      <div style="display:flex;flex-direction:column;align-items:center;gap:5px;padding:14px 8px;border-radius:8px;color:var(--mu2)"><span style="font-size:24px">👥</span><span style="font-size:11px;font-weight:500">Clientes</span></div>
+                      <div style="display:flex;flex-direction:column;align-items:center;gap:5px;padding:14px 8px;border-radius:8px;color:var(--mu2)"><span style="font-size:24px">📚</span><span style="font-size:11px;font-weight:500">Biblioteca</span></div>
+                      <div style="display:flex;flex-direction:column;align-items:center;gap:5px;padding:14px 8px;border-radius:8px;color:var(--mu2);position:relative"><span style="font-size:24px">🔔</span><span style="font-size:11px;font-weight:500">Atividade</span><span style="position:absolute;top:8px;right:18px;width:7px;height:7px;border-radius:50%;background:var(--urg)"></span></div>
+                      <div style="display:flex;flex-direction:column;align-items:center;gap:5px;padding:14px 8px;border-radius:8px;color:var(--mu2)"><span style="font-size:24px">⚙</span><span style="font-size:11px;font-weight:500">Admin</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Decision expanded -->
+          <div>
+            <h3 class="center mb-12">Decisão expandida</h3>
+            <div class="mob">
+              <div class="mob-notch"></div>
+              <div class="mob-body">
+                <div class="mob-top">
+                  <button style="font-size:14px;color:var(--mu)">←</button>
+                  <div style="flex:1;font-size:12px;font-weight:600">Decisão</div>
+                </div>
+                <div class="mob-content" style="padding:12px">
+                  <div class="dc warn expanded" style="border-left-width:3px">
+                    <div class="dc-row" style="padding:8px 10px">
+                      <div class="ag"><div class="agd" style="background:#818cf8"></div>Compras</div>
+                      <span class="bdg bu">Urgente</span>
+                      <span class="dc-chev">▼</span>
+                    </div>
+                    <div class="dc-expand" style="display:block;padding:0 12px 14px">
+                      <div class="dc-body" style="font-size:13px;margin:12px 0 10px"><strong>3 cotações prontas</strong> para toner HP 107A. Fornecedor Silva, entrega 2 dias, R$ 1.240.</div>
+                      <ul class="dc-bullets"><li>Toner HP 107A — estoque crítico (1 dia)</li><li>Comparado: Gamma R$ 1.180, prazo 5d</li></ul>
+                      <div class="dc-act" style="flex-direction:column;align-items:stretch">
+                        <button class="btn btn-p" style="width:100%;justify-content:center;padding:9px">👍 Aprovar Silva</button>
+                        <button class="btn btn-s" style="width:100%;justify-content:center;padding:9px">👁 Ver comparativo</button>
+                        <button class="btn btn-g" style="width:100%;justify-content:center;padding:9px">⏰ Depois</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="mob-nav"><div class="mob-burger">×</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel mt-24">
+          <div class="ph"><span class="ph-ico">📐</span><span class="ph-ttl">Regras de responsive</span></div>
+          <div class="pb">
+            <ul style="list-style:none;display:flex;flex-direction:column;gap:6px;font-size:12px">
+              <li>• <strong>≤ 768px:</strong> sidebar some, home-grid vira single column, panels empilham</li>
+              <li>• <strong>Touch targets:</strong> mínimo 44×44px em mobile (botões .btn-lg)</li>
+              <li>• <strong>Decision cards:</strong> full-width em mobile; actions viram coluna</li>
+              <li>• <strong>Chat FAB:</strong> sobe 80px para não colidir com bottom-nav</li>
+              <li>• <strong>Toasts:</strong> também sobem 76px (bottom: 76px)</li>
+              <li>• <strong>Sidebar (56px → hide):</strong> substituída por bottom-nav com burger que abre sheet</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<script>
+// ============================================================
+// NAVIGATION
+// ============================================================
+const TITLES = {
+  overview: 'Visão geral',
+  tokens: 'Tokens',
+  typography: 'Tipografia',
+  icons: 'Iconografia',
+  grid: 'Grid & Espaço',
+  'comp-buttons': 'Componentes · Botões',
+  'comp-panels': 'Componentes · Painéis',
+  'comp-badges': 'Componentes · Badges',
+  'comp-forms': 'Componentes · Formulários',
+  'comp-tables': 'Componentes · Tabelas',
+  'comp-decisions': 'Componentes · Decisões',
+  'comp-feedback': 'Componentes · Feedback',
+  'wf-shell': 'Wireframes · Shell',
+  'wf-home': 'Wireframes · Home',
+  'wf-compras': 'Wireframes · Compras',
+  'wf-financeiro': 'Wireframes · Financeiro',
+  'wf-agenda': 'Wireframes · Agenda',
+  'wf-estrategia': 'Wireframes · Estratégia',
+  'wf-clientes': 'Wireframes · Clientes',
+  'wf-biblioteca': 'Wireframes · Biblioteca',
+  'wf-atividade': 'Wireframes · Atividade',
+  'wf-admin': 'Wireframes · Admin',
+  'wf-mobile': 'Wireframes · Mobile',
+};
+
+const navItems = document.querySelectorAll('.nav-item[data-go]');
+const sections = document.querySelectorAll('.section[data-section]');
+const scroll = document.getElementById('mainScroll');
+const crumb = document.getElementById('crumb-current');
+
+function go(id) {
+  navItems.forEach(n => n.classList.toggle('on', n.dataset.go === id));
+  sections.forEach(s => s.classList.toggle('hide', s.dataset.section !== id));
+  if (TITLES[id]) crumb.textContent = TITLES[id];
+  scroll.scrollTop = 0;
+  try { localStorage.setItem('ds-current', id); } catch {}
+}
+
+navItems.forEach(item => {
+  item.addEventListener('click', () => go(item.dataset.go));
+});
+
+// Initial — URL ?section= overrides localStorage
+try {
+  const urlSec = new URLSearchParams(location.search).get('section');
+  if (urlSec && TITLES[urlSec]) {
+    go(urlSec);
+  } else {
+    const saved = localStorage.getItem('ds-current');
+    if (saved && TITLES[saved]) go(saved);
+  }
+} catch {}
+
+// ============================================================
+// THEME TOGGLE
+// ============================================================
+const themeBtn = document.getElementById('themeToggle');
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  try { localStorage.setItem('ds-theme', t); } catch {}
+}
+try {
+  const t = localStorage.getItem('ds-theme');
+  if (t) applyTheme(t);
+} catch {}
+themeBtn.addEventListener('click', () => {
+  const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+  applyTheme(cur === 'dark' ? 'light' : 'dark');
+});
+
+// ============================================================
+// DECISION CARD INTERACTION (demo)
+// ============================================================
+document.addEventListener('click', (e) => {
+  const row = e.target.closest('.dc-row');
+  if (!row) return;
+  const dc = row.parentElement;
+  if (!dc.classList.contains('dc')) return;
+  if (dc.classList.contains('done')) return;
+  dc.classList.toggle('expanded');
+});
+</script>
+
+</body>
+</html>

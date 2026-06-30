@@ -343,6 +343,20 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // ── Refresh MVs ────────────────────────────────────────────────────────────
+    // sincronizar_csv_cliente runs after staging cleanup but reads from
+    // csv_import_staging (already deleted by the cleanup) and silently skips
+    // the REFRESH MATERIALIZED VIEW block. Enqueue the refresh here so the
+    // dispatcher (analytics_v2.process_pending_jobs) updates the dashboards
+    // regardless of the legacy path. Non-fatal: the ETL succeeded even if
+    // the refresh fails — the dispatcher will retry on the next tick.
+    try {
+      await svc.rpc("refresh_client_dashboards", { p_client_id: client_id });
+      console.log(`[run-csv-etl] ${requestId} MVs refreshed for client=${client_id}`);
+    } catch (refreshErr) {
+      console.warn(`[run-csv-etl] ${requestId} MV refresh failed (non-fatal):`, refreshErr);
+    }
+
     // Staging cleanup — drop the batch now that dim/fact have been populated.
     const { error: cleanupErr } = await svc
       .from("csv_import_staging")

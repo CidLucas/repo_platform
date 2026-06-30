@@ -392,6 +392,11 @@ BEGIN
       updated_at       = now()
     WHERE job_id = p_job_id;
 
+    -- Enqueue dashboard refresh job (dispatcher process_pending_jobs does the refresh)
+    INSERT INTO analytics_v2.reg_jobs (client_id, job_type, status, input_params, progress_pct, created_at, updated_at)
+    VALUES (v_client_id, 'refresh_dashboards', 'pending', '{}'::jsonb, 0, now(), now())
+    ON CONFLICT DO NOTHING;
+
     RETURN jsonb_build_object(
       'success', true,
       'job_id', p_job_id,

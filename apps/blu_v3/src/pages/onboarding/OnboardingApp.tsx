@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth, supabase } from '@blu/auth'
 import { connectGoogleDrive } from '../../api/agenda'
@@ -148,7 +148,9 @@ async function callMatchColumns(sourceColumns: string[], schemaType?: string): P
   try {
     // match-columns moved from a Deno EF to a Python service in Phase 3.2.
     // The endpoint is mounted at /v1/match-columns in tool_pool_api.
-    const toolPoolUrl = import.meta.env.VITE_TOOL_POOL_API_URL || 'http://localhost:8000'
+    // In dev, Vite proxies /api/tool-pool → http://localhost:8006 (see vite.config.ts).
+    // In prod (Vercel), set VITE_TOOL_POOL_API_URL=/_/tool_pool_api to hit the rewrite.
+    const toolPoolUrl = import.meta.env.VITE_TOOL_POOL_API_URL || '/api/tool-pool'
     const { data: { session } } = await supabase.auth.getSession()
     const resp = await fetch(`${toolPoolUrl}/v1/match-columns`, {
       method: 'POST',
@@ -190,23 +192,29 @@ function parseSpreadsheetHeaders(file: File): Promise<{ headers: string[]; sheet
   if (isXlsx) {
     return new Promise((resolve) => {
       const reader = new FileReader()
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         try {
           const data = new Uint8Array(e.target?.result as ArrayBuffer)
-          // DEP-01 mitigation: sanitize xlsx output via JSON roundtrip
-          // to strip potential Prototype Pollution (GHSA-4r6h-8v6p-xvw6).
-          // xlsx has no fix available — migration to exceljs planned.
-          const wb = XLSX.read(data, { type: 'array', sheetRows: 12 })
-          // Score each sheet: name-keyword match wins; row count breaks ties.
-          // sheetRows: 12 caps all large sheets at 12, so name score must be primary.
-          const sheetScores = wb.SheetNames.map(name => {
-            const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[name], { header: 1, defval: '' })
-            return { name, score: scoreSheetName(name), rowCount: rows.length }
-          })
-          sheetScores.sort((a, b) => b.score - a.score || b.rowCount - a.rowCount)
-          const bestSheet = sheetScores[0]?.name ?? wb.SheetNames[0]
-          const ws = wb.Sheets[bestSheet]
-          const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+          const wb = new ExcelJS.Workbook()
+          await wb.xlsx.load(data)
+          const MAX_ROWS = 12
+          const sheetRows: { name: string; score: number; rowCount: number; rows: unknown[][] }[] =
+            wb.worksheets.map((ws) => {
+              const rows: unknown[][] = []
+              ws.eachRow({ includeEmpty: true }, (row, rowNumber) => {
+                if (rowNumber > MAX_ROWS) return false
+                const values = row.values as unknown[]
+                const arr: unknown[] = []
+                for (let i = 1; i < values.length; i++) {
+                  arr.push(values[i] ?? '')
+                }
+                rows.push(arr)
+              })
+              return { name: ws.name, score: scoreSheetName(ws.name), rowCount: rows.length, rows }
+            })
+          sheetRows.sort((a, b) => b.score - a.score || b.rowCount - a.rowCount)
+          const bestSheet = sheetRows[0]?.name ?? wb.worksheets[0]?.name ?? ''
+          const rows = sheetRows[0]?.rows ?? []
           // Find the row with the most non-empty cells in the first 10 rows
           const searchRows = rows.slice(0, 10)
           const headerIdx = searchRows.reduce((bestIdx, row, i) => {

@@ -4,7 +4,7 @@
  */
 
 const AGENT_API_URL = import.meta.env.VITE_STANDALONE_AGENT_API || 'http://localhost:8001'
-const TOOL_POOL_API_URL = import.meta.env.VITE_TOOL_POOL_API_URL || 'http://localhost:8006'
+const TOOL_POOL_API_URL = import.meta.env.VITE_TOOL_POOL_API_URL || '/api/tool-pool'
 
 // ── Types ──────────────────────────────────────────────────────
 

@@ -9,7 +9,7 @@
  * - driveExportOrDownload: stream file content (export Sheets → XLSX, direct download otherwise)
  */
 
-import { SupabaseClient } from "@supabase/supabase-js";
+import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ── Fernet decrypt ───────────────────────────────────────────────────────────
 // Mirrors the encrypt in onboarding-capture-drive-token.

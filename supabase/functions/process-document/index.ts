@@ -9,7 +9,7 @@
 // Request: POST { document_id, storage_path, client_id, file_name, file_type }
 // Response: 200 OK { document_id, status: "completed", chunk_count }
 
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import postgres from "https://deno.land/x/postgresjs@v3.4.5/mod.js";
 // pdf-parse: import from lib/ subpath to skip test-file loading that breaks in Deno
 import pdfParse from "npm:pdf-parse@1.1.1/lib/pdf-parse.js";

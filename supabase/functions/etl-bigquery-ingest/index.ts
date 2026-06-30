@@ -31,7 +31,7 @@
  *   ON CONFLICT DO UPDATE so reruns are safe.
  */
 
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, json } from "../_shared/cors.ts";
 import {
   requireAuth,

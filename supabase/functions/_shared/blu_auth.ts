@@ -17,7 +17,7 @@
  * call requireMFA(ctx) to enforce AAL2.
  */
 
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "jsr:@supabase/supabase-js@2";
 
 // ── Types ────────────────────────────────────────────────────
 

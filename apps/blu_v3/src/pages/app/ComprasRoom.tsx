@@ -19,6 +19,7 @@ import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 import DecisionCard from '../../components/shared/DecisionCard'
 import AnalyticsPanel from '../../components/shared/AnalyticsPanel'
+import Pagination from '../../components/shared/Pagination'
 import { snoozeUntil } from '../../utils/time'
 import { formatBRL } from '../../utils/formatters'
 
@@ -39,6 +40,8 @@ export default function ComprasRoom() {
   const qc = useQueryClient()
   const [tab, setTab] = useState<Tab>('decisoes')
   const [analyticsPeriod, setAnalyticsPeriod] = useState<'30d' | '90d' | '1y'>('30d')
+  const [suppliersPage, setSuppliersPage] = useState(1)
+  const suppliersPageSize = 8
 
   // Navigate to the tab requested via goWithTab() from another screen
   useEffect(() => {
@@ -308,7 +311,9 @@ export default function ComprasRoom() {
             <div className="dr-sec">
                 <div className="pills"><span className="pill on">Todos</span><span className="pill">Escritório</span><span className="pill">Insumos</span></div>
                 {suppliersQ.isLoading && <div style={{ color: 'var(--mu)', fontSize: 12, marginTop: 8 }}>Carregando…</div>}
-                {suppliers.map(s => (
+                {suppliers
+                  .slice((suppliersPage - 1) * suppliersPageSize, suppliersPage * suppliersPageSize)
+                  .map(s => (
                   <div key={s.id} className="sup-row">
                     <span>🏪</span>
                     <div>
@@ -320,6 +325,15 @@ export default function ComprasRoom() {
                     <span className="stars">{ratingStars(s.rating)}</span>
                   </div>
                 ))}
+                {!suppliersQ.isLoading && suppliers.length > suppliersPageSize && (
+                  <Pagination
+                    currentPage={suppliersPage}
+                    totalPages={Math.ceil(suppliers.length / suppliersPageSize)}
+                    totalItems={suppliers.length}
+                    pageSize={suppliersPageSize}
+                    onPageChange={setSuppliersPage}
+                  />
+                )}
               </div>
               <div className="dr-sec">
                 <div className="dr-ttl">Este mês</div>

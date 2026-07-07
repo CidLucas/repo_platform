@@ -19,6 +19,7 @@ import { connectGoogleCalendar, connectGoogleDrive, captureCalendarToken, captur
 import { createCredential } from '../../api/connectors'
 import { supabase } from '@blu/auth'
 import type { Integration, AuditEntry } from '../../api/admin'
+import Toggle from '../../components/shared/Toggle'
 
 // Polp institution IDs (from GET /api/v1/institutions — Polp sequential IDs, not bank codes)
 const POLP_INSTITUTIONS = [
@@ -569,9 +570,9 @@ export default function AdminScreen() {
                     return (
                       <div key={agent} className="perm-row">
                         <span className="perm-nm" style={{ textTransform: 'capitalize' }}>{agent}</span>
-                        <div
-                          className={`ptog${enabled ? ' on' : ''}`}
-                          onClick={() => updatePermissions.mutate({
+                        <Toggle
+                          checked={enabled}
+                          onChange={() => updatePermissions.mutate({
                             userId: u.id,
                             patch: { agent_permissions: { ...u.agent_permissions, [agent]: !enabled } },
                           })}
@@ -587,9 +588,9 @@ export default function AdminScreen() {
                     return (
                       <div key={key} className="perm-row">
                         <span className="perm-nm">{label}</span>
-                        <div
-                          className={`ptog${enabled ? ' on' : ''}`}
-                          onClick={() => updatePermissions.mutate({
+                        <Toggle
+                          checked={enabled}
+                          onChange={() => updatePermissions.mutate({
                             userId: u.id,
                             patch: { action_permissions: { ...u.action_permissions, [key]: !enabled } },
                           })}
@@ -884,9 +885,9 @@ export default function AdminScreen() {
               ] as const).map(ch => (
                 <div key={ch.key} className="perm-row" style={{ paddingLeft: 0 }}>
                   <span className="perm-nm">{ch.label}</span>
-                  <div
-                    className={`ptog${notifPrefs?.[ch.key] ? ' on' : ''}`}
-                    onClick={async () => {
+                  <Toggle
+                    checked={Boolean(notifPrefs?.[ch.key])}
+                    onChange={async () => {
                       if (saveNotifPrefs.isPending) return
                       await saveNotifPrefs.mutateAsync({ [ch.key]: !notifPrefs?.[ch.key] })
                     }}
@@ -914,10 +915,10 @@ export default function AdminScreen() {
                 return (
                   <div key={ev.kind} className="perm-row" style={{ paddingLeft: 0 }}>
                     <span className="perm-nm">{ev.label}</span>
-                    <div
-                      className={`ptog${enabled ? ' on' : ''}${isSaving ? ' disabled' : ''}`}
-                      style={{ opacity: isSaving ? 0.5 : 1 }}
-                      onClick={async () => {
+                    <Toggle
+                      checked={enabled}
+                      disabled={isSaving}
+                      onChange={async () => {
                         if (isSaving || saveNotifPrefs.isPending) return
                         setSavingKind(ev.kind)
                         const current = notifPrefs?.kinds_enabled ?? []

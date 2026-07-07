@@ -7,6 +7,7 @@ import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 import EmptyState from '../../components/shared/EmptyState'
 import LoadingState from '../../components/shared/LoadingState'
+import Pagination from '../../components/shared/Pagination'
 import GraphView from '../../components/biblioteca/GraphView'
 import DocGraph from '../../components/biblioteca/DocGraph'
 
@@ -412,6 +413,8 @@ export default function BibliotecaRoom() {
   const [kbCategory, setKbCategory] = useState<KBCategory>(KB_CATEGORIES[0].value)
   const [dragging, setDragging] = useState(false)
   const [previewContent, setPreviewContent] = useState<{ title: string; text: string } | null>(null)
+  const [docsPage, setDocsPage] = useState(1)
+  const docsPageSize = 12
 
   const filtered = useMemo(() => {
     return kb.documents.filter(doc => {
@@ -706,7 +709,7 @@ export default function BibliotecaRoom() {
           {/* Document list */}
           <div className="pb" style={{ flex: 1, overflowY: 'auto' }}>
             {kb.loading ? (
-              <LoadingState message="Carregando documentos da base de conhecimento…" />
+              <LoadingState variant="row" rows={4} message="Carregando documentos da base de conhecimento…" />
             ) : sorted.length === 0 ? (
               <EmptyState
                 icon="📚"
@@ -716,15 +719,26 @@ export default function BibliotecaRoom() {
                   : 'Ajuste os filtros de categoria ou status para ver mais documentos.'}
               />
             ) : viewMode === 'grid' ? (
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))',
-                gap: 8,
-              }}>
-                {sorted.map(doc => (
-                  <DocCard key={doc.id} doc={doc} onRemove={kb.remove} onRetry={kb.retry} onDownload={handleDownload} />
-                ))}
-              </div>
+              <>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))',
+                  gap: 8,
+                }}>
+                  {sorted
+                    .slice((docsPage - 1) * docsPageSize, docsPage * docsPageSize)
+                    .map(doc => (
+                      <DocCard key={doc.id} doc={doc} onRemove={kb.remove} onRetry={kb.retry} onDownload={handleDownload} />
+                    ))}
+                </div>
+                <Pagination
+                  currentPage={docsPage}
+                  totalPages={Math.max(1, Math.ceil(sorted.length / docsPageSize))}
+                  totalItems={sorted.length}
+                  pageSize={docsPageSize}
+                  onPageChange={setDocsPage}
+                />
+              </>
             ) : viewMode === 'graph' ? (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, padding: '8px 14px 14px', minHeight: 0 }}>
                 <div style={{ flex: 2, minHeight: 0 }}>
@@ -740,11 +754,22 @@ export default function BibliotecaRoom() {
                 </details>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {sorted.map(doc => (
-                  <DocRow key={doc.id} doc={doc} onRemove={kb.remove} onRetry={kb.retry} onDownload={handleDownload} />
-                ))}
-              </div>
+              <>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {sorted
+                    .slice((docsPage - 1) * docsPageSize, docsPage * docsPageSize)
+                    .map(doc => (
+                      <DocRow key={doc.id} doc={doc} onRemove={kb.remove} onRetry={kb.retry} onDownload={handleDownload} />
+                    ))}
+                </div>
+                <Pagination
+                  currentPage={docsPage}
+                  totalPages={Math.max(1, Math.ceil(sorted.length / docsPageSize))}
+                  totalItems={sorted.length}
+                  pageSize={docsPageSize}
+                  onPageChange={setDocsPage}
+                />
+              </>
             )}
           </div>
         </div>

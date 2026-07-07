@@ -14,6 +14,7 @@ import {
   type CustomRoutine,
   type RoutineStep,
 } from '../../api/routines'
+import Toggle from './Toggle'
 
 // ─── Trigger configurator ─────────────────────────────────────────────────────
 
@@ -267,32 +268,10 @@ function CatalogRoutineRow({
             </span>
           </div>
         </div>
-        <div
-          onClick={() => onToggle(routine.id, !isActive)}
-          style={{
-            width: 36,
-            height: 20,
-            borderRadius: 10,
-            background: isActive ? 'var(--ok)' : 'var(--gb)',
-            cursor: 'pointer',
-            position: 'relative',
-            transition: 'background .2s',
-            flexShrink: 0,
-          }}
-        >
-          <div
-            style={{
-              position: 'absolute',
-              top: 2,
-              left: isActive ? 18 : 2,
-              width: 16,
-              height: 16,
-              borderRadius: 8,
-              background: '#fff',
-              transition: 'left .2s',
-            }}
-          />
-        </div>
+        <Toggle
+          checked={isActive}
+          onChange={v => onToggle(routine.id, v)}
+        />
       </div>
       {showConfig && (
         <div style={{ padding: '0 12px 12px' }}>

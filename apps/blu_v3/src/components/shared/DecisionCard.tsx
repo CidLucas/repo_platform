@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAppStore } from '../../store/appStore'
 import type { ApprovalRequest } from '../../api/approvals'
 import { AGENT_COLORS } from '../../utils/constants'
+import Checkbox from './Checkbox'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -89,17 +90,26 @@ function RoutineActivationCard({
             <div style={{ fontSize: 10, color: 'var(--mu)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
               {steps.length} passo{steps.length !== 1 ? 's' : ''}
             </div>
-            {steps.map((step, i) => (
-              <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 6 }}>
-                <div style={{ width: 18, height: 18, borderRadius: 9, background: '#6366f1', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, flexShrink: 0, marginTop: 1 }}>
-                  {i + 1}
+            {steps.map((step, i) => {
+              const stepDone = Boolean((step as { done?: boolean }).done)
+              const stepLabel = step.label ?? step.skill_slug ?? step.function ?? step.action ?? 'Passo'
+              return (
+                <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 6 }}>
+                  <div style={{ width: 18, height: 18, borderRadius: 9, background: '#6366f1', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, flexShrink: 0, marginTop: 1 }}>
+                    {i + 1}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <Checkbox
+                      checked={stepDone}
+                      disabled
+                      onChange={() => {}}
+                      label={stepLabel}
+                    />
+                    {step.type && <div style={{ fontSize: 10, color: 'var(--mu)', marginTop: 1, marginLeft: 28 }}>{step.type}</div>}
+                  </div>
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 11.5, fontWeight: 500, color: 'var(--mu2)' }}>{step.label ?? step.skill_slug ?? step.function ?? step.action ?? 'Passo'}</div>
-                  {step.type && <div style={{ fontSize: 10, color: 'var(--mu)' }}>{step.type}</div>}
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
         <div className="dc-act">

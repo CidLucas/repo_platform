@@ -23,6 +23,7 @@ import {
   type ActionParam,
 } from '../../api/routines'
 import RoutinePreviewCard from './RoutinePreviewCard'
+import Toggle from './Toggle'
 
 // ─── Trigger configurator ─────────────────────────────────────────────────────
 
@@ -171,20 +172,7 @@ function SchemaField({
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: 11, color: 'var(--mu)', flex: 1 }}>{field.label}</span>
-        <div
-          onClick={() => onChange(!current)}
-          style={{
-            width: 32, height: 18, borderRadius: 9,
-            background: current ? 'var(--ok)' : 'var(--gb)',
-            cursor: 'pointer', position: 'relative', transition: 'background .2s',
-          }}
-        >
-          <div style={{
-            position: 'absolute', top: 2, left: current ? 16 : 2,
-            width: 14, height: 14, borderRadius: 7, background: '#fff',
-            transition: 'left .2s',
-          }} />
-        </div>
+        <Toggle checked={Boolean(current)} onChange={v => onChange(v)} />
       </div>
     )
   }
@@ -323,20 +311,10 @@ function BuiltInRoutineRow({
       {/* Header: name + toggle */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ fontSize: 12.5, fontWeight: 600, flex: 1, minWidth: 0 }}>{name}</div>
-        <div
-          onClick={() => onToggle(routine.id, !isActive)}
-          style={{
-            width: 34, height: 19, borderRadius: 9.5, flexShrink: 0,
-            background: isActive ? 'var(--ok)' : 'var(--gb)',
-            cursor: 'pointer', position: 'relative', transition: 'background .2s',
-          }}
-        >
-          <div style={{
-            position: 'absolute', top: 2, left: isActive ? 17 : 2,
-            width: 15, height: 15, borderRadius: 7.5, background: '#fff',
-            transition: 'left .2s',
-          }} />
-        </div>
+        <Toggle
+          checked={isActive}
+          onChange={v => onToggle(routine.id, v)}
+        />
       </div>
 
       {/* Schedule trigger: frequency + day + hour pills */}
@@ -1188,20 +1166,7 @@ function GlobalConfigPanel({ domain }: { domain: string }) {
           {/* track_execution_history */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 11, color: 'var(--mu)', flex: 1 }}>Registrar histórico de execução</span>
-            <div
-              onClick={() => update('track_execution_history', !trackHistory)}
-              style={{
-                width: 32, height: 18, borderRadius: 9,
-                background: trackHistory ? 'var(--ok)' : 'var(--gb)',
-                cursor: 'pointer', position: 'relative', transition: 'background .2s',
-              }}
-            >
-              <div style={{
-                position: 'absolute', top: 2, left: trackHistory ? 16 : 2,
-                width: 14, height: 14, borderRadius: 7, background: '#fff',
-                transition: 'left .2s',
-              }} />
-            </div>
+            <Toggle checked={trackHistory} onChange={v => update('track_execution_history', v)} />
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>

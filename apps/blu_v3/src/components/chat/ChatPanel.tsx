@@ -2,6 +2,9 @@ import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useAppStore } from '../../store/appStore'
 import { useAtendenteChat } from '../../hooks/useAtendenteChat'
+import LoadingState from '../shared/LoadingState'
+import Pagination from '../shared/Pagination'
+import SmartRenderer from './SmartRenderer'
 
 function relTime(date: Date): string {
   const diff = (Date.now() - date.getTime()) / 1000
@@ -90,6 +93,8 @@ export default function ChatPanel() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef  = useRef<HTMLTextAreaElement>(null)
   const panelRef  = useRef<HTMLDivElement>(null)
+  const [page, setPage] = useState(1)
+  const pageSize = 20
 
   // Open panel and send context when an insight triggers a chat
   useEffect(() => {
@@ -250,9 +255,36 @@ export default function ChatPanel() {
               <EmptyState onSuggest={(q) => sendMessage(q, screen)} />
             ) : (
               <>
-                {messages.map(msg => (
-                  <MessageBubble key={msg.id} role={msg.role} content={msg.content} createdAt={msg.createdAt} />
-                ))}
+                {(() => {
+                  const totalPages = Math.max(1, Math.ceil(messages.length / pageSize))
+                  const safePage = Math.min(page, totalPages)
+                  const visible = messages.slice(
+                    (safePage - 1) * pageSize,
+                    safePage * pageSize
+                  )
+                  return (
+                    <>
+                      {visible.map(msg => (
+                        <MessageBubble key={msg.id} role={msg.role} content={msg.content} createdAt={msg.createdAt} />
+                      ))}
+                      {totalPages > 1 && (
+                        <Pagination
+                          currentPage={safePage}
+                          totalPages={totalPages}
+                          totalItems={messages.length}
+                          pageSize={pageSize}
+                          onPageChange={setPage}
+                        />
+                      )}
+                    </>
+                  )
+                })()}
+
+                {isStreaming && !streamBuffer && (
+                  <div style={{ padding: '4px 0' }}>
+                    <LoadingState variant="row" rows={2} />
+                  </div>
+                )}
 
                 {streamBuffer && (
                   <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
@@ -269,7 +301,7 @@ export default function ChatPanel() {
                       lineHeight: 1.5,
                       maxWidth: '90%',
                     }}>
-                      {streamBuffer}
+                      <SmartRenderer content={streamBuffer} />
                       <span style={{
                         display: 'inline-block',
                         width: 2,
@@ -403,7 +435,7 @@ function MessageBubble({ role, content, createdAt }: { role: string; content: st
           lineHeight: 1.5,
           maxWidth: '90%',
         }}>
-          {content}
+          <SmartRenderer content={content} />
         </div>
         <div style={{ fontSize: 10, color: 'var(--mu)', marginTop: 3 }}>
           {relTime(createdAt)}

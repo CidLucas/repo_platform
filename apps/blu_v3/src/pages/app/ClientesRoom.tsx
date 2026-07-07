@@ -23,6 +23,7 @@ import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
 import AnalyticsPanel from '../../components/shared/AnalyticsPanel'
+import Pagination from '../../components/shared/Pagination'
 
 import { snoozeUntil } from '../../utils/time'
 import { formatBRL } from '../../utils/formatters'
@@ -43,6 +44,8 @@ export default function ClientesRoom() {
   const qc = useQueryClient()
   const [tab, setTab] = useState<Tab>('followup')
   const [analyticsPeriod, setAnalyticsPeriod] = useState<'30d' | '90d' | '1y'>('30d')
+  const [customersPage, setCustomersPage] = useState(1)
+  const customersPageSize = 8
 
   const [approvalsQ, insightsQ, segmentsQ, customersQ, historyQ, commercialQ, contextMetricsQ] = useQueries({
     queries: [
@@ -238,7 +241,9 @@ export default function ClientesRoom() {
                   <div style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--mu)', marginBottom: 8 }}>
                     Top clientes por receita
                   </div>
-                  {customers.slice(0, 8).map((c) => (
+                  {customers
+                    .slice((customersPage - 1) * customersPageSize, customersPage * customersPageSize)
+                    .map((c) => (
                     <div key={c.id} className="cli-row">
                       <div
                         className="cli-av"
@@ -264,6 +269,13 @@ export default function ClientesRoom() {
                       />
                     </div>
                   ))}
+                  <Pagination
+                    currentPage={customersPage}
+                    totalPages={Math.max(1, Math.ceil(customers.length / customersPageSize))}
+                    totalItems={customers.length}
+                    pageSize={customersPageSize}
+                    onPageChange={setCustomersPage}
+                  />
                 </>
               )}
             </div>

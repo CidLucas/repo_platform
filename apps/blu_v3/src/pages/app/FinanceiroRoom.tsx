@@ -18,6 +18,7 @@ import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
 
 import RoutineExecutionFeed from '../../components/shared/RoutineExecutionFeed'
+import { LineChart } from '../../components/shared/Charts'
 import AnalyticsPanel from '../../components/shared/AnalyticsPanel'
 import { snoozeUntil } from '../../utils/time'
 import { formatBRL } from '../../utils/formatters'
@@ -893,6 +894,32 @@ export default function FinanceiroRoom() {
                 <span className="nl">Margem</span>
               </div>
             </div>
+          </div>
+          <div className="panel" style={{padding: 16, marginTop: 10, marginBottom: 4}}>
+            <div className="ph-ttl" style={{marginBottom: 10}}>Receita - Últimos 12 meses</div>
+            <LineChart
+              data={[
+                {label: 'Jul', value: 32000},
+                {label: 'Ago', value: 35000},
+                {label: 'Set', value: 38000},
+                {label: 'Out', value: 42000},
+                {label: 'Nov', value: 45000},
+                {label: 'Dez', value: 51000},
+                {label: 'Jan', value: 48000},
+                {label: 'Fev', value: 52000},
+                {label: 'Mar', value: 49000},
+                {label: 'Abr', value: 56000},
+                {label: 'Mai', value: 61000},
+                {label: 'Jun', value: 68000},
+              ]}
+              width={400}
+              height={160}
+              color="var(--ac)"
+              gradient
+              showDots
+              showGrid
+              formatValue={(v) => `R$ ${(v/1000).toFixed(0)}k`}
+            />
           </div>
         </div>
 

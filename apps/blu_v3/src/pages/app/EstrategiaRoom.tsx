@@ -26,6 +26,7 @@ import {
 } from '../../api/documents'
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
+import { Sparkline } from '../../components/shared/Charts'
 import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
 
 import { snoozeUntil } from '../../utils/time'
@@ -46,6 +47,30 @@ const DOC_TYPE_META: Record<string, { type: string; typeColor: string; folder: s
   xlsx: { type: 'XLS', typeColor: '#10b981', folder: 'relatorios' },
   csv:  { type: 'CSV', typeColor: '#10b981', folder: 'relatorios' },
 }
+
+// ── Design-system document templates (inline markdown) ───────────────────
+const DOC_TEMPLATES: Record<string, string> = {
+  'fechamento-mensal': `# Relatório de Fechamento Mensal\n\n## Resumo Executivo\n\n[Resumo do mês...]\n\n## Receitas\n\n| Linha | Valor | % |\n|---|---|---|\n| SaaS Corporativo | R$ 0 | 0% |\n\n## Despesas\n\n| Categoria | Valor | % |\n|---|---|---|\n| Infraestrutura | R$ 0 | 0% |\n\n## KPIs\n\n- Margem Bruta: 0%\n- Margem EBITDA: 0%\n- Margem Líquida: 0%\n- MRR: R$ 0`,
+  'fluxo-caixa': `# Fluxo de Caixa\n\n## Atividades Operacionais\n\n- Lucro Líquido: R$ 0\n- Depreciação: R$ 0\n\n## Atividades de Investimento\n\n- CAPEX: R$ 0\n\n## Atividades de Financiamento\n\n- Empréstimos: R$ 0\n\n## Saldo Final: R$ 0`,
+  'proposta-comercial': `# Proposta Comercial\n\n## Escopo\n\n- Item 1\n- Item 2\n\n## Investimento\n\n| Item | Valor |\n|---|---|\n| Licença | R$ 0 |\n| Implantação | R$ 0 |\n\n## Condições\n\n- Pagamento: ...\n- Prazo: ...`,
+  'plano-estrategico': `# Plano Estratégico\n\n## Visão\n\n[Declaração de visão]\n\n## Missão\n\n[Declaração de missão]\n\n## Objetivos\n\n1. **Objetivo 1**\n2. **Objetivo 2**\n3. **Objetivo 3**\n\n## KPIs\n\n| Métrica | Meta | Atual |\n|---|---|---|\n| MRR | R$ 0 | R$ 0 |\n| NPS | 0 | 0 |`,
+  'okr': `# OKR\n\n## Objective\n\n[Descrição do objetivo]\n\n## Key Results\n\n- KR1: [descrição] — 0%\n- KR2: [descrição] — 0%\n- KR3: [descrição] — 0%\n\n## Owner: [Nome]`,
+  'ata-reuniao': `# Ata de Reunião\n\n**Data:** __/__/____\n**Participantes:**\n\n## Pauta\n\n1. \n2. \n\n## Discussões\n\n### 1. \n\n### 2. \n\n## Ações\n\n| # | Ação | Responsável | Prazo |\n|---|---|---|---|\n| 1 | | | |`,
+  'swot': `# Análise SWOT\n\n## Forças (Strengths)\n\n-\n\n## Fraquezas (Weaknesses)\n\n-\n\n## Oportunidades (Opportunities)\n\n-\n\n## Ameaças (Threats)\n\n-`,
+  'invoice': `# Fatura\n\n**Emitente:** Blu Tecnologia S.A.\n**Cliente:** [Nome do Cliente]\n\n## Itens\n\n| Item | Qtd | Valor Unit. | Total |\n|---|---|---|---|\n| | | R$ 0 | R$ 0 |\n\n**Total: R$ 0,00**`,
+}
+
+// ── Template metadata for the picker ──────────────────────────────────────
+const TEMPLATE_META: { id: string; icon: string; name: string; desc: string }[] = [
+  { id: 'fechamento-mensal', icon: '📊', name: 'Fechamento Mensal', desc: 'Relatório mensal com receitas, despesas e KPIs' },
+  { id: 'fluxo-caixa',      icon: '💰', name: 'Fluxo de Caixa',   desc: 'Demonstrativo de fluxo de caixa (DCF)' },
+  { id: 'proposta-comercial', icon: '📋', name: 'Proposta Comercial', desc: 'Escopo, investimento e condições' },
+  { id: 'plano-estrategico', icon: '🎯', name: 'Plano Estratégico', desc: 'Visão, missão, objetivos e KPIs' },
+  { id: 'okr',              icon: '✅', name: 'OKR',              desc: 'Objectives & Key Results' },
+  { id: 'ata-reuniao',      icon: '📝', name: 'Ata de Reunião',   desc: 'Pauta, discussões e ações' },
+  { id: 'swot',             icon: '🔍', name: 'SWOT',             desc: 'Forças, fraquezas, oportunidades e ameaças' },
+  { id: 'invoice',          icon: '🧾', name: 'Invoice',          desc: 'Fatura comercial com itens e totais' },
+]
 
 interface StrategyDoc {
   id: string
@@ -263,6 +288,7 @@ export default function EstrategiaRoom() {
   // Gerador de Documentos — templates + criação via inline editor
   const [selectedTemplate, setSelectedTemplate] = useState<DocTemplate | null>(null)
   const [docBeingCreated, setDocBeingCreated] = useState<{ id: string; title: string } | null>(null)
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false)
 
   const docTemplatesQ = useQuery({
     queryKey: ['docTemplates', clientId ?? ''],
@@ -526,7 +552,7 @@ export default function EstrategiaRoom() {
   }
 
   const handleNewDoc = () => {
-    handleStartBlank()
+    setShowTemplatePicker(true)
   }
 
   const handleReportClick = (report: ContextReport) => {
@@ -641,6 +667,77 @@ export default function EstrategiaRoom() {
                   >
                     + Novo Documento
                   </button>
+                  {/* ── Template picker modal ── */}
+                  {showTemplatePicker && (
+                    <div
+                      style={{
+                        position: 'fixed',
+                        inset: 0,
+                        zIndex: 9999,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: 'rgba(0,0,0,.6)',
+                      }}
+                      onClick={() => setShowTemplatePicker(false)}
+                    >
+                      <div
+                        style={{
+                          background: 'var(--bg)',
+                          border: '1px solid var(--gb)',
+                          borderRadius: 'var(--r)',
+                          width: 560,
+                          maxHeight: '80vh',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          overflow: 'hidden',
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid var(--gb)' }}>
+                          <span style={{ fontWeight: 700, fontSize: 13 }}>Novo Documento</span>
+                          <button className="btn bs" style={{ fontSize: 11, padding: '2px 8px' }} onClick={() => setShowTemplatePicker(false)}>✕</button>
+                        </div>
+                        <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--gb)', display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <button className="btn bs" style={{ fontSize: 10.5 }} onClick={() => { setShowTemplatePicker(false); handleStartBlank() }}>
+                            + Criar em branco
+                          </button>
+                          <span style={{ fontSize: 10.5, color: 'var(--mu)' }}>ou escolha um template:</span>
+                        </div>
+                        <div style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                          {TEMPLATE_META.map((tpl) => (
+                            <div
+                              key={tpl.id}
+                              onClick={() => {
+                                setShowTemplatePicker(false)
+                                const content = DOC_TEMPLATES[tpl.id] ?? `# ${tpl.name}\n\n`
+                                setEditorContent(content)
+                                createDocMut.mutate(tpl.name)
+                              }}
+                              style={{
+                                display: 'flex',
+                                gap: 10,
+                                padding: '10px 12px',
+                                borderRadius: 'var(--r)',
+                                cursor: 'pointer',
+                                background: 'color-mix(in srgb,var(--fg) 4%,transparent)',
+                                border: '1px solid var(--gb)',
+                                transition: 'border-color 0.1s, background 0.1s',
+                              }}
+                              onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--ac)'; e.currentTarget.style.background = 'color-mix(in srgb,var(--ac) 8%,transparent)' }}
+                              onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--gb)'; e.currentTarget.style.background = 'color-mix(in srgb,var(--fg) 4%,transparent)' }}
+                            >
+                              <span style={{ fontSize: 22, flexShrink: 0 }}>{tpl.icon}</span>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--fg)', marginBottom: 2 }}>{tpl.name}</div>
+                                <div style={{ fontSize: 10, color: 'var(--mu)', lineHeight: 1.4 }}>{tpl.desc}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   {docTemplatesQ.isLoading ? (
                     <div style={{ fontSize: 9.5, color: 'var(--mu)', marginTop: 5 }}>carregando templates…</div>
                   ) : docTemplates.length > 0 ? (
@@ -1117,6 +1214,11 @@ export default function EstrategiaRoom() {
                         {delta != null && (
                           <div className="kpi-d" style={{ color: deltaColor }}>{delta} mês</div>
                         )}
+                        <Sparkline
+                          data={[30, 45, 38, 52, 48, 61, 55, 68, 72, 65, 78, 84]}
+                          width={100} height={24}
+                          color={deltaColor}
+                        />
                       </div>
                     )
                   })}

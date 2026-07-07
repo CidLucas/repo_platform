@@ -124,7 +124,7 @@ function SessionsTab({ clientId }: { clientId: string }) {
     staleTime: 15_000,
   })
 
-  if (isLoading) return <LoadingState message="Carregando sessões…" />
+  if (isLoading) return <LoadingState variant="row" rows={5} />
 
   if (sessions.length === 0) return (
     <div style={{ padding: 40, textAlign: 'center' }}>
@@ -244,7 +244,7 @@ function JobsTab() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['ops-jobs'] }),
   })
 
-  if (isLoading) return <LoadingState message="Carregando jobs…" />
+  if (isLoading) return <LoadingState variant="row" rows={5} />
 
   if (jobs.length === 0) return (
     <div style={{ padding: 40, textAlign: 'center' }}>
@@ -351,7 +351,7 @@ function CredentialsTab({ clientId }: { clientId: string }) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['ops-credentials', clientId] }),
   })
 
-  if (isLoading) return <LoadingState message="Carregando credenciais…" />
+  if (isLoading) return <LoadingState variant="row" rows={5} />
 
   if (creds.length === 0) return (
     <div style={{ padding: 40, textAlign: 'center' }}>

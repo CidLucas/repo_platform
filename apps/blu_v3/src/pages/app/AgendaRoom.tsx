@@ -177,7 +177,7 @@ export default function AgendaRoom() {
             <div className={`tc${tab === 'hoje' ? ' on' : ''}`} id="ag-hoje">
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 {scheduleQ.isLoading && (
-                  <LoadingState message="Carregando agenda de hoje…" />
+                  <LoadingState variant="card" />
                 )}
                 {!scheduleQ.isLoading && todayEvents.length === 0 && (
                   <EmptyState
@@ -217,7 +217,7 @@ export default function AgendaRoom() {
             {/* PENDENTES */}
             <div className={`tc${tab === 'pendentes' ? ' on' : ''}`} id="ag-pendentes">
               {approvalsQ.isLoading && (
-                <LoadingState message="Carregando decisões pendentes…" />
+                <LoadingState variant="card" />
               )}
               {!approvalsQ.isLoading && approvals.length === 0 && (
                 <EmptyState
@@ -285,7 +285,7 @@ export default function AgendaRoom() {
             <div className="dr-sec">
                 <div className="dr-ttl">Hoje</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 6 }}>
-                  {scheduleQ.isLoading && <LoadingState message="Carregando agenda…" />}
+                  {scheduleQ.isLoading && <LoadingState variant="row" rows={3} />}
                   {todayEvents.map(ev => (
                     <div key={ev.id} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '5px 5px', borderRadius: 5 }}>
                       <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--mu)', width: 34, flexShrink: 0 }}>
@@ -410,7 +410,7 @@ export default function AgendaRoom() {
           </CollapsiblePanel>
           <CollapsiblePanel id="agenda-historico" icon="🕐" title="Histórico">
             <div className="dr-sec">
-                {historyQ.isLoading && <LoadingState message="Carregando histórico…" />}
+                {historyQ.isLoading && <LoadingState variant="row" rows={3} />}
                 {!historyQ.isLoading && agendaHistory.length === 0 && (
                   <EmptyState
                     icon="🕐"

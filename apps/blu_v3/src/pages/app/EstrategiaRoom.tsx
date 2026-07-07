@@ -221,7 +221,6 @@ export default function EstrategiaRoom() {
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null)
   const [editorContent, setEditorContent] = useState('')
   const [originalContent, setOriginalContent] = useState('')
-  const [editorViewMode, setEditorViewMode] = useState<'edit' | 'split' | 'preview'>('split')
 
   // Conhecimento (knowledge) tab state
   const [selectedFolder, setSelectedFolder] = useState('all')
@@ -667,32 +666,18 @@ export default function EstrategiaRoom() {
                       <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {selectedDoc?.name ?? ''}
                       </span>
-                      <div style={{ display: 'flex', gap: 2 }}>
-                        <button
-                          className={`btn ${editorViewMode === 'edit' ? 'bp' : 'bs'}`}
-                          style={{ fontSize: 11, padding: '3px 9px' }}
-                          onClick={() => setEditorViewMode('edit')}
-                          title="Somente edição"
-                        >
-                          ✏️
-                        </button>
-                        <button
-                          className={`btn ${editorViewMode === 'split' ? 'bp' : 'bs'}`}
-                          style={{ fontSize: 11, padding: '3px 9px' }}
-                          onClick={() => setEditorViewMode('split')}
-                          title="Dividir"
-                        >
-                          ⊞
-                        </button>
-                        <button
-                          className={`btn ${editorViewMode === 'preview' ? 'bp' : 'bs'}`}
-                          style={{ fontSize: 11, padding: '3px 9px' }}
-                          onClick={() => setEditorViewMode('preview')}
-                          title="Somente preview"
-                        >
-                          👁
-                        </button>
-                      </div>
+                      <span
+                        style={{
+                          fontSize: 9.5,
+                          fontWeight: 600,
+                          padding: '2px 7px',
+                          borderRadius: 3,
+                          background: diff.count > 0 ? 'var(--adim)' : 'rgba(255,255,255,.06)',
+                          color: diff.count > 0 ? 'var(--ac)' : 'var(--mu)',
+                        }}
+                      >
+                        {diff.count} {diff.count === 1 ? 'alteração' : 'alterações'}
+                      </span>
                       <button
                         className="btn bs"
                         style={{ fontSize: 11 }}
@@ -708,45 +693,41 @@ export default function EstrategiaRoom() {
                     </div>
 
                     <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-                      {(editorViewMode === 'edit' || editorViewMode === 'split') && (
-                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRight: editorViewMode === 'split' ? '1px solid var(--gb)' : 'none' }}>
-                          <div style={{ padding: '5px 12px', fontSize: 9, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--mu)', borderBottom: '1px solid var(--gb)', flexShrink: 0 }}>
-                            ✏️ Edição
-                          </div>
-                          <textarea
-                            style={{ flex: 1, resize: 'none', border: 'none', outline: 'none', background: 'transparent', color: 'var(--fg)', fontSize: 13, lineHeight: 1.75, padding: '14px 16px', fontFamily: 'var(--body)', overflowY: 'auto' }}
-                            spellCheck={false}
-                            value={editorContent}
-                            onChange={(e) => setEditorContent(e.target.value)}
-                          />
+                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRight: '1px solid var(--gb)' }}>
+                        <div style={{ padding: '5px 12px', fontSize: 9, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--mu)', borderBottom: '1px solid var(--gb)', flexShrink: 0 }}>
+                          ✏️ Edição
                         </div>
-                      )}
-                      {(editorViewMode === 'preview' || editorViewMode === 'split') && (
-                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                          <div style={{ padding: '5px 12px', fontSize: 9, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--mu)', borderBottom: '1px solid var(--gb)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <span>👁 Preview</span>
-                            <span
-                              style={{
-                                fontSize: 9.5,
-                                fontWeight: 600,
-                                padding: '2px 7px',
-                                borderRadius: 3,
-                                background: diff.count > 0 ? 'var(--adim)' : 'rgba(255,255,255,.06)',
-                                color: diff.count > 0 ? 'var(--ac)' : 'var(--mu)',
-                              }}
-                            >
-                              {diff.count} {diff.count === 1 ? 'alteração' : 'alterações'}
-                            </span>
-                          </div>
-                          <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }}>
-                            {isDirty ? (
-                              <div dangerouslySetInnerHTML={{ __html: diff.html }} />
-                            ) : (
-                              <MarkdownReport content={editorContent} />
-                            )}
-                          </div>
+                        <textarea
+                          style={{ flex: 1, resize: 'none', border: 'none', outline: 'none', background: 'transparent', color: 'var(--fg)', fontSize: 13, lineHeight: 1.75, padding: '14px 16px', fontFamily: 'var(--mono)', overflowY: 'auto' }}
+                          spellCheck={false}
+                          value={editorContent}
+                          onChange={(e) => setEditorContent(e.target.value)}
+                        />
+                      </div>
+                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                        <div style={{ padding: '5px 12px', fontSize: 9, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--mu)', borderBottom: '1px solid var(--gb)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span>👁 Preview</span>
+                          <span
+                            style={{
+                              fontSize: 9.5,
+                              fontWeight: 600,
+                              padding: '2px 7px',
+                              borderRadius: 3,
+                              background: diff.count > 0 ? 'var(--adim)' : 'rgba(255,255,255,.06)',
+                              color: diff.count > 0 ? 'var(--ac)' : 'var(--mu)',
+                            }}
+                          >
+                            {diff.count} {diff.count === 1 ? 'alteração' : 'alterações'}
+                          </span>
                         </div>
-                      )}
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }}>
+                          {isDirty ? (
+                            <div dangerouslySetInnerHTML={{ __html: diff.html }} />
+                          ) : (
+                            <MarkdownReport content={editorContent} />
+                          )}
+                        </div>
+                      </div>
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', borderTop: '1px solid var(--gb)', background: 'rgba(0,0,0,.12)', flexShrink: 0 }}>

@@ -1,0 +1,59 @@
+{
+  "task_id": "t_1ddac250",
+  "status": "pass",
+  "pr_number": null,
+  "checks": {
+    "opencode": [
+      {
+        "check": "OpenCode exit code",
+        "status": "pass",
+        "detail": "exit=0"
+      },
+      {
+        "check": "PR criado",
+        "status": "warn",
+        "detail": "PR number não detectado no output"
+      }
+    ],
+    "pytest": {
+      "status": "pass",
+      "detail": "✅ Passou (0 falhas)",
+      "output": "============================= test session starts ==============================\nplatform linux -- Python 3.11.15, pytest-9.1.0, pluggy-1.6.0 -- /home/ec2-user/.hermes/hermes-agent/venv/bin/python3\ncachedir: .pytest_cache\nrootdir: /home/ec2-user/repo_platform\nconfigfile: pyproject.toml\nplugins: asyncio-1.4.0, anyio-4.12.1, langsmith-0.8.17, mock-3.15.1, cov-7.1.0, Faker-40.23.0\nasyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollecting ... collected 5 items\n\ntests/behaviors/test_b5_gerador_documentos.py::TestB5GeradorDocumentos::test_ac1_query_fetch_doc_templates PASSED [ 20%]\ntests/behaviors/test_b5_gerador_documentos.py::TestB5GeradorDocumentos::test_ac2_doc_creation_state_variable PASSED [ 40%]\ntests/behaviors/test_b5_gerador_documentos.py::TestB5GeradorDocumentos::test_ac3_uses_create_document PASSED [ 60%]\ntests/behaviors/test_b5_gerador_documentos.py::TestB5GeradorDocumentos::test_ac4_uses_save_document PASSED [ 80%]\ntests/behaviors/test_b5_gerador_documentos.py::TestB5GeradorDocumentos::test_ac5_has_create_ui PASSED [100%]\n\n============================== 5 passed in 0.15s ===============================",
+      "exit_code": 0,
+      "passed": true,
+      "failed_count": 0
+    },
+    "changed_files": {
+      "status": "warn",
+      "detail": "0 arquivo(s) modificado(s)",
+      "files": []
+    },
+    "acs": [
+      {
+        "ac": "AC1: Botão \"Novo Documento\" na aba Documentos",
+        "status": "warn",
+        "evidence": "não verificado automaticamente"
+      },
+      {
+        "ac": "AC2: Seleção de template/modelo (fetchDocTemplates)",
+        "status": "warn",
+        "evidence": "não verificado automaticamente"
+      },
+      {
+        "ac": "AC3: EditorOverlay integrado para criar/editar",
+        "status": "warn",
+        "evidence": "não verificado automaticamente"
+      },
+      {
+        "ac": "AC4: Salvamento como documento ativo (saveDocument)",
+        "status": "warn",
+        "evidence": "não verificado automaticamente"
+      }
+    ]
+  },
+  "summary": {
+    "total_checks": 8,
+    "passes": 2,
+    "fails": 0
+  }
+}

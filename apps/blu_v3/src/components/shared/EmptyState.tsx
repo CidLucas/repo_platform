@@ -5,7 +5,7 @@ export interface EmptyStateProps {
   action?: { label: string; onClick: () => void };
 }
 
-export default function EmptyState({ icon, title, description, action }: EmptyStateProps): EmptyStateProps {
+export default function EmptyState({ icon, title, description, action }: EmptyStateProps): React.JSX.Element {
   return (
     <div className="empty">
       <i className="ei">{icon}</i>

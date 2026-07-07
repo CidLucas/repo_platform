@@ -1,3 +1,17 @@
+---
+title: Shared Memory Design — Fase 1 (T1.3)
+created: 2026-06-24
+updated: 2026-07-07
+type: summary
+tags: [arquitetura, agente, tool, persistencia, design-decisao]
+sources: [system_reference/AGENT_SYSTEM.md, system_reference/TOOL_INVENTORY.md]
+confidence: high
+status: active
+page_sha256: 072c80d2
+hermes_sha256: eddcb9d9c9132509ca2656998f9e3a58452a46a4f26a27a39a34938ebb94c7b0
+check_notes: Tick 684 — re-audit (rot=59, main 7/10). AGENT_SYSTEM 766e3dc4 ✅ zero drift, TOOL_INVENTORY 170bc9bb ✅ zero drift, HERMES eddcb9d9 ✅. Full file SHA 3ce037f4 (unchanged). 0 wikilinks, 3 markdown links: AGENT_SYSTEM ✅ TOOL_INVENTORY ✅ roadmap/blu-intelligent-memory.md ❌ (still broken — file not found). 988 linhas (>>200, split flag mantida — design document). Tags 5/5 na taxonomia ✅. 0 contradições.
+---
+
 # Shared Memory Design — Fase 1 (T1.3)
 
 Documento de design completo do subsistema de memória compartilhada da plataforma BLU.

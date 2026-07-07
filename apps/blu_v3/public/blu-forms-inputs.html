@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BLU — Formularios & Inputs</title>
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #03071C;
+    --glass: rgba(255,255,255,0.065);
+    --gl2: rgba(255,255,255,0.07);
+    --gb: rgba(255,255,255,0.10);
+    --gb2: rgba(255,255,255,0.20);
+    --fg: #DFE3EE;
+    --mu: rgba(223,227,238,0.42);
+    --mu2: rgba(223,227,238,0.64);
+    --ac: #8C5FDB;
+    --adim: rgba(140,95,219,0.15);
+    --urg: #EF4444;
+    --udim: rgba(239,68,68,0.13);
+    --att: #F59E0B;
+    --adm2: rgba(245,158,11,0.13);
+    --ok: #10B981;
+    --odim: rgba(16,185,129,0.13);
+    --info: #3B82F6;
+    --infodim: rgba(59,130,246,0.13);
+    --r: 8px;
+    --rl: 12px;
+    --body: 'Inter', -apple-system, system-ui, sans-serif;
+    --mono: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+    --shadow-1: 0 2px 14px rgba(0,0,0,.28);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 13px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  body { background-image: radial-gradient(at 12% 8%, rgba(59,130,246,0.10) 0px, transparent 50%), radial-gradient(at 88% 92%, rgba(140,95,219,0.10) 0px, transparent 50%); min-height: 100vh; padding: 32px; }
+  .page { max-width: 1300px; margin: 0 auto; }
+  .page-title { font-size: 28px; font-weight: 800; letter-spacing: -1px; margin-bottom: 4px; }
+  .page-sub { color: var(--mu); font-size: 13px; margin-bottom: 24px; }
+  .nav { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 28px; }
+  .nav a { padding: 5px 12px; border-radius: 6px; background: var(--glass); border: 1px solid var(--gb); color: var(--mu2); text-decoration: none; font-size: 11px; font-weight: 500; }
+  .nav a:hover { background: var(--adim); border-color: var(--ac); color: var(--ac); }
+
+  .section { background: var(--glass); backdrop-filter: blur(16px); border: 1px solid var(--gb); border-radius: var(--rl); padding: 24px; margin-bottom: 22px; box-shadow: var(--shadow-1), inset 0 0 0 1px rgba(255,255,255,.05); }
+  .section-head { margin-bottom: 18px; }
+  .section-tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: var(--ac); margin-bottom: 4px; }
+  .section-title { font-size: 18px; font-weight: 800; letter-spacing: -0.4px; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+  .section-sub { font-size: 12px; color: var(--mu); }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+
+  /* FORM LAYOUT */
+  .form-grid { display: grid; gap: 16px; }
+  .form-row { display: grid; gap: 14px; }
+  .form-row.cols-2 { grid-template-columns: 1fr 1fr; }
+  .form-row.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--mu2); display: flex; align-items: center; gap: 4px; }
+  .field label .req { color: var(--urg); }
+  .field .hint { font-size: 10.5px; color: var(--mu); }
+  .field .err { font-size: 10.5px; color: var(--urg); display: flex; align-items: center; gap: 4px; }
+  .field .ok { font-size: 10.5px; color: var(--ok); display: flex; align-items: center; gap: 4px; }
+
+  /* INPUTS */
+  .input { width: 100%; padding: 9px 12px; border-radius: var(--r); border: 1px solid var(--gb); background: rgba(0,0,0,.28); color: var(--fg); font-size: 12.5px; font-family: var(--body); outline: none; transition: .1s; }
+  .input::placeholder { color: var(--mu); }
+  .input:hover { border-color: var(--gb2); }
+  .input:focus { border-color: var(--ac); background: rgba(140,95,219,.05); }
+  .input:disabled { opacity: .5; cursor: not-allowed; }
+  .input.icon-left { padding-left: 34px; }
+  .input.icon-right { padding-right: 34px; }
+  .input-wrap { position: relative; }
+  .input-wrap .icon { position: absolute; top: 50%; transform: translateY(-50%); color: var(--mu); font-size: 14px; pointer-events: none; }
+  .input-wrap .icon.left { left: 11px; }
+  .input-wrap .icon.right { right: 11px; cursor: pointer; pointer-events: auto; }
+  .input-wrap .icon.right:hover { color: var(--ac); }
+
+  textarea.input { resize: vertical; min-height: 80px; line-height: 1.5; font-family: var(--body); }
+  select.input { appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%238C5FDB'%3e%3cpath d='M8 11L3 6h10z'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 10px center; background-size: 14px; padding-right: 34px; }
+  select.input option { background: #0a0e22; color: var(--fg); }
+
+  .input.valid { border-color: var(--ok); }
+  .input.invalid { border-color: var(--urg); background: var(--udim); }
+  .input.invalid:focus { background: var(--udim); }
+  .field.error .input { border-color: var(--urg); }
+  .field.success .input { border-color: var(--ok); }
+
+  /* CHECKBOX */
+  .check-list { display: flex; flex-direction: column; gap: 8px; }
+  .check { display: flex; align-items: flex-start; gap: 9px; cursor: pointer; padding: 6px; border-radius: 5px; transition: .1s; }
+  .check:hover { background: rgba(255,255,255,.03); }
+  .check-box { width: 18px; height: 18px; border-radius: 4px; border: 1.5px solid var(--gb2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; transition: .1s; }
+  .check-box::after { content: ''; width: 5px; height: 9px; border: 2px solid #fff; border-top: 0; border-left: 0; transform: rotate(45deg) translate(-1px, -1px); opacity: 0; transition: .1s; }
+  .check input { display: none; }
+  .check input:checked + .check-box { background: var(--ac); border-color: var(--ac); }
+  .check input:checked + .check-box::after { opacity: 1; }
+  .check input:disabled + .check-box { opacity: .4; cursor: not-allowed; }
+  .check-body { font-size: 12px; color: var(--fg); line-height: 1.4; }
+  .check-body .sub { font-size: 10.5px; color: var(--mu); margin-top: 2px; display: block; }
+
+  /* RADIO */
+  .radio-list { display: flex; flex-direction: column; gap: 8px; }
+  .radio { display: flex; align-items: center; gap: 9px; cursor: pointer; padding: 6px; border-radius: 5px; }
+  .radio:hover { background: rgba(255,255,255,.03); }
+  .radio-circle { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--gb2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: .1s; position: relative; }
+  .radio-circle::after { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--ac); opacity: 0; transition: .1s; }
+  .radio input { display: none; }
+  .radio input:checked + .radio-circle { border-color: var(--ac); }
+  .radio input:checked + .radio-circle::after { opacity: 1; }
+  .radio-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .radio-pill { padding: 7px 14px; border-radius: 100px; background: rgba(255,255,255,.04); border: 1px solid var(--gb); color: var(--mu2); font-size: 11.5px; font-weight: 500; cursor: pointer; transition: .1s; }
+  .radio-pill input { display: none; }
+  .radio-pill:hover { background: rgba(255,255,255,.07); }
+  .radio-pill.active, .radio-pill:has(input:checked) { background: var(--adim); color: var(--ac); border-color: var(--ac); }
+
+  /* TOGGLE / SWITCH */
+  .switch-list { display: flex; flex-direction: column; gap: 10px; }
+  .switch { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: rgba(0,0,0,.2); border: 1px solid var(--gb); border-radius: var(--r); }
+  .switch-body { flex: 1; }
+  .switch-title { font-size: 12px; font-weight: 600; color: var(--fg); }
+  .switch-sub { font-size: 10.5px; color: var(--mu); margin-top: 2px; }
+  .switch-track { width: 36px; height: 20px; border-radius: 100px; background: var(--gb); position: relative; cursor: pointer; transition: .15s; flex-shrink: 0; }
+  .switch-track::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--mu2); transition: .15s; }
+  .switch-track.on { background: var(--ac); }
+  .switch-track.on::after { left: 18px; background: #fff; }
+
+  /* BUTTONS */
+  .btn-group { display: flex; flex-wrap: wrap; gap: 8px; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 9px 16px; border-radius: var(--r); font-size: 12.5px; font-weight: 600; cursor: pointer; border: 1px solid transparent; transition: .1s; white-space: nowrap; font-family: var(--body); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-bp { background: var(--ac); color: #fff; }
+  .btn-bp:hover:not(:disabled) { background: #7A4FC9; }
+  .btn-bp:active:not(:disabled) { background: #6D28D9; }
+  .btn-bs { background: rgba(255,255,255,.06); color: var(--fg); border-color: var(--gb); }
+  .btn-bs:hover:not(:disabled) { background: rgba(255,255,255,.10); border-color: var(--gb2); }
+  .btn-bg { background: transparent; color: var(--mu2); }
+  .btn-bg:hover:not(:disabled) { background: rgba(255,255,255,.05); color: var(--fg); }
+  .btn-brd { background: var(--udim); color: var(--urg); border-color: rgba(239,68,68,.3); }
+  .btn-brd:hover:not(:disabled) { background: rgba(239,68,68,.2); }
+  .btn-sm { padding: 6px 11px; font-size: 11px; }
+  .btn-lg { padding: 11px 20px; font-size: 13px; }
+  .btn-block { width: 100%; }
+  .btn.loading { color: transparent; }
+  .btn.loading::after { content: ''; position: absolute; width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; animation: spin .6s linear infinite; }
+  .btn { position: relative; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .btn-icon { width: 36px; padding: 0; }
+  .btn-icon-sm { width: 28px; height: 28px; padding: 0; }
+
+  /* SPINNER inline */
+  .spinner { display: inline-block; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--gb2); border-top-color: var(--ac); animation: spin .6s linear infinite; }
+  .spinner.sm { width: 12px; height: 12px; }
+
+  /* FILE UPLOAD */
+  .upload { border: 1.5px dashed var(--gb2); border-radius: var(--r); padding: 18px 20px; text-align: center; background: rgba(0,0,0,.15); cursor: pointer; transition: .15s; }
+  .upload:hover { border-color: var(--ac); background: var(--adim); }
+  .upload i { font-size: 26px; color: var(--ac); margin-bottom: 6px; display: block; }
+  .upload-title { font-size: 12.5px; font-weight: 600; color: var(--fg); }
+  .upload-sub { font-size: 10.5px; color: var(--mu); margin-top: 3px; }
+  .upload-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+  .upload-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: rgba(0,0,0,.2); border: 1px solid var(--gb); border-radius: var(--r); }
+  .upload-item i.file { font-size: 18px; color: var(--ac); }
+  .upload-item .name { flex: 1; font-size: 12px; color: var(--fg); }
+  .upload-item .size { font-size: 10.5px; color: var(--mu); font-family: var(--mono); }
+  .upload-item .remove { color: var(--mu); cursor: pointer; font-size: 14px; }
+  .upload-item .remove:hover { color: var(--urg); }
+
+  /* STATE PILL */
+  .state-pill { display: inline-flex; padding: 3px 8px; border-radius: 4px; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; background: var(--adim); color: var(--ac); margin-left: 6px; }
+
+  /* SECTION DIVIDER */
+  .form-section-divider { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: var(--ac); padding: 8px 0; border-top: 1px solid var(--gb); margin-top: 14px; display: flex; align-items: center; gap: 6px; }
+  .form-section-divider:first-of-type { border-top: none; margin-top: 0; padding-top: 0; }
+
+  .variant-label { display: inline-block; padding: 2px 8px; border-radius: 4px; background: var(--adim); color: var(--ac); font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
+
+  /* state grid */
+  .state-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+  .state-card { padding: 12px; border-radius: var(--r); border: 1px solid var(--gb); background: rgba(0,0,0,.15); }
+  .state-name { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--mu); margin-bottom: 8px; }
+
+  @media (max-width: 900px) { .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; } .form-row.cols-2, .form-row.cols-3 { grid-template-columns: 1fr; } .state-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media print {
+    body { background: #fff !important; color: #000 !important; padding: 1cm !important; }
+    .section { background: #fff !important; border: 1px solid #000 !important; box-shadow: none !important; backdrop-filter: none !important; }
+    .input, .upload { background: #fff !important; border: 1px solid #000 !important; color: #000 !important; }
+    .nav, .btn { display: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="page-title">Formularios & Inputs</div>
+  <div class="page-sub">Inputs dark theme completos: text, textarea, select, checkbox, radio, toggle, date, search, file upload. Quatro variantes de botao e todos os estados.</div>
+  <nav class="nav">
+    <a href="#text">Text / Textarea</a>
+    <a href="#select">Select</a>
+    <a href="#check">Checkbox / Radio</a>
+    <a href="#toggle">Toggle</a>
+    <a href="#date">Date / Search</a>
+    <a href="#buttons">Botoes</a>
+    <a href="#upload-f">Upload</a>
+    <a href="#states">Estados</a>
+    <a href="#layouts">Layouts</a>
+  </nav>
+
+  <!-- TEXT INPUTS -->
+  <section class="section" id="text">
+    <div class="section-head">
+      <div class="section-tag">01</div>
+      <div class="section-title"><i class="ph ph-text-aa" style="color:var(--ac)"></i> Text, textarea e helpers</div>
+      <div class="section-sub">Input base, com icone a esquerda, busca, text area. Cada um com label, hint e mensagem de erro/sucesso.</div>
+    </div>
+    <div class="form-grid">
+      <div class="form-row cols-2">
+        <div class="field">
+          <label>Nome completo <span class="req">*</span></label>
+          <input type="text" class="input" placeholder="Ex: Patricia Souza" value="Patricia Souza">
+          <span class="hint">Como voce quer ser chamada no sistema.</span>
+        </div>
+        <div class="field">
+          <label>Email <span class="req">*</span></label>
+          <input type="email" class="input" placeholder="voce@empresa.com.br" value="patricia@blu.com.br">
+        </div>
+      </div>
+      <div class="form-row cols-2">
+        <div class="field">
+          <label>Buscar cliente</label>
+          <div class="input-wrap">
+            <i class="ph ph-magnifying-glass icon left"></i>
+            <input type="text" class="input icon-left" placeholder="Nome, CNPJ ou email...">
+          </div>
+        </div>
+        <div class="field success">
+          <label>CNPJ <i class="ph ph-check-circle" style="color: var(--ok); font-size: 12px;"></i></label>
+          <input type="text" class="input valid" value="12.345.678/0001-90">
+          <span class="ok"><i class="ph ph-check-circle"></i> CNPJ valido e ativo</span>
+        </div>
+      </div>
+      <div class="form-row cols-2">
+        <div class="field error">
+          <label>Telefone <span class="req">*</span></label>
+          <input type="text" class="input invalid" value="119999">
+          <span class="err"><i class="ph ph-warning-circle"></i> Telefone incompleto. Use DDD + 9 digitos.</span>
+        </div>
+        <div class="field">
+          <label>Empresa (desabilitado)</label>
+          <input type="text" class="input" value="Blu Tecnologia Ltda." disabled>
+        </div>
+      </div>
+      <div class="field">
+        <label>Descricao do projeto</label>
+        <textarea class="input" placeholder="Descreva o que voce precisa..." rows="3">Plataforma de gestao com agentes de IA para automatizar tarefas financeiras, compras e atendimento ao cliente. Foco em PMEs brasileiras.</textarea>
+        <span class="hint">Maximo 500 caracteres. <span style="color: var(--ac);">180</span>/500</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- SELECT -->
+  <section class="section" id="select">
+    <div class="section-head">
+      <div class="section-tag">02</div>
+      <div class="section-title"><i class="ph ph-list" style="color:var(--info)"></i> Select & native dropdowns</div>
+      <div class="section-sub">Select com chevron customizado, multi-select e select agrupado.</div>
+    </div>
+    <div class="form-row cols-3">
+      <div class="field">
+        <label>Sala principal</label>
+        <select class="input">
+          <option>Financeiro</option>
+          <option>Compras</option>
+          <option>Agenda</option>
+          <option selected>Estrategia</option>
+          <option>Clientes</option>
+          <option>Biblioteca</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Plano</label>
+        <select class="input">
+          <option>Starter</option>
+          <option selected>Pro</option>
+          <option>Enterprise</option>
+          <option>Custom</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Status do contrato</label>
+        <select class="input">
+          <option>Ativo</option>
+          <option>Pendente</option>
+          <option>Suspenso</option>
+          <option>Cancelado</option>
+        </select>
+      </div>
+    </div>
+    <div style="margin-top: 16px;">
+      <div class="field" style="margin-bottom: 8px;"><label>Selecione os modulos (pills)</label></div>
+      <div class="radio-row">
+        <label class="radio-pill active">Financeiro <i class="ph ph-check"></i></label>
+        <label class="radio-pill active">Compras <i class="ph ph-check"></i></label>
+        <label class="radio-pill">Agenda</label>
+        <label class="radio-pill">Estrategia</label>
+        <label class="radio-pill">Clientes</label>
+        <label class="radio-pill">Biblioteca</label>
+        <label class="radio-pill">Atividade</label>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHECKBOX & RADIO -->
+  <section class="section" id="check">
+    <div class="section-head">
+      <div class="section-tag">03</div>
+      <div class="section-title"><i class="ph ph-list-checks" style="color:var(--ok)"></i> Checkboxes & radios</div>
+      <div class="section-sub">Checkboxes com descricao, radios circulares e radios em linha.</div>
+    </div>
+    <div class="grid-2">
+      <div>
+        <span class="variant-label">Checkboxes</span>
+        <div class="check-list">
+          <label class="check">
+            <input type="checkbox" checked>
+            <span class="check-box"></span>
+            <div class="check-body">Notificacoes por email<span class="sub">Receber atualizacoes diarias sobre os agentes.</span></div>
+          </label>
+          <label class="check">
+            <input type="checkbox" checked>
+            <span class="check-box"></span>
+            <div class="check-body">Alertas de risco financeiro<span class="sub">Avisar quando receita cair mais de 10%.</span></div>
+          </label>
+          <label class="check">
+            <input type="checkbox">
+            <span class="check-box"></span>
+            <div class="check-body">Resumo semanal por SMS</div>
+          </label>
+          <label class="check">
+            <input type="checkbox" disabled>
+            <span class="check-box"></span>
+            <div class="check-body" style="opacity: .5;">Modo debug (apenas Enterprise)<span class="sub">Disponivel em planos superiores.</span></div>
+          </label>
+        </div>
+      </div>
+      <div>
+        <span class="variant-label">Radios</span>
+        <div class="radio-list">
+          <label class="radio">
+            <input type="radio" name="frequencia" checked>
+            <span class="radio-circle"></span>
+            <div class="check-body">Diario as 8h<span class="sub">Resumo executivo do dia anterior.</span></div>
+          </label>
+          <label class="radio">
+            <input type="radio" name="frequencia">
+            <span class="radio-circle"></span>
+            <div class="check-body">Semanal as segundas<span class="sub">Visao consolidada da semana.</span></div>
+          </label>
+          <label class="radio">
+            <input type="radio" name="frequencia">
+            <span class="radio-circle"></span>
+            <div class="check-body">Mensal no dia 5<span class="sub">Fechamento detalhado.</span></div>
+          </label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TOGGLE / SWITCH -->
+  <section class="section" id="toggle">
+    <div class="section-head">
+      <div class="section-tag">04</div>
+      <div class="section-title"><i class="ph ph-toggle-right" style="color:var(--ac)"></i> Toggle / switch</div>
+      <div class="section-sub">Ativacao rapida de features com label e sublabel descritiva.</div>
+    </div>
+    <div class="switch-list">
+      <div class="switch">
+        <div class="switch-body">
+          <div class="switch-title">Modo escuro</div>
+          <div class="switch-sub">Interface com fundo escuro, menos cansaco visual.</div>
+        </div>
+        <div class="switch-track on"></div>
+      </div>
+      <div class="switch">
+        <div class="switch-body">
+          <div class="switch-title">Rotinas automaticas</div>
+          <div class="switch-sub">Permitir que os agentes rodem tarefas em background.</div>
+        </div>
+        <div class="switch-track on"></div>
+      </div>
+      <div class="switch">
+        <div class="switch-body">
+          <div class="switch-title">Aprovacao dupla</div>
+          <div class="switch-sub">Exigir 2 aprovacoes para transacoes acima de R$ 5.000.</div>
+        </div>
+        <div class="switch-track"></div>
+      </div>
+      <div class="switch">
+        <div class="switch-body">
+          <div class="switch-title">Compartilhar dados com a equipe</div>
+          <div class="switch-sub">Permitir que outros usuarios vejam seus dashboards.</div>
+        </div>
+        <div class="switch-track on"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DATE / SEARCH -->
+  <section class="section" id="date">
+    <div class="section-head">
+      <div class="section-tag">05</div>
+      <div class="section-title"><i class="ph ph-calendar" style="color:var(--att)"></i> Date picker, search e inputs especiais</div>
+      <div class="section-sub">Campos de data, busca com botao, password, moeda e numero.</div>
+    </div>
+    <div class="form-row cols-3">
+      <div class="field">
+        <label>Data de inicio</label>
+        <div class="input-wrap">
+          <input type="date" class="input" value="2026-02-01">
+          <i class="ph ph-calendar icon right"></i>
+        </div>
+      </div>
+      <div class="field">
+        <label>Data de termino</label>
+        <div class="input-wrap">
+          <input type="date" class="input" value="2026-02-28">
+          <i class="ph ph-calendar icon right"></i>
+        </div>
+      </div>
+      <div class="field">
+        <label>Periodo (intervalo)</label>
+        <div class="input-wrap">
+          <input type="text" class="input icon-left" value="01/02/2026 - 28/02/2026">
+          <i class="ph ph-calendar icon left"></i>
+          <i class="ph ph-caret-down icon right"></i>
+        </div>
+      </div>
+    </div>
+    <div class="form-row cols-3" style="margin-top: 14px;">
+      <div class="field">
+        <label>Buscar (com botao)</label>
+        <div style="display: flex; gap: 6px;">
+          <div class="input-wrap" style="flex: 1;">
+            <i class="ph ph-magnifying-glass icon left"></i>
+            <input type="text" class="input icon-left" placeholder="O que voce procura?">
+          </div>
+          <button class="btn btn-bp btn-sm">Buscar</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Valor (moeda)</label>
+        <div class="input-wrap">
+          <span class="icon left" style="font-family: var(--mono); font-size: 11px;">R$</span>
+          <input type="text" class="input icon-left" value="12.480,00">
+        </div>
+      </div>
+      <div class="field">
+        <label>Quantidade</label>
+        <div class="input-wrap">
+          <input type="number" class="input icon-right" value="14" min="0" max="100">
+          <i class="ph ph-minus icon right" style="right: 30px;"></i>
+        </div>
+      </div>
+    </div>
+    <div class="form-row cols-2" style="margin-top: 14px;">
+      <div class="field">
+        <label>Senha</label>
+        <div class="input-wrap">
+          <input type="password" class="input icon-right" value="minhasenha123">
+          <i class="ph ph-eye icon right"></i>
+        </div>
+        <span class="hint">Minimo 8 caracteres com numeros e letras.</span>
+      </div>
+      <div class="field">
+        <label>URL do site</label>
+        <div class="input-wrap">
+          <i class="ph ph-link icon left"></i>
+          <input type="url" class="input icon-left" value="https://blu.com.br">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BUTTONS -->
+  <section class="section" id="buttons">
+    <div class="section-head">
+      <div class="section-tag">06</div>
+      <div class="section-title"><i class="ph ph-cursor-click" style="color:var(--ok)"></i> Variantes de botao</div>
+      <div class="section-sub">bp (primario), bs (secundario glass), bg (ghost), brd (danger). Tamanhos, icones, loading e estados.</div>
+    </div>
+    <div class="grid-2">
+      <div>
+        <span class="variant-label">Variantes principais</span>
+        <div class="btn-group" style="margin-bottom: 14px;">
+          <button class="btn btn-bp"><i class="ph ph-plus"></i> Criar documento</button>
+          <button class="btn btn-bs"><i class="ph ph-floppy-disk"></i> Salvar</button>
+          <button class="btn btn-bg"><i class="ph ph-x"></i> Cancelar</button>
+          <button class="btn btn-brd"><i class="ph ph-trash"></i> Excluir</button>
+        </div>
+        <span class="variant-label">Tamanhos</span>
+        <div class="btn-group" style="align-items: center; margin-bottom: 14px;">
+          <button class="btn btn-bp btn-sm">Pequeno</button>
+          <button class="btn btn-bp">Normal</button>
+          <button class="btn btn-bp btn-lg">Grande</button>
+        </div>
+        <span class="variant-label">Icones</span>
+        <div class="btn-group" style="margin-bottom: 14px;">
+          <button class="btn btn-bp btn-icon"><i class="ph ph-plus"></i></button>
+          <button class="btn btn-bs btn-icon"><i class="ph ph-magnifying-glass"></i></button>
+          <button class="btn btn-bg btn-icon"><i class="ph ph-dots-three-vertical"></i></button>
+        </div>
+        <span class="variant-label">Bloco</span>
+        <div style="display: grid; gap: 8px;">
+          <button class="btn btn-bp btn-block"><i class="ph ph-check-circle"></i> Aprovar e continuar</button>
+          <button class="btn btn-bg btn-block">Fazer depois</button>
+        </div>
+      </div>
+      <div>
+        <span class="variant-label">Estados</span>
+        <div class="btn-group" style="margin-bottom: 14px;">
+          <button class="btn btn-bp">Default</button>
+          <button class="btn btn-bp" style="background: #7A4FC9;">Hover</button>
+          <button class="btn btn-bp" style="background: #6D28D9; box-shadow: 0 0 0 3px rgba(140,95,219,.3);">Active</button>
+          <button class="btn btn-bp" disabled>Disabled</button>
+          <button class="btn btn-bp loading">Loading</button>
+        </div>
+        <span class="variant-label">Loading explicito</span>
+        <div class="btn-group" style="margin-bottom: 14px;">
+          <button class="btn btn-bp" style="position: relative; padding-left: 32px;">
+            <span class="spinner" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); width: 12px; height: 12px; border-width: 1.5px; border-color: rgba(255,255,255,.3); border-top-color: #fff;"></span>
+            Salvando...
+          </button>
+          <button class="btn btn-bs" style="position: relative; padding-left: 32px;">
+            <span class="spinner" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); width: 12px; height: 12px; border-width: 1.5px;"></span>
+            Processando
+          </button>
+        </div>
+        <span class="variant-label">Com contador</span>
+        <div class="btn-group">
+          <button class="btn btn-bp" style="position: relative;">Nova mensagem <span style="background: rgba(255,255,255,.25); padding: 1px 6px; border-radius: 100px; font-size: 10px; margin-left: 4px;">3</span></button>
+          <button class="btn btn-bs" style="position: relative;"><i class="ph ph-bell"></i> Notificacoes <span style="background: var(--udim); color: var(--urg); padding: 1px 6px; border-radius: 100px; font-size: 10px; margin-left: 4px;">12</span></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FILE UPLOAD -->
+  <section class="section" id="upload-f">
+    <div class="section-head">
+      <div class="section-tag">07</div>
+      <div class="section-title"><i class="ph ph-upload-simple" style="color:var(--info)"></i> File upload</div>
+      <div class="section-sub">Area de drag-and-drop single e multi-arquivo, com lista de uploads.</div>
+    </div>
+    <div class="grid-2">
+      <div>
+        <span class="variant-label">Upload unico</span>
+        <div class="upload">
+          <i class="ph ph-cloud-arrow-up"></i>
+          <div class="upload-title">Clique ou arraste um arquivo</div>
+          <div class="upload-sub">PDF, DOC, XLS, XML ate 10 MB</div>
+        </div>
+        <div class="upload-list">
+          <div class="upload-item">
+            <i class="ph ph-file-pdf file"></i>
+            <div class="name">recibo_passagem_2026.pdf</div>
+            <div class="size">340 KB</div>
+            <i class="ph ph-check-circle" style="color: var(--ok);"></i>
+          </div>
+        </div>
+      </div>
+      <div>
+        <span class="variant-label">Upload multiplo com lista</span>
+        <div class="upload">
+          <i class="ph ph-files"></i>
+          <div class="upload-title">Solte varios arquivos aqui</div>
+          <div class="upload-sub">3 arquivos ja anexados (2,1 MB total)</div>
+        </div>
+        <div class="upload-list">
+          <div class="upload-item">
+            <i class="ph ph-file-text file" style="color: var(--ok);"></i>
+            <div class="name">NFe_4526.xml</div>
+            <div class="size">120 KB &middot; 100%</div>
+            <i class="ph ph-check-circle" style="color: var(--ok);"></i>
+          </div>
+          <div class="upload-item">
+            <i class="ph ph-file-pdf file" style="color: var(--urg);"></i>
+            <div class="name">recibo_passagem.pdf</div>
+            <div class="size">340 KB &middot; 67%</div>
+            <span class="spinner sm" style="border-color: rgba(140,95,219,.3); border-top-color: var(--ac);"></span>
+          </div>
+          <div class="upload-item">
+            <i class="ph ph-file-doc file" style="color: var(--info);"></i>
+            <div class="name">contrato_2026.docx</div>
+            <div class="size">1.6 MB &middot; aguardando</div>
+            <i class="ph ph-clock" style="color: var(--mu);"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STATES -->
+  <section class="section" id="states">
+    <div class="section-head">
+      <div class="section-tag">08</div>
+      <div class="section-title"><i class="ph ph-stack" style="color:var(--att)"></i> Estados de input & botao</div>
+      <div class="section-sub">Comparacao lado a lado de todos os estados disponiveis.</div>
+    </div>
+    <div class="state-grid">
+      <div class="state-card">
+        <div class="state-name">Default</div>
+        <input class="input" placeholder="Placeholder...">
+        <div style="height: 8px;"></div>
+        <button class="btn btn-bp btn-sm btn-block">Primario</button>
+      </div>
+      <div class="state-card">
+        <div class="state-name">Hover</div>
+        <input class="input" style="border-color: var(--gb2);" value="Texto exemplo">
+        <div style="height: 8px;"></div>
+        <button class="btn btn-bp btn-sm btn-block" style="background: #7A4FC9;">Primario</button>
+      </div>
+      <div class="state-card">
+        <div class="state-name">Focus</div>
+        <input class="input" style="border-color: var(--ac); background: rgba(140,95,219,.05);" value="Texto exemplo">
+        <div style="height: 8px;"></div>
+        <button class="btn btn-bp btn-sm btn-block" style="box-shadow: 0 0 0 3px rgba(140,95,219,.3);">Primario</button>
+      </div>
+      <div class="state-card">
+        <div class="state-name">Disabled</div>
+        <input class="input" value="Texto exemplo" disabled>
+        <div style="height: 8px;"></div>
+        <button class="btn btn-bp btn-sm btn-block" disabled>Primario</button>
+      </div>
+      <div class="state-card">
+        <div class="state-name">Loading</div>
+        <input class="input" value="Carregando..." disabled style="position: relative; padding-left: 32px;">
+        <span class="spinner sm" style="position: absolute; margin-top: 9px; margin-left: 11px;"></span>
+        <div style="height: 8px;"></div>
+        <button class="btn btn-bp btn-sm btn-block" style="position: relative; color: transparent;" disabled>Primario</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- FORM LAYOUTS -->
+  <section class="section" id="layouts">
+    <div class="section-head">
+      <div class="section-tag">09</div>
+      <div class="section-title"><i class="ph ph-layout" style="color:var(--ac)"></i> Layouts de formulario completos</div>
+      <div class="section-sub">Tres exemplos: single column, two columns, e formulario com secoes.</div>
+    </div>
+    <div class="grid-2">
+      <div>
+        <span class="variant-label">Formulario single column</span>
+        <div class="form-grid">
+          <div class="form-section-divider"><i class="ph ph-user"></i> Dados pessoais</div>
+          <div class="field">
+            <label>Nome completo</label>
+            <input class="input" value="Patricia Souza">
+          </div>
+          <div class="field">
+            <label>Email</label>
+            <input class="input" value="patricia@blu.com.br">
+          </div>
+          <div class="form-section-divider"><i class="ph ph-buildings"></i> Empresa</div>
+          <div class="field">
+            <label>Razao social</label>
+            <input class="input" value="Blu Tecnologia Ltda.">
+          </div>
+          <div class="field">
+            <label>CNPJ</label>
+            <input class="input valid" value="12.345.678/0001-90">
+            <span class="ok"><i class="ph ph-check-circle"></i> Verificado</span>
+          </div>
+          <div class="btn-group" style="justify-content: flex-end;">
+            <button class="btn btn-bg">Cancelar</button>
+            <button class="btn btn-bp"><i class="ph ph-floppy-disk"></i> Salvar alteracoes</button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <span class="variant-label">Two columns com validacao</span>
+        <div class="form-grid">
+          <div class="form-section-divider"><i class="ph ph-credit-card"></i> Dados de cobranca</div>
+          <div class="form-row cols-2">
+            <div class="field">
+              <label>Valor</label>
+              <div class="input-wrap">
+                <span class="icon left" style="font-family: var(--mono); font-size: 11px;">R$</span>
+                <input class="input icon-left" value="12.480,00">
+              </div>
+            </div>
+            <div class="field">
+              <label>Vencimento</label>
+              <input type="date" class="input" value="2026-03-15">
+            </div>
+          </div>
+          <div class="form-row cols-2">
+            <div class="field">
+              <label>Forma de pagamento</label>
+              <select class="input">
+                <option>Boleto bancario</option>
+                <option selected>PIX</option>
+                <option>Cartao de credito</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Categoria</label>
+              <select class="input">
+                <option>Servicos</option>
+                <option>Licencas</option>
+                <option selected>Consultoria</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-section-divider"><i class="ph ph-bell"></i> Notificacoes</div>
+          <div class="check-list">
+            <label class="check">
+              <input type="checkbox" checked>
+              <span class="check-box"></span>
+              <div class="check-body">Enviar comprovante por email</div>
+            </label>
+            <label class="check">
+              <input type="checkbox" checked>
+              <span class="check-box"></span>
+              <div class="check-body">Alertar 3 dias antes do vencimento</div>
+            </label>
+          </div>
+          <div class="form-row cols-2" style="margin-top: 6px;">
+            <div class="field error">
+              <label>Observacoes</label>
+              <textarea class="input invalid" rows="2">Pagamento referente ao projeto de consultoria #4526</textarea>
+              <span class="err"><i class="ph ph-warning-circle"></i> Limite de 200 caracteres excedido</span>
+            </div>
+            <div class="field success">
+              <label>Codigo interno</label>
+              <input class="input valid" value="PAG-2026-0247">
+              <span class="ok"><i class="ph ph-check-circle"></i> Codigo disponivel</span>
+            </div>
+          </div>
+          <div class="btn-group" style="justify-content: space-between;">
+            <button class="btn btn-bg"><i class="ph ph-arrow-left"></i> Voltar</button>
+            <div class="btn-group">
+              <button class="btn btn-bs">Salvar rascunho</button>
+              <button class="btn btn-bp">Confirmar pagamento</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+</body>
+</html>

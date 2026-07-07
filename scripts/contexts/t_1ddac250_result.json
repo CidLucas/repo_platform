@@ -1,0 +1,5 @@
+{
+  "output": "\u001b[0m\n> build · minimax-m3\n\u001b[0m\n\u001b[93m\u001b[1m! \u001b[0mpermission requested: external_directory (/tmp/*); auto-rejecting\n\u001b[0m✗ \u001b[0mRead /tmp/opencode_32fe94df_e0qf1mbh.md failed\n\u001b[91m\u001b[1mError: \u001b[0mThe user rejected permission to use this specific tool call.",
+  "exit_code": 0,
+  "pr_number": null
+}

@@ -1,0 +1,26 @@
+{
+  "task_id": "t_004f033b",
+  "goal": "Pipeline ETL completa do staging aos indicadores.",
+  "description": "Goal: Pipeline ETL completa do staging aos indicadores.\nACs:\n- AC1: run-csv-etl inline ETL (staging → dim/fact + UPDATE reg_jobs)\n- AC2: pg_cron schedule para sincronizar_csv_cliente\n- AC3: Fallback inline ETL (run-csv-etl chama RPC sync diretamente)\nTestes: tests/behaviors/test_etl_core_csv_etl_pipeline.py, test_etl_execution_pipeline.py\n\nLatest summary:\nFalha na validação (testes não passam)\n\nComments (2):\n  [2026-06-26 18:36] factory-coder: ## Pipeline 2.0 — Execução Manual (Fallback)\n\n**Stat",
+  "acceptance_criteria": [
+    "run-csv-etl inline ETL (staging → dim/fact + UPDATE reg_jobs)",
+    "pg_cron schedule para sincronizar_csv_cliente",
+    "Fallback inline ETL (run-csv-etl chama RPC sync diretamente)"
+  ],
+  "repo_root": "/home/ec2-user/repo_platform",
+  "test_red": "test_etl_core_csv_etl_pipeline.py",
+  "source_hint": null,
+  "llm_wiki": "/home/ec2-user/repo_platform/docs/llm_wiki/index.md",
+  "business_rules": [],
+  "constraints": {
+    "no_llm": false,
+    "max_files": 10,
+    "max_lines_per_file": 200
+  },
+  "output_format": {
+    "changed_files": "lista de arquivos modificados",
+    "test_results": "resultado dos testes",
+    "coverage": "porcentagem de cobertura",
+    "review_notes": "notas de review"
+  }
+}

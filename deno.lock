@@ -1,0 +1,40 @@
+{
+  "version": "4",
+  "remote": {
+    "https://esm.sh/xlsx@0.18.5": "feaad96c2697fd87d8d2cbf00030869f6f3cb87afc6f58c92602f1e33309dc03"
+  },
+  "workspace": {
+    "members": {
+      "apps/blu_v3": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@phosphor-icons/react@^2.1.10",
+            "npm:@supabase/supabase-js@^2.86.0",
+            "npm:@tanstack/react-query@^5.90.21",
+            "npm:@types/react-dom@^18.3.5",
+            "npm:@types/react@^18.3.18",
+            "npm:@vitejs/plugin-react@^4.3.4",
+            "npm:react-dom@^18.3.1",
+            "npm:react-router-dom@^6.28.0",
+            "npm:react@^18.3.1",
+            "npm:typescript@~5.7.2",
+            "npm:vite@^6.0.5",
+            "npm:xlsx@~0.18.5",
+            "npm:zustand@^5.0.3"
+          ]
+        }
+      },
+      "packages/blu-auth": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@supabase/supabase-js@^2.86.0",
+            "npm:@types/react@^18.3.18",
+            "npm:react@^18.3.1",
+            "npm:typescript@~5.7.2",
+            "npm:vite@^6.0.5"
+          ]
+        }
+      }
+    }
+  }
+}

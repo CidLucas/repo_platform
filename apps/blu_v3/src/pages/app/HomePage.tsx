@@ -111,7 +111,7 @@ function InsightPopover({ ins, anchorRect, onClose, onPrompt }: InsightPopoverPr
         background: 'rgba(8,13,32,0.97)',
         border: '1px solid rgba(140,95,219,0.35)',
         borderRadius: 10,
-        boxShadow: '0 12px 40px rgba(0,0,0,0.6), 0 0 0 0.5px rgba(140,95,219,0.15)',
+        boxShadow: 'var(--shadow-3), 0 0 0 0.5px rgba(140,95,219,0.15)',
         backdropFilter: 'blur(24px)',
         padding: '10px 10px 8px',
         animation: 'fi .12s ease-out',

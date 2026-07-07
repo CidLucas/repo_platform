@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@900&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap">
+  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+  <link rel="stylesheet" href="apps/blu_v3/src/styles/global.css">
+  <style>
+    html, body { height: 100%; margin: 0; padding: 0; }
+    a { color: var(--mu2); text-decoration: none; }
+    a:hover { color: var(--fg); }
+  </style>
+</helmet>
+
+<div class="shell">
+
+  <header class="topbar">
+    <div class="logo">
+      <svg class="logo-bubble-svg" width="54" height="48" viewBox="0 0 80 72" fill="none">
+        <defs>
+          <linearGradient id="bluGrad2" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#7E5CC8"></stop>
+            <stop offset="100%" stop-color="#3A80D4"></stop>
+          </linearGradient>
+          <clipPath id="bluClip2">
+            <path d="M12,0 H68 Q80,0 80,12 V48 Q80,60 68,60 H26 L12,72 L18,60 H12 Q0,60 0,48 V12 Q0,0 12,0 Z"></path>
+          </clipPath>
+        </defs>
+        <path d="M12,0 H68 Q80,0 80,12 V48 Q80,60 68,60 H26 L12,72 L18,60 H12 Q0,60 0,48 V12 Q0,0 12,0 Z" fill="url(#bluGrad2)"></path>
+        <ellipse cx="38" cy="10" rx="26" ry="6" fill="rgba(255,255,255,0.18)"></ellipse>
+        <g clip-path="url(#bluClip2)">
+          <path d="M-2,40 Q20,32 40,40 Q60,48 82,40 L82,74 L-2,74 Z" fill="rgba(255,255,255,0.22)"></path>
+          <path d="M-2,50 Q20,42 40,50 Q60,58 82,50 L82,74 L-2,74 Z" fill="rgba(255,255,255,0.13)"></path>
+        </g>
+        <text x="40" y="38" text-anchor="middle" font-family="'Nunito',-apple-system,sans-serif" font-size="22" font-weight="900" fill="white">blu</text>
+      </svg>
+    </div>
+    <div class="topbar-mid">
+      <span style="cursor:pointer;color:var(--mu)">Início</span>
+      <span style="color:var(--mu);opacity:0.5;margin:0 6px">/</span>
+      <span>Estratégia</span>
+    </div>
+    <div class="topbar-end">
+      <button class="ibtn" style="font-size:13px">☀️</button>
+      <button class="ibtn">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>
+      </button>
+      <button class="ibtn">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+        <span class="rdot"></span>
+      </button>
+      <div class="av">BL</div>
+    </div>
+  </header>
+
+  <aside class="sidebar">
+    <div class="ni" data-tip="Início"><span class="ni-icon"><i class="ph ph-house"></i></span></div>
+    <div class="ni" data-tip="Compras"><span class="ni-icon"><i class="ph ph-shopping-cart"></i></span></div>
+    <div class="ni" data-tip="Financeiro"><span class="ni-icon"><i class="ph ph-chart-bar"></i></span></div>
+    <div class="ni" data-tip="Agenda"><span class="ni-icon"><i class="ph ph-calendar-dots"></i></span></div>
+    <div class="ni on" data-tip="Estratégia"><span class="ni-icon"><i class="ph ph-target"></i></span></div>
+    <div class="ni" data-tip="Clientes"><span class="ni-icon"><i class="ph ph-users-three"></i></span></div>
+    <div class="ni" data-tip="Biblioteca"><span class="ni-icon"><i class="ph ph-books"></i></span></div>
+    <div class="sb-foot">
+      <div class="ni" data-tip="Atividade"><span class="ni-icon"><i class="ph ph-bell"></i></span></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="screen on">
+
+      <div class="rh">
+        <div class="rav">🎯</div>
+        <div>
+          <div class="rn">Estratégia</div>
+          <div class="rd">Análises, KPIs e planejamento</div>
+        </div>
+        <div class="ra">
+          <button class="btn bs" style="font-size:11px">← Início</button>
+          <button class="btn bp" style="font-size:11px">+ Nova Análise</button>
+        </div>
+      </div>
+
+      <div class="room-grid">
+
+        <!-- MAIN PANEL -->
+        <div class="panel" style="grid-column:1;grid-row:1;display:flex;flex-direction:column;overflow:hidden;min-height:0">
+          <div class="ph"><span class="ph-ttl">Mesa de Trabalho</span></div>
+
+          <div class="rtabs">
+            <div class="{{ tabObjetivosClass }}" onClick="{{ setTabObjetivos }}">
+              Objetivos
+              <sc-if value="{{ hasApprovals }}" hint-placeholder-val="{{ false }}">
+                <span class="tbdg">{{ approvalsCount }}</span>
+              </sc-if>
+            </div>
+            <div class="{{ tabDocumentosClass }}" onClick="{{ setTabDocumentos }}">Documentos</div>
+            <div class="{{ tabConhecimentoClass }}" onClick="{{ setTabConhecimento }}">Conhecimento</div>
+            <div class="{{ tabConfigClass }}" onClick="{{ setTabConfig }}">Config</div>
+          </div>
+
+          <div class="pb" style="overflow:hidden;display:flex;flex-direction:column;flex:1;min-height:0">
+
+            <!-- OBJETIVOS -->
+            <sc-if value="{{ showObjetivos }}" hint-placeholder-val="{{ false }}">
+              <div style="overflow-y:auto;flex:1;padding:11px 9px 7px">
+                <div class="dl">
+                  <sc-for list="{{ approvalItems }}" as="item" hint-placeholder-count="3">
+                    <div class="{{ item.dcClass }}">
+                      <div class="dc-row" onClick="{{ item.onToggle }}">
+                        <div class="ag"><div class="agd" style="{{ item.agdStyle }}"></div>{{ item.agentLabel }}</div>
+                        <span class="{{ item.badgeClass }}">{{ item.priorityLabel }}</span>
+                        <span class="dc-row-summary">{{ item.title }}</span>
+                        <span class="dt">{{ item.time }}</span>
+                        <span class="dc-chev">▶</span>
+                      </div>
+                      <div class="dc-expand">
+                        <div class="db">{{ item.body }}</div>
+                        <div class="dc-act">
+                          <button class="btn bp" onClick="{{ item.onApprove }}">👍 Aprovar</button>
+                          <button class="btn bs" onClick="{{ item.onSnooze }}">⏰ Depois</button>
+                          <button class="btn bg" onClick="{{ item.onReject }}">Ignorar</button>
+                        </div>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-if>
+
+            <!-- DOCUMENTOS -->
+            <sc-if value="{{ showDocumentos }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex:1;overflow:hidden">
+
+                <div style="width:230px;flex-shrink:0;border-right:1px solid var(--gb);display:flex;flex-direction:column;overflow:hidden">
+                  <div style="padding:9px 10px;border-bottom:1px solid var(--gb);flex-shrink:0">
+                    <button class="btn bp" style="font-size:11px;width:100%;justify-content:center" onClick="{{ newDoc }}">+ Novo Documento</button>
+                  </div>
+                  <div style="flex:1;overflow-y:auto;padding:4px">
+                    <sc-for list="{{ docItems }}" as="item" hint-placeholder-count="5">
+                      <div style="{{ item.rowStyle }}" onClick="{{ item.onClick }}">
+                        <div style="{{ item.typeIconStyle }}"><span style="{{ item.typeTextStyle }}">{{ item.type }}</span></div>
+                        <div style="flex:1;min-width:0">
+                          <div style="{{ item.nameStyle }}">{{ item.name }}</div>
+                          <div style="font-size:9.5px;color:var(--mu)">{{ item.date }}</div>
+                        </div>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+
+                <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+                  <sc-if value="{{ noDocSelected }}" hint-placeholder-val="{{ false }}">
+                    <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;opacity:0.4">
+                      <span style="font-size:32px">📄</span>
+                      <span style="font-size:12px;color:var(--mu)">Selecione um documento para visualizar e editar</span>
+                    </div>
+                  </sc-if>
+
+                  <sc-if value="{{ hasSelectedDoc }}" hint-placeholder-val="{{ false }}">
+                    <div style="display:flex;flex-direction:column;flex:1;overflow:hidden">
+                      <div style="display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid var(--gb);background:rgba(0,0,0,.15);flex-shrink:0">
+                        <span style="font-size:12px;font-weight:600;color:var(--fg);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ selectedDocName }}</span>
+                        <div style="display:flex;gap:2px">
+                          <button class="{{ viewEditClass }}" style="font-size:11px;padding:3px 9px" onClick="{{ setViewModeEdit }}">✏️</button>
+                          <button class="{{ viewSplitClass }}" style="font-size:11px;padding:3px 9px" onClick="{{ setViewModeSplit }}">⊞</button>
+                          <button class="{{ viewPreviewClass }}" style="font-size:11px;padding:3px 9px" onClick="{{ setViewModePreview }}">👁</button>
+                        </div>
+                        <button class="btn bs" style="font-size:11px" onClick="{{ saveDoc }}">💾 Salvar</button>
+                        <button class="btn bp" style="font-size:11px">✍️ Assinar</button>
+                      </div>
+
+                      <div style="flex:1;display:flex;overflow:hidden">
+                        <sc-if value="{{ showEditPane }}" hint-placeholder-val="{{ true }}">
+                          <div style="{{ editPaneStyle }}">
+                            <div style="padding:5px 12px;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);border-bottom:1px solid var(--gb);flex-shrink:0">✏️ Edição</div>
+                            <textarea style="flex:1;resize:none;border:none;outline:none;background:transparent;color:var(--fg);font-size:13px;line-height:1.75;padding:14px 16px;font-family:var(--body);overflow-y:auto" spellCheck="false" value="{{ editorContent }}" onChange="{{ setEditorContent }}"></textarea>
+                          </div>
+                        </sc-if>
+                        <sc-if value="{{ showPreviewPane }}" hint-placeholder-val="{{ false }}">
+                          <div style="{{ previewPaneStyle }}">
+                            <div style="padding:5px 12px;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);border-bottom:1px solid var(--gb);flex-shrink:0;display:flex;align-items:center;justify-content:space-between">
+                              <span>👁 Preview</span>
+                              <span style="{{ diffBadgeStyle }}">{{ diffBadge }}</span>
+                            </div>
+                            <div style="flex:1;overflow-y:auto;padding:14px 16px" dangerouslySetInnerHTML="{{ previewHtml }}"></div>
+                          </div>
+                        </sc-if>
+                      </div>
+
+                      <div style="display:flex;align-items:center;gap:8px;padding:6px 12px;border-top:1px solid var(--gb);background:rgba(0,0,0,.12);flex-shrink:0">
+                        <span style="font-size:11px;color:var(--mu);flex:1">{{ editorStatus }}</span>
+                        <span style="{{ diffBadgeStyle }}">{{ diffBadge }}</span>
+                      </div>
+                    </div>
+                  </sc-if>
+                </div>
+              </div>
+            </sc-if>
+
+            <!-- CONHECIMENTO -->
+            <sc-if value="{{ showConhecimento }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;flex:1;overflow:hidden">
+
+                <div style="width:216px;flex-shrink:0;border-right:1px solid var(--gb);display:flex;flex-direction:column;overflow:hidden;background:rgba(0,0,0,.1)">
+                  <div style="padding:9px 10px 7px;border-bottom:1px solid var(--gb);flex-shrink:0">
+                    <span style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mu)">Pastas</span>
+                  </div>
+                  <div style="flex:1;overflow-y:auto;padding:5px 4px">
+                    <sc-for list="{{ folderItems }}" as="folder" hint-placeholder-count="7">
+                      <div style="{{ folder.rowStyle }}" onClick="{{ folder.onClick }}">
+                        <span style="font-size:13px;flex-shrink:0">{{ folder.icon }}</span>
+                        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px">{{ folder.label }}</span>
+                        <span style="{{ folder.countStyle }}">{{ folder.count }}</span>
+                        <sc-if value="{{ folder.hasChildren }}" hint-placeholder-val="{{ false }}">
+                          <span style="{{ folder.chevStyle }}">{{ folder.chevron }}</span>
+                        </sc-if>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+
+                <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+                  <div style="padding:7px 12px;border-bottom:1px solid var(--gb);flex-shrink:0;display:flex;align-items:center;gap:8px">
+                    <span style="font-size:9.5px;color:var(--mu);flex:1">{{ filteredDocsLabel }}</span>
+                    <button class="btn bs" style="font-size:10.5px;padding:3px 8px">+ Adicionar</button>
+                  </div>
+                  <div style="margin:8px 12px 2px;border:1px dashed var(--gb);border-radius:var(--r);padding:6px 12px;text-align:center;font-size:10.5px;color:var(--mu);flex-shrink:0;cursor:pointer">
+                    Arraste arquivos aqui (PDF, DOCX, CSV, XLSX, TXT)
+                  </div>
+                  <div style="flex:1;overflow-y:auto;padding:8px 12px">
+                    <sc-if value="{{ hasFilteredDocs }}" hint-placeholder-val="{{ true }}">
+                      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:8px">
+                        <sc-for list="{{ filteredDocs }}" as="doc" hint-placeholder-count="4">
+                          <div style="{{ doc.cardStyle }}" onClick="{{ doc.onClick }}">
+                            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px">
+                              <div style="{{ doc.typeIconStyle }}"><span style="{{ doc.typeTextStyle }}">{{ doc.type }}</span></div>
+                              <span style="{{ doc.statusStyle }}">Pronto</span>
+                            </div>
+                            <div style="font-size:11.5px;font-weight:500;color:var(--fg);line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-all;min-height:28px">{{ doc.name }}</div>
+                            <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+                              <span style="{{ doc.folderPillStyle }}">{{ doc.folderLabel }}</span>
+                              <span style="font-size:9.5px;color:var(--mu);margin-left:auto">{{ doc.date }}</span>
+                            </div>
+                            <div style="font-size:10px;color:var(--ac);opacity:0.8">Abrir no editor</div>
+                          </div>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ noFilteredDocs }}" hint-placeholder-val="{{ false }}">
+                      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 0;gap:10px;opacity:0.4">
+                        <span style="font-size:28px">📂</span>
+                        <span style="font-size:12px;color:var(--mu)">Nenhum documento nesta pasta</span>
+                      </div>
+                    </sc-if>
+                  </div>
+                </div>
+
+              </div>
+            </sc-if>
+
+            <!-- CONFIG -->
+            <sc-if value="{{ showConfig }}" hint-placeholder-val="{{ false }}">
+              <div style="overflow-y:auto;flex:1;padding:14px">
+                <div style="margin-bottom:14px">
+                  <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);margin-bottom:8px">Rotinas — Estratégia</div>
+                  <div style="background:var(--glass);border:1px solid var(--gb);border-radius:var(--r);padding:14px;color:var(--mu2);font-size:12px;line-height:1.6">Nenhuma rotina configurada ainda.</div>
+                </div>
+                <div>
+                  <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);margin-bottom:8px">Rotinas — Documentos</div>
+                  <div style="background:var(--glass);border:1px solid var(--gb);border-radius:var(--r);padding:14px;color:var(--mu2);font-size:12px;line-height:1.6">Nenhuma rotina configurada ainda.</div>
+                </div>
+              </div>
+            </sc-if>
+
+          </div>
+
+          <div class="anl-card" style="flex-shrink:0;margin:0 9px 9px">
+            <div class="anl-hd" onClick="{{ toggleAnalytics }}">
+              <span class="anl-ttl">📊 Analytics Estratégia</span>
+              <div class="anl-nums">
+                <div class="anl-kpi"><span class="anl-v">3</span><span class="anl-l">Pendentes</span></div>
+                <div class="anl-kpi"><span class="anl-v" style="color:var(--ok)">14</span><span class="anl-l">Aprovadas</span></div>
+              </div>
+              <span class="{{ analyticsChevClass }}">▶</span>
+            </div>
+            <div class="{{ analyticsBodyClass }}">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px">
+                <div style="display:flex;align-items:center;gap:4px;font-size:10.5px;background:color-mix(in srgb,var(--fg) 5%,transparent);border:1px solid color-mix(in srgb,var(--fg) 10%,transparent);border-radius:4px;padding:3px 6px">
+                  <span style="color:var(--mu);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">MRR</span>
+                  <span style="font-family:var(--mono);color:var(--fg);font-weight:600">R$ 612k</span>
+                  <span style="font-size:9px;font-family:var(--mono);color:var(--ok);background:rgba(16,185,129,.12);padding:1px 3px;border-radius:3px">+18%</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:4px;font-size:10.5px;background:color-mix(in srgb,var(--fg) 5%,transparent);border:1px solid color-mix(in srgb,var(--fg) 10%,transparent);border-radius:4px;padding:3px 6px">
+                  <span style="color:var(--mu);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Churn</span>
+                  <span style="font-family:var(--mono);color:var(--fg);font-weight:600">2.4%</span>
+                  <span style="font-size:9px;font-family:var(--mono);color:var(--urg);background:rgba(239,68,68,.12);padding:1px 3px;border-radius:3px">+0.3</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:4px;font-size:10.5px;background:color-mix(in srgb,var(--fg) 5%,transparent);border:1px solid color-mix(in srgb,var(--fg) 10%,transparent);border-radius:4px;padding:3px 6px">
+                  <span style="color:var(--mu);flex:1">NPS</span>
+                  <span style="font-family:var(--mono);color:var(--fg);font-weight:600">68</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:4px;font-size:10.5px;background:color-mix(in srgb,var(--fg) 5%,transparent);border:1px solid color-mix(in srgb,var(--fg) 10%,transparent);border-radius:4px;padding:3px 6px">
+                  <span style="color:var(--mu);flex:1">Clientes</span>
+                  <span style="font-family:var(--mono);color:var(--fg);font-weight:600">347</span>
+                  <span style="font-size:9px;font-family:var(--mono);color:var(--ok);background:rgba(16,185,129,.12);padding:1px 3px;border-radius:3px">+23</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT COLUMN -->
+        <div class="rcol">
+          <div class="panel">
+            <div class="ph">
+              <span class="ph-ico">📊</span>
+              <span class="ph-ttl">Análises</span>
+              <span class="ph-cnt">3</span>
+            </div>
+            <div class="pb">
+              <div style="display:flex;flex-direction:column;gap:2px;padding:6px 8px">
+                <sc-for list="{{ reportItems }}" as="report" hint-placeholder-count="3">
+                  <div style="{{ report.rowStyle }}" onClick="{{ report.onClick }}">
+                    <span style="font-size:14px;flex-shrink:0">📄</span>
+                    <div style="flex:1;min-width:0">
+                      <div style="font-size:11.5px;color:var(--mu2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ report.title }}</div>
+                      <div style="font-size:10px;color:var(--mu)">{{ report.date }}</div>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="ph">
+              <span class="ph-ico">📈</span>
+              <span class="ph-ttl">KPIs Estratégicos</span>
+            </div>
+            <div class="pb">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px">
+                <div class="kpi-cell"><div class="kpi-lbl">MRR</div><div class="kpi-val" style="font-size:15px">R$ 612k</div><div class="kpi-d up">+18% mês</div></div>
+                <div class="kpi-cell"><div class="kpi-lbl">Churn</div><div class="kpi-val" style="font-size:15px">2.4%</div><div class="kpi-d dn">+0.3pp</div></div>
+                <div class="kpi-cell"><div class="kpi-lbl">NPS</div><div class="kpi-val" style="font-size:15px">68</div><div class="kpi-d" style="color:var(--mu)">estável</div></div>
+                <div class="kpi-cell"><div class="kpi-lbl">Clientes</div><div class="kpi-val" style="font-size:15px">347</div><div class="kpi-d up">+23 mês</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- BOTTOM STRIP -->
+        <div class="bstrip">
+          <div class="ich"><span class="ich-em">📈</span><div class="ich-body"><span class="ich-tag tg-e">Estratégia</span><div class="ich-txt">MRR cresceu 18% em junho, melhor resultado do ano</div></div></div>
+          <div class="ich"><span class="ich-em">⚠️</span><div class="ich-body"><span class="ich-tag tg-e">Estratégia</span><div class="ich-txt">Churn acima da meta — 3 clientes em risco identificados</div></div></div>
+          <div class="ich"><span class="ich-em">💡</span><div class="ich-body"><span class="ich-tag tg-f">Financeiro</span><div class="ich-txt">Projecao Q3 indica fechamento 7% acima da meta</div></div></div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = {
+    activeTab: 'conhecimento',
+    selectedDocId: null,
+    editorContent: '',
+    originalContent: '',
+    editorViewMode: 'split',
+    selectedFolder: 'all',
+    expandedFolderIds: ['estrategia'],
+    analyticsOpen: false,
+    expandedApprovalId: null,
+  }
+
+  _getDocs() {
+    return [
+      { id: 'd1', name: 'Plano Estrategico 2026', folder: 'estrategia', type: 'MD', typeColor: '#8b5cf6', date: '3d atras',
+        content: "# Plano Estrategico 2026\n\n## Visao\n\nSer referencia em automacao inteligente para PMEs brasileiras ate 2027.\n\n## Objetivos\n\n- Crescer 40% em MRR ate dezembro de 2026\n- Lancear modulo de Clientes v2 no Q3\n- Expandir para 500 clientes ativos\n\n## KPIs\n\n| Metrica | Meta Q4 | Atual |\n|---|---|---|\n| MRR | R$ 850k | R$ 612k |\n| NPS | 72 | 68 |\n| Churn | 2% | 2.4% |\n\n## Iniciativas\n\n- **Produto:** Lançar painel de analytics\n- **Vendas:** Programa de indicacao\n- **CS:** Onboarding guiado em 7 dias" },
+      { id: 'd2', name: 'Relatorio de Contexto — Jun/2026', folder: 'relatorios', type: 'MD', typeColor: '#8b5cf6', date: 'hoje',
+        content: "# Relatorio de Contexto — Junho 2026\n\n## Resumo Executivo\n\nJunho foi o **melhor mes** do ano em receita. Crescimento de 18% vs maio.\n\n## Financeiro\n\n- Receita bruta: R$ 612.000\n- Churn: 2.4%\n- Novos clientes: 23\n\n## Proximas Acoes\n\n- Revisar playbook de onboarding\n- Lancear campanha de retencao\n- Contratar 2 CS Specialists" },
+      { id: 'd3', name: 'OKRs Q3 2026', folder: 'okrs', type: 'MD', typeColor: '#8b5cf6', date: '1d atras',
+        content: "# OKRs Q3 2026\n\n## O1: Crescer receita\n\n- **KR1:** MRR acima de R$ 720k ate 30/set\n- **KR2:** Converter 15 trials em planos pagos\n\n## O2: Reduzir churn\n\n- **KR1:** Churn mensal abaixo de 2%\n- **KR2:** NPS acima de 70\n\n## O3: Escalar produto\n\n- **KR1:** Lancear Modulo de Analytics em julho\n- **KR2:** API publica com 5 integracoes nativas" },
+      { id: 'd4', name: 'Contrato — Cliente Central', folder: 'juridico', type: 'DOC', typeColor: '#3b82f6', date: '5d atras',
+        content: "CONTRATO DE PRESTACAO DE SERVICOS\n\nPartes:\nContratante: Cliente Central Ltda.\nCNPJ 12.345.678/0001-90\n\nContratada: Blu Empresa EIRELI\nCNPJ 98.765.432/0001-10\n\nObjeto:\nPrestacao de servicos de consultoria e gestao operacional pelo periodo de 12 meses.\n\nValor: R$ 48.000,00 mensais.\n\nVigencia: 01/06/2026 a 31/05/2027." },
+      { id: 'd5', name: 'Analise de Mercado PMEs', folder: 'pesquisa', type: 'PDF', typeColor: '#ef4444', date: '2d atras',
+        content: "# Analise de Mercado PMEs 2026\n\n## Cenario Atual\n\nO mercado de automacao para PMEs cresceu 34% em 2025.\n\n## Tamanho de Mercado\n\n- 5.2 milhoes de PMEs ativas no Brasil\n- Apenas 12% utilizam alguma ferramenta de IA\n- Ticket medio: R$ 800/mes\n\n## Diferenciais da Blu\n\n- Unico com agentes de IA autonomos\n- Cobertura multi-dominio\n- Aprovacao humana em loop" },
+    ]
+  }
+
+  _getFolderTree() {
+    return [
+      { id: 'all',          label: 'Todos os documentos', icon: '📁', depth: 0, hasChildren: false, parentId: null },
+      { id: 'estrategia',   label: 'Estrategia',           icon: '🎯', depth: 0, hasChildren: true,  parentId: null },
+      { id: 'okrs',         label: 'OKRs',                 icon: '📋', depth: 1, hasChildren: false, parentId: 'estrategia' },
+      { id: 'planejamento', label: 'Planejamento',          icon: '📈', depth: 1, hasChildren: false, parentId: 'estrategia' },
+      { id: 'relatorios',   label: 'Relatorios',            icon: '📊', depth: 0, hasChildren: false, parentId: null },
+      { id: 'juridico',     label: 'Juridico',              icon: '⚖', depth: 0, hasChildren: false, parentId: null },
+      { id: 'pesquisa',     label: 'Pesquisa',              icon: '🔍', depth: 0, hasChildren: false, parentId: null },
+    ]
+  }
+
+  _getApprovals() {
+    return [
+      { id: 'a1', agentLabel: 'Estrategia', title: 'Analise de expansao para mercado Sul', body: 'Identificada oportunidade de expansao para RS e SC. Projecao de +18% MRR em 6 meses. Requer aprovacao para iniciar processo de prospeccao.', priority: 'high', time: '14:30' },
+      { id: 'a2', agentLabel: 'Documentos',  title: 'Proposta comercial — TechCorp LTDA',  body: 'Proposta gerada com base no historico de negociacoes. Valor sugerido: R$ 4.200/mes com desconto de fidelidade de 5%.', priority: 'urgent', time: '12:15' },
+      { id: 'a3', agentLabel: 'Estrategia', title: 'Revisao de meta de churn Q3',          body: 'Meta atual de 2% pode ser conservadora. Sugestao de ajuste para 1.8% com plano de acao detalhado.', priority: 'low', time: 'ontem' },
+    ]
+  }
+
+  _getReports() {
+    return [
+      { id: 'r1', title: 'Contexto Estrategico — Jun/2026',    date: '3 jun 2026' },
+      { id: 'r2', title: 'Analise de Crescimento — Mai/2026',  date: '1 mai 2026' },
+      { id: 'r3', title: 'OKRs Review Q2/2026',                date: '15 abr 2026' },
+    ]
+  }
+
+  _folderLabels() {
+    return { all: 'Todos os documentos', estrategia: 'Estrategia', okrs: 'OKRs', planejamento: 'Planejamento', relatorios: 'Relatorios', juridico: 'Juridico', pesquisa: 'Pesquisa' }
+  }
+
+  renderMarkdown(text) {
+    if (!text) { return '' }
+    var lines = text.split('\n')
+    var html = ''
+    var inList = false
+    lines.forEach(function(line) {
+      if (inList && !line.startsWith('- ')) { html += '</div>'; inList = false }
+      if (line.startsWith('# ')) {
+        html += '<div style="font-size:16px;font-weight:700;color:var(--fg);margin:2px 0 10px;letter-spacing:-0.4px">' + line.slice(2) + '</div>'
+      } else if (line.startsWith('## ')) {
+        html += '<div style="font-size:10px;font-weight:700;color:var(--ac);margin:14px 0 5px;text-transform:uppercase;letter-spacing:.08em">' + line.slice(3) + '</div>'
+      } else if (line.startsWith('- ')) {
+        if (!inList) { html += '<div style="display:flex;flex-direction:column;gap:3px;margin-bottom:8px">'; inList = true }
+        var content = line.slice(2).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        html += '<div style="display:flex;gap:6px;font-size:11.5px;color:var(--mu2);line-height:1.5"><span style="color:var(--mu);flex-shrink:0">·</span><span>' + content + '</span></div>'
+      } else if (line.startsWith('|')) {
+        // skip table rows for simplicity
+      } else if (line.trim()) {
+        var content2 = line.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        html += '<div style="font-size:11.5px;color:var(--mu2);margin-bottom:3px;line-height:1.6">' + content2 + '</div>'
+      } else {
+        if (!inList) { html += '<div style="height:6px"></div>' }
+      }
+    })
+    if (inList) { html += '</div>' }
+    return html
+  }
+
+  computeDiff(original, current) {
+    if (current === original) { return { html: '<p style="font-size:12px;color:var(--mu);text-align:center;padding:20px 0">Sem alteracoes</p>', count: 0 } }
+    var orig = original.split('\n'), curr = current.split('\n')
+    var html = '', count = 0
+    var max = Math.max(orig.length, curr.length)
+    for (var i = 0; i < max; i++) {
+      var o = orig[i] !== undefined ? orig[i] : ''
+      var c = curr[i] !== undefined ? curr[i] : ''
+      if (o === c) {
+        html += '<div style="padding:1px 4px;color:var(--mu2);font-size:11px;line-height:1.5">' + (o || '&nbsp;') + '</div>'
+      } else if (c && !o) {
+        html += '<div style="padding:1px 4px;border-left:2px solid var(--ok);background:rgba(16,185,129,.1);color:var(--ok);font-size:11px;line-height:1.5;margin:1px 0;border-radius:0 3px 3px 0">' + c + '</div>'
+        count++
+      } else if (o && !c) {
+        html += '<div style="padding:1px 4px;text-decoration:line-through;color:rgba(239,68,68,.6);font-size:11px;line-height:1.5;margin:1px 0">' + o + '</div>'
+        count++
+      } else {
+        html += '<div style="padding:1px 4px;text-decoration:line-through;color:rgba(239,68,68,.6);font-size:11px">' + o + '</div>'
+        html += '<div style="padding:1px 4px;border-left:2px solid var(--ok);background:rgba(16,185,129,.1);color:var(--ok);font-size:11px;border-radius:0 3px 3px 0">' + c + '</div>'
+        count++
+      }
+    }
+    return { html: html, count: count }
+  }
+
+  renderVals() {
+    var s = this.state
+    var docs = this._getDocs()
+    var raw = this._getFolderTree()
+    var labels = this._folderLabels()
+
+    var selectedDoc = null
+    if (s.selectedDocId) {
+      for (var di = 0; di < docs.length; di++) {
+        if (docs[di].id === s.selectedDocId) { selectedDoc = docs[di]; break }
+      }
+    }
+
+    var diff = this.computeDiff(s.originalContent, s.editorContent)
+    var diffBadge = diff.count + ' ' + (diff.count === 1 ? 'alteracao' : 'alteracoes')
+    var diffBadgeStyle = {
+      fontSize: 9.5, fontWeight: 600, padding: '2px 7px', borderRadius: 3,
+      background: diff.count > 0 ? 'var(--adim)' : 'rgba(255,255,255,.06)',
+      color: diff.count > 0 ? 'var(--ac)' : 'var(--mu)',
+    }
+    var previewHtml = { __html: this.renderMarkdown(s.editorContent) }
+    var showEditPane = s.editorViewMode === 'edit' || s.editorViewMode === 'split'
+    var showPreviewPane = s.editorViewMode === 'preview' || s.editorViewMode === 'split'
+    var editPaneStyle = { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRight: s.editorViewMode === 'split' ? '1px solid var(--gb)' : 'none' }
+    var previewPaneStyle = { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }
+
+    var self = this
+    var docItems = docs.map(function(d) {
+      return {
+        id: d.id, name: d.name, type: d.type, date: d.date,
+        rowStyle: { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', cursor: 'pointer', borderRadius: 5, marginBottom: 1, background: d.id === s.selectedDocId ? 'var(--adim)' : 'transparent', borderLeft: '2px solid ' + (d.id === s.selectedDocId ? 'var(--ac)' : 'transparent'), transition: 'background 0.1s' },
+        typeIconStyle: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 5, flexShrink: 0, background: d.typeColor + '18', border: '1px solid ' + d.typeColor + '30' },
+        typeTextStyle: { fontSize: 8, fontWeight: 800, letterSpacing: '0.04em', color: d.typeColor, fontFamily: 'var(--mono)' },
+        nameStyle: { flex: 1, fontSize: 11.5, fontWeight: d.id === s.selectedDocId ? 600 : 400, color: d.id === s.selectedDocId ? 'var(--fg)' : 'var(--mu2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+        onClick: (function(doc) { return function() { self.setState({ selectedDocId: doc.id, editorContent: doc.content, originalContent: doc.content }) } })(d),
+      }
+    })
+
+    var expandedFolderIds = s.expandedFolderIds
+    var folderItems = raw
+      .filter(function(node) { return !node.parentId || expandedFolderIds.indexOf(node.parentId) >= 0 })
+      .map(function(node) {
+        var isSelected = s.selectedFolder === node.id
+        var isExpanded = expandedFolderIds.indexOf(node.id) >= 0
+        var docCount = node.id === 'all' ? docs.length : docs.filter(function(d) { return d.folder === node.id }).length
+        return {
+          id: node.id, label: node.label, icon: node.icon, count: docCount, hasChildren: node.hasChildren,
+          rowStyle: { display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px 5px ' + (8 + node.depth * 14) + 'px', cursor: 'pointer', borderRadius: 4, userSelect: 'none', background: isSelected ? 'var(--adim)' : 'transparent', borderLeft: '2px solid ' + (isSelected ? 'var(--ac)' : 'transparent'), color: isSelected ? 'var(--fg)' : 'var(--mu2)', transition: 'background 0.1s' },
+          countStyle: { fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--mu)', flexShrink: 0 },
+          chevStyle: { fontSize: 9, color: 'var(--mu)', flexShrink: 0, transition: 'transform 0.15s', transform: isExpanded ? 'rotate(90deg)' : 'none' },
+          chevron: '▶',
+          onClick: (function(n, expanded) {
+            return function() {
+              var arr = expandedFolderIds.slice()
+              if (n.hasChildren) {
+                var idx = arr.indexOf(n.id)
+                if (idx >= 0) { arr.splice(idx, 1) } else { arr.push(n.id) }
+                self.setState({ expandedFolderIds: arr, selectedFolder: n.id })
+              } else {
+                self.setState({ selectedFolder: n.id })
+              }
+            }
+          })(node, isExpanded),
+        }
+      })
+
+    var selectedFolderDocs = s.selectedFolder === 'all' ? docs : docs.filter(function(d) { return d.folder === s.selectedFolder })
+    var filteredDocs = selectedFolderDocs.map(function(d) {
+      return {
+        id: d.id, name: d.name, type: d.type, date: d.date,
+        cardStyle: { display: 'flex', flexDirection: 'column', gap: 7, padding: '11px 11px 9px', background: 'rgba(0,0,0,.18)', border: '1px solid var(--gb)', borderRadius: 'var(--r)', cursor: 'pointer', transition: 'border-color 0.1s' },
+        typeIconStyle: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 7, flexShrink: 0, background: d.typeColor + '18', border: '1px solid ' + d.typeColor + '30' },
+        typeTextStyle: { fontSize: 8.5, fontWeight: 800, letterSpacing: '0.04em', color: d.typeColor, fontFamily: 'var(--mono)' },
+        statusStyle: { fontSize: 8.5, fontWeight: 700, padding: '2px 6px', borderRadius: 3, background: 'rgba(16,185,129,.15)', color: 'var(--ok)', alignSelf: 'flex-start', whiteSpace: 'nowrap' },
+        folderPillStyle: { fontSize: 9, padding: '1px 5px', borderRadius: 3, background: 'var(--glass)', color: 'var(--mu2)', border: '1px solid var(--gb)' },
+        folderLabel: labels[d.folder] || d.folder,
+        onClick: (function(doc) { return function() { self.setState({ selectedDocId: doc.id, editorContent: doc.content, originalContent: doc.content, activeTab: 'documentos' }) } })(d),
+      }
+    })
+
+    var approvals = this._getApprovals()
+    var approvalItems = approvals.map(function(a) {
+      var isExpanded = s.expandedApprovalId === a.id
+      var priorityColor = a.priority === 'urgent' ? '#f87171' : a.priority === 'high' ? '#fb923c' : '#fbbf24'
+      var priorityLabel = a.priority === 'urgent' ? 'Urgente' : a.priority === 'high' ? 'Atencao' : 'Normal'
+      var badgeClass = a.priority === 'urgent' ? 'bdg bu' : a.priority === 'high' ? 'bdg bw' : 'bdg bo'
+      return {
+        id: a.id, agentLabel: a.agentLabel, title: a.title, body: a.body, time: a.time,
+        dcClass: 'dc warn' + (isExpanded ? ' expanded' : ''),
+        agdStyle: { width: 5, height: 5, borderRadius: '50%', background: priorityColor },
+        priorityLabel: priorityLabel, badgeClass: badgeClass,
+        onToggle: (function(aid) { return function() { self.setState({ expandedApprovalId: s.expandedApprovalId === aid ? null : aid }) } })(a.id),
+        onApprove: (function(aid) { return function(e) { e.stopPropagation(); self.setState({ expandedApprovalId: null }) } })(a.id),
+        onReject:  (function(aid) { return function(e) { e.stopPropagation(); self.setState({ expandedApprovalId: null }) } })(a.id),
+        onSnooze:  (function(aid) { return function(e) { e.stopPropagation(); self.setState({ expandedApprovalId: null }) } })(a.id),
+      }
+    })
+
+    var reports = this._getReports()
+    var reportItems = reports.map(function(r) {
+      return {
+        id: r.id, title: r.title, date: r.date,
+        rowStyle: { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 6, cursor: 'pointer', transition: 'background 0.1s' },
+        onClick: (function(rep) {
+          return function() {
+            var content = '# ' + rep.title + '\n\nRelatorio gerado automaticamente.\n\nData: ' + rep.date + '\n\n## Metricas\n\n- MRR: R$ 612k\n- Churn: 2.4%\n- NPS: 68'
+            self.setState({ selectedDocId: rep.id, editorContent: content, originalContent: content, activeTab: 'documentos' })
+          }
+        })(r),
+      }
+    })
+
+    var fCount = filteredDocs.length
+    var selLabel = labels[s.selectedFolder] || s.selectedFolder
+
+    return {
+      showObjetivos:    s.activeTab === 'objetivos',
+      showDocumentos:   s.activeTab === 'documentos',
+      showConhecimento: s.activeTab === 'conhecimento',
+      showConfig:       s.activeTab === 'config',
+      tabObjetivosClass:   'rtab' + (s.activeTab === 'objetivos'    ? ' on' : ''),
+      tabDocumentosClass:  'rtab' + (s.activeTab === 'documentos'   ? ' on' : ''),
+      tabConhecimentoClass:'rtab' + (s.activeTab === 'conhecimento' ? ' on' : ''),
+      tabConfigClass:      'rtab' + (s.activeTab === 'config'       ? ' on' : ''),
+      setTabObjetivos:    function() { self.setState({ activeTab: 'objetivos' }) },
+      setTabDocumentos:   function() { self.setState({ activeTab: 'documentos' }) },
+      setTabConhecimento: function() { self.setState({ activeTab: 'conhecimento' }) },
+      setTabConfig:       function() { self.setState({ activeTab: 'config' }) },
+
+      approvalItems: approvalItems, hasApprovals: approvalItems.length > 0, approvalsCount: approvalItems.length,
+
+      docItems: docItems,
+      hasSelectedDoc: !!selectedDoc, noDocSelected: !selectedDoc,
+      selectedDocName: selectedDoc ? selectedDoc.name : 'Nenhum documento',
+      editorContent: s.editorContent,
+      setEditorContent: function(e) { self.setState({ editorContent: e.target.value }) },
+      showEditPane: showEditPane, showPreviewPane: showPreviewPane,
+      editPaneStyle: editPaneStyle, previewPaneStyle: previewPaneStyle,
+      previewHtml: previewHtml, diffBadge: diffBadge, diffBadgeStyle: diffBadgeStyle,
+      editorStatus: diff.count > 0 ? 'Alteracoes nao salvas' : 'Sem alteracoes',
+      newDoc: function() { self.setState({ selectedDocId: 'new_' + Date.now(), editorContent: '# Novo Documento\n\nComece a escrever aqui...', originalContent: '', activeTab: 'documentos' }) },
+      saveDoc: function() { self.setState({ originalContent: self.state.editorContent }) },
+      viewEditClass:    'btn ' + (s.editorViewMode === 'edit'    ? 'bp' : 'bs'),
+      viewSplitClass:   'btn ' + (s.editorViewMode === 'split'   ? 'bp' : 'bs'),
+      viewPreviewClass: 'btn ' + (s.editorViewMode === 'preview' ? 'bp' : 'bs'),
+      setViewModeEdit:    function() { self.setState({ editorViewMode: 'edit' }) },
+      setViewModeSplit:   function() { self.setState({ editorViewMode: 'split' }) },
+      setViewModePreview: function() { self.setState({ editorViewMode: 'preview' }) },
+
+      folderItems: folderItems,
+      filteredDocs: filteredDocs,
+      hasFilteredDocs: fCount > 0, noFilteredDocs: fCount === 0,
+      filteredDocsLabel: fCount + ' documento' + (fCount !== 1 ? 's' : '') + ' — ' + selLabel,
+
+      reportItems: reportItems,
+      analyticsOpen: s.analyticsOpen,
+      toggleAnalytics: function() { self.setState({ analyticsOpen: !self.state.analyticsOpen }) },
+      analyticsChevClass: 'anl-chev' + (s.analyticsOpen ? ' open' : ''),
+      analyticsBodyClass: 'anl-body' + (s.analyticsOpen ? ' open' : ''),
+    }
+  }
+}
+</script>
+</body>
+</html>

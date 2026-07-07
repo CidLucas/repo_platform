@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BLU — Documentos Estratégicos</title>
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #03071C;
+    --glass: rgba(255,255,255,0.065);
+    --gl2: rgba(255,255,255,0.07);
+    --gb: rgba(255,255,255,0.10);
+    --gb2: rgba(255,255,255,0.20);
+    --fg: #DFE3EE;
+    --mu: rgba(223,227,238,0.42);
+    --mu2: rgba(223,227,238,0.64);
+    --ac: #8C5FDB;
+    --adim: rgba(140,95,219,0.15);
+    --urg: #EF4444;
+    --udim: rgba(239,68,68,0.13);
+    --att: #F59E0B;
+    --adm2: rgba(245,158,11,0.13);
+    --ok: #10B981;
+    --odim: rgba(16,185,129,0.13);
+    --r: 8px;
+    --rl: 12px;
+    --body: 'Inter', -apple-system, system-ui, sans-serif;
+    --mono: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+    --shadow-1: 0 2px 14px rgba(0,0,0,.28);
+    --shadow-2: 0 4px 22px rgba(0,0,0,.36);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 13px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  body { background-image: radial-gradient(at 12% 8%, rgba(59,130,246,0.10) 0px, transparent 50%), radial-gradient(at 88% 92%, rgba(140,95,219,0.10) 0px, transparent 50%); min-height: 100vh; padding: 32px; }
+  .page { max-width: 1200px; margin: 0 auto; }
+  .page-title { font-size: 28px; font-weight: 800; letter-spacing: -1px; margin-bottom: 4px; }
+  .page-sub { color: var(--mu); font-size: 13px; margin-bottom: 24px; }
+  .nav { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 28px; }
+  .nav a { padding: 5px 12px; border-radius: 6px; background: var(--glass); border: 1px solid var(--gb); color: var(--mu2); text-decoration: none; font-size: 11px; font-weight: 500; transition: .1s; }
+  .nav a:hover { background: var(--adim); border-color: var(--ac); color: var(--ac); }
+  .doc-section { background: var(--glass); backdrop-filter: blur(16px); border: 1px solid var(--gb); border-radius: var(--rl); padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow-1), inset 0 0 0 1px rgba(255,255,255,.05); }
+  .doc-section header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; flex-wrap: wrap; gap: 8px; }
+  .doc-section h2 { font-size: 16px; font-weight: 700; letter-spacing: -0.3px; display: flex; align-items: center; gap: 8px; }
+  .doc-section h3 { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--ac); margin: 16px 0 8px; }
+  .btn-group { display: flex; gap: 4px; }
+  .btn { display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border-radius: 5px; font-size: 10.5px; font-weight: 600; cursor: pointer; border: none; transition: .1s; white-space: nowrap; }
+  .btn-primary { background: var(--ac); color: #fff; }
+  .btn-primary:hover { background: #7A4FC9; }
+  .btn-outline { background: rgba(255,255,255,.08); border: 1px solid var(--gb); color: var(--fg); }
+  .btn-outline:hover { background: rgba(255,255,255,.12); }
+  .field { margin-bottom: 10px; }
+  .field label { display: block; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--mu); margin-bottom: 3px; }
+  .field input, .field textarea, .field select { width: 100%; padding: 7px 10px; border-radius: 5px; border: 1px solid var(--gb); background: rgba(0,0,0,.25); color: var(--fg); font-size: 12px; font-family: var(--body); outline: none; }
+  .field input:focus, .field textarea:focus { border-color: var(--ac); }
+  .field textarea { resize: vertical; min-height: 50px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; }
+  .inline-list { list-style: none; }
+  .inline-list li { padding: 5px 0; border-bottom: 1px solid var(--gb); display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--mu2); }
+  .inline-list li:last-child { border-bottom: none; }
+  .kpi-list { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0; }
+  .kpi-item { flex: 1; min-width: 120px; padding: 10px; border-radius: var(--r); border: 1px solid var(--gb); text-align: center; background: rgba(0,0,0,.18); }
+  .kpi-value { font-size: 20px; font-weight: 700; font-family: var(--mono); color: var(--ac); }
+  .kpi-label { font-size: 9px; color: var(--mu); text-transform: uppercase; letter-spacing: .06em; margin-top: 2px; }
+  .timeline { position: relative; padding-left: 20px; margin: 10px 0; }
+  .timeline::before { content: ''; position: absolute; left: 6px; top: 0; bottom: 0; width: 1px; background: var(--gb); }
+  .timeline-item { position: relative; margin-bottom: 12px; }
+  .timeline-item::before { content: ''; position: absolute; left: -14px; top: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--ac); border: 2px solid var(--bg); }
+  .timeline-date { font-size: 10px; color: var(--mu); font-family: var(--mono); }
+  .timeline-item div:last-child { font-size: 12px; color: var(--mu2); }
+  .progress-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .progress-row span { font-size: 11px; color: var(--mu2); white-space: nowrap; }
+  .progress-bar { flex: 1; height: 6px; background: var(--gb); border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 3px; }
+  .progress-fill.green { background: var(--ok); }
+  .progress-fill.amber { background: var(--att); }
+  .progress-fill.accent { background: var(--ac); }
+  .swot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .swot-cell { padding: 14px; border-radius: var(--r); border: 1px solid var(--gb); background: rgba(0,0,0,.18); }
+  .swot-cell h4 { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+  .swot-cell ul { list-style: disc; padding-left: 16px; font-size: 11.5px; color: var(--mu2); }
+  .swot-cell li { margin-bottom: 3px; }
+  .swot-s { border-left: 3px solid var(--ok); }
+  .swot-s h4 { color: var(--ok); }
+  .swot-w { border-left: 3px solid var(--urg); }
+  .swot-w h4 { color: var(--urg); }
+  .swot-o { border-left: 3px solid #3B82F6; }
+  .swot-o h4 { color: #3B82F6; }
+  .swot-t { border-left: 3px solid var(--att); }
+  .swot-t h4 { color: var(--att); }
+  .data-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+  .data-table th { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--gb); color: var(--mu); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+  .data-table td { padding: 6px 8px; border-bottom: 1px solid var(--gb); color: var(--mu2); }
+  .data-table tr:hover td { background: rgba(255,255,255,.04); }
+  .badge { display: inline-block; padding: 1px 7px; border-radius: 3px; font-size: 9px; font-weight: 700; text-transform: uppercase; }
+  .badge-urg { background: var(--udim); color: var(--urg); }
+  .badge-att { background: var(--adm2); color: var(--att); }
+  .badge-ok { background: var(--odim); color: var(--ok); }
+  .badge-mu { background: var(--gb); color: var(--mu); }
+  .discussion-item { padding: 6px 0; border-bottom: 1px solid var(--gb); }
+  .discussion-item:last-child { border-bottom: none; }
+  .discussion-author { font-size: 11px; font-weight: 600; color: var(--mu2); margin-bottom: 2px; }
+  .discussion-text { font-size: 11.5px; color: var(--mu2); }
+  .report-block { padding: 10px 12px; margin-bottom: 8px; border-left: 3px solid var(--ac); background: rgba(0,0,0,.15); border-radius: 0 var(--r) var(--r) 0; }
+  .report-block h4 { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--mu2); margin-bottom: 4px; }
+  .report-block p, .report-block li { font-size: 11.5px; color: var(--mu2); line-height: 1.5; }
+  .report-block ul { padding-left: 16px; }
+  hr { border: none; border-top: 1px solid var(--gb); margin: 12px 0; }
+  @media (max-width: 768px) { .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; } .swot-grid { grid-template-columns: 1fr; } }
+  @media print {
+    body { background: #fff !important; color: #000 !important; padding: 0.5in !important; }
+    .doc-section { background: #fff !important; border: 1px solid #000 !important; box-shadow: none !important; }
+    .btn, .btn-group, .nav { display: none !important; }
+    .data-table th { background: #f5f5f5 !important; }
+    .kpi-value { color: #000 !important; }
+    .progress-fill { background: #000 !important; }
+    .swot-cell { border: 1px solid #000 !important; background: #fff !important; }
+    .swot-s, .swot-w, .swot-o, .swot-t { border-left: 3px solid #000 !important; }
+    .swot-s h4, .swot-w h4, .swot-o h4, .swot-t h4 { color: #000 !important; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+<div class="page-title">Documentos Estrategicos</div>
+<div class="page-sub">Plano estrategico, OKRs, relatorio de contexto, atas, SWOT e plano de acao</div>
+<nav class="nav">
+  <a href="#plano">Plano Estrategico</a>
+  <a href="#okr">OKR</a>
+  <a href="#contexto">Relatorio de Contexto</a>
+  <a href="#ata">Ata de Reuniao</a>
+  <a href="#swot">SWOT</a>
+  <a href="#acoes">Plano de Acao</a>
+</nav>
+
+<!-- PLANO ESTRATEGICO -->
+<section class="doc-section" id="plano">
+  <header>
+    <h2><i class="ph ph-target"></i> Plano Estrategico</h2>
+    <div class="btn-group">
+      <button class="btn btn-outline" onclick="window.print()"><i class="ph ph-download-simple"></i> Exportar</button>
+    </div>
+  </header>
+  <div class="field"><label>Visao</label><input type="text" value="Ser referencia em automacao inteligente para PMEs brasileiras ate 2027"></div>
+  <div class="field"><label>Missao</label><textarea rows="2">Entregar produtos que transformem a relacao entre pessoas e tecnologia, gerando valor para clientes, colaboradores e sociedade.</textarea></div>
+  <h3>Objetivos</h3>
+  <div class="grid-3">
+    <div class="field"><label>Objetivo 1</label><input type="text" value="Crescer 40% em MRR ate dez 2026"></div>
+    <div class="field"><label>Objetivo 2</label><input type="text" value="Expandir para 500 clientes ativos"></div>
+    <div class="field"><label>Objetivo 3</label><input type="text" value="Alcancar excelencia operacional"></div>
+  </div>
+  <h3>Iniciativas</h3>
+  <ul class="inline-list">
+    <li><span>Lancar modulo de Clientes v2 no Q3</span><span style="color:var(--mu);font-family:var(--mono);font-size:10px">Q2-Q3 2026</span></li>
+    <li><span>Programa de indicacao</span><span style="color:var(--mu);font-family:var(--mono);font-size:10px">Q3 2026</span></li>
+    <li><span>Onboarding guiado em 7 dias</span><span style="color:var(--mu);font-family:var(--mono);font-size:10px">Q2 2026</span></li>
+  </ul>
+  <h3>KPIs</h3>
+  <div class="kpi-list">
+    <div class="kpi-item"><div class="kpi-value">R$ 850k</div><div class="kpi-label">MRR Meta</div></div>
+    <div class="kpi-item"><div class="kpi-value">72</div><div class="kpi-label">NPS</div></div>
+    <div class="kpi-item"><div class="kpi-value">2%</div><div class="kpi-label">Churn</div></div>
+    <div class="kpi-item"><div class="kpi-value">500</div><div class="kpi-label">Clientes</div></div>
+  </div>
+  <h3>Timeline</h3>
+  <div class="timeline">
+    <div class="timeline-item"><div class="timeline-date">Q1 2026</div><div>Diagnostico e definicao de OKRs</div></div>
+    <div class="timeline-item"><div class="timeline-date">Q2 2026</div><div>Onboarding guiado; inicio P&D</div></div>
+    <div class="timeline-item"><div class="timeline-date">Q3 2026</div><div>Lancamento Clientes v2; indicacao</div></div>
+    <div class="timeline-item"><div class="timeline-date">Q4 2026</div><div>Avaliacao anual e revisao 2027</div></div>
+  </div>
+</section>
+
+<!-- OKR -->
+<section class="doc-section" id="okr">
+  <header>
+    <h2><i class="ph ph-chart-line"></i> OKR</h2>
+    <div class="btn-group"><button class="btn btn-outline" onclick="window.print()"><i class="ph ph-download-simple"></i> Exportar</button></div>
+  </header>
+  <div class="field"><label>Objective</label><input type="text" value="Acelerar a adocao da plataforma por empresas de medio porte"></div>
+  <h3>Key Results</h3>
+  <div class="progress-row"><span style="min-width:40px">78%</span><div class="progress-bar"><div class="progress-fill accent" style="width:78%"></div></div><span style="color:var(--mu);font-size:10px">Meta: 120 contas</span></div>
+  <div class="progress-row"><span style="min-width:40px">62%</span><div class="progress-bar"><div class="progress-fill amber" style="width:62%"></div></div><span style="color:var(--mu);font-size:10px">Meta: 85% ativacao</span></div>
+  <div class="progress-row"><span style="min-width:40px">90%</span><div class="progress-bar"><div class="progress-fill green" style="width:90%"></div></div><span style="color:var(--mu);font-size:10px">Churn abaixo de 2%</span></div>
+  <div class="field" style="max-width:300px;margin-top:12px"><label>Owner</label><input type="text" value="Diretor de Growth"></div>
+</section>
+
+<!-- RELATORIO DE CONTEXTO -->
+<section class="doc-section" id="contexto">
+  <header>
+    <h2><i class="ph ph-file-text"></i> Relatorio de Contexto</h2>
+    <div class="btn-group"><button class="btn btn-outline" onclick="window.print()"><i class="ph ph-download-simple"></i> Exportar</button></div>
+  </header>
+  <div class="report-block"><h4>Sumario Executivo</h4><p>O mercado de SaaS B2B cresceu 22% no ultimo trimestre. Nossa plataforma esta posicionada para capturar esse crescimento, mas enfrenta pressao competitiva de players internacionais.</p></div>
+  <div class="report-block"><h4>Analise</h4><p><strong>Mercado:</strong> Crescimento acelerado na vertical de saude e financas. Concorrentes reduziram precos em 15%.</p><p><strong>Produto:</strong> Funcionalidades de IA generativa sao diferencial, mas tempo de integracao (media 45 dias) e barreira.</p></div>
+  <div class="report-block"><h4>Recomendacoes</h4><ul><li>Reduzir tempo de integracao para 20 dias com onboarding automatizado</li><li>Criar pacotes setoriais com precificacao flexivel</li><li>Acelerar contratacoes de engenharia</li></ul></div>
+</section>
+
+<!-- ATA DE REUNIAO -->
+<section class="doc-section" id="ata">
+  <header>
+    <h2><i class="ph ph-calendar"></i> Ata de Reuniao</h2>
+    <div class="btn-group"><button class="btn btn-outline" onclick="window.print()"><i class="ph ph-download-simple"></i> Exportar</button></div>
+  </header>
+  <div class="grid-3">
+    <div class="field"><label>Data</label><input type="text" value="07/07/2026"></div>
+    <div class="field"><label>Horario</label><input type="text" value="14:00 - 15:30"></div>
+    <div class="field"><label>Local</label><input type="text" value="Sala Nexus / Zoom"></div>
+  </div>
+  <div class="field"><label>Participantes</label><input type="text" value="Ana C. (CEO), Bruno M. (CTO), Carla S. (PM), Daniel R. (Design)"></div>
+  <div class="field"><label>Pauta</label><textarea rows="2">1. Review sprint 24 · 2. Roadmap Q3 · 3. Orcamento de marketing</textarea></div>
+  <h3>Discussoes</h3>
+  <div class="discussion-item"><div class="discussion-author">Carla S. (PM)</div><div class="discussion-text">Sprint 24 entregou 87% dos pontos planejados. Bloqueio principal foi dependencia de API de terceiros.</div></div>
+  <div class="discussion-item"><div class="discussion-author">Bruno M. (CTO)</div><div class="discussion-text">Roadmap Q3: prioridade e modulo de analytics e integracao Salesforce. Precisamos de +2 devs.</div></div>
+  <hr>
+  <h3>Acordos</h3>
+  <table class="data-table">
+    <thead><tr><th>#</th><th>Acordo</th><th>Responsavel</th><th>Prazo</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Alinhar cronograma de contratacoes com RH</td><td>Bruno M.</td><td>10/07</td></tr>
+      <tr><td>2</td><td>Homologar fallback de API</td><td>Time Eng.</td><td>14/07</td></tr>
+      <tr><td>3</td><td>Enviar briefing de analytics para Design</td><td>Carla S.</td><td>09/07</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- SWOT -->
+<section class="doc-section" id="swot">
+  <header>
+    <h2><i class="ph ph-grid"></i> SWOT</h2>
+    <div class="btn-group"><button class="btn btn-outline" onclick="window.print()"><i class="ph ph-download-simple"></i> Exportar</button></div>
+  </header>
+  <div class="swot-grid">
+    <div class="swot-cell swot-s"><h4>Strengths</h4><ul><li>Plataforma madura com baixa latencia</li><li>Time de engenharia qualificado</li><li>NPS 4.7</li><li>Tecnologia proprietaria de IA</li></ul></div>
+    <div class="swot-cell swot-w"><h4>Weaknesses</h4><ul><li>Tempo de integracao elevado (45 dias)</li><li>Presenca limitada fora do Brasil</li><li>Dependencia de provedores cloud</li></ul></div>
+    <div class="swot-cell swot-o"><h4>Opportunities</h4><ul><li>Expansao para America Latina</li><li>Demanda crescente por automacao com IA</li><li>Parcerias com integradores regionais</li></ul></div>
+    <div class="swot-cell swot-t"><h4>Threats</h4><ul><li>Concorrencia com precos agressivos</li><li>Mudancas regulatorias (LGPD)</li><li>Instabilidade cambial</li></ul></div>
+  </div>
+</section>
+
+<!-- PLANO DE ACAO -->
+<section class="doc-section" id="acoes">
+  <header>
+    <h2><i class="ph ph-list-checks"></i> Plano de Acao</h2>
+    <div class="btn-group"><button class="btn btn-outline" onclick="window.print()"><i class="ph ph-download-simple"></i> Exportar</button></div>
+  </header>
+  <table class="data-table">
+    <thead><tr><th>Prioridade</th><th>Acao</th><th>Responsavel</th><th>Prazo</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td><span class="badge badge-urg">Alta</span></td><td>Corrigir falha de seguranca no modulo de autenticacao</td><td>Time Seg.</td><td>14/07</td><td><span class="badge badge-att">Andamento</span></td></tr>
+      <tr><td><span class="badge badge-urg">Alta</span></td><td>Finalizar integracao Salesforce</td><td>Bruno M.</td><td>21/07</td><td><span class="badge badge-att">Andamento</span></td></tr>
+      <tr><td><span class="badge badge-att">Media</span></td><td>Contratar 2 engenheiros</td><td>RH</td><td>31/07</td><td><span class="badge badge-att">Andamento</span></td></tr>
+      <tr><td><span class="badge badge-ok">Baixa</span></td><td>Pesquisa de satisfacao clientes</td><td>Marketing</td><td>30/08</td><td><span class="badge badge-ok">Concluido</span></td></tr>
+    </tbody>
+  </table>
+</section>
+</div>
+</body>
+</html>

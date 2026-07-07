@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BLU — Documentos Financeiros</title>
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Nunito:wght@900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #03071C;
+    --glass: rgba(255,255,255,0.065);
+    --gl2: rgba(255,255,255,0.07);
+    --gb: rgba(255,255,255,0.10);
+    --gb2: rgba(255,255,255,0.20);
+    --fg: #DFE3EE;
+    --mu: rgba(223,227,238,0.42);
+    --mu2: rgba(223,227,238,0.64);
+    --ac: #8C5FDB;
+    --adim: rgba(140,95,219,0.15);
+    --urg: #EF4444;
+    --udim: rgba(239,68,68,0.13);
+    --att: #F59E0B;
+    --adm2: rgba(245,158,11,0.13);
+    --ok: #10B981;
+    --odim: rgba(16,185,129,0.13);
+    --r: 8px;
+    --rl: 12px;
+    --body: 'Inter', -apple-system, system-ui, sans-serif;
+    --mono: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+    --shadow-1: 0 2px 14px rgba(0,0,0,.28);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 13px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  body { background-image: radial-gradient(at 12% 8%, rgba(59,130,246,0.10) 0px, transparent 50%), radial-gradient(at 88% 92%, rgba(140,95,219,0.10) 0px, transparent 50%); min-height: 100vh; padding: 32px; }
+  .page { max-width: 1100px; margin: 0 auto; }
+  .page-title { font-size: 28px; font-weight: 800; letter-spacing: -1px; margin-bottom: 4px; }
+  .page-sub { color: var(--mu); font-size: 13px; margin-bottom: 24px; }
+  .nav { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 28px; }
+  .nav a { padding: 5px 12px; border-radius: 6px; background: var(--glass); border: 1px solid var(--gb); color: var(--mu2); text-decoration: none; font-size: 11px; font-weight: 500; }
+  .nav a:hover { background: var(--adim); border-color: var(--ac); color: var(--ac); }
+
+  .doc { background: var(--glass); backdrop-filter: blur(16px); border: 1px solid var(--gb); border-radius: var(--rl); padding: 32px 36px; margin-bottom: 28px; box-shadow: var(--shadow-1), inset 0 0 0 1px rgba(255,255,255,.05); position: relative; }
+  .doc-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 22px; padding-bottom: 18px; border-bottom: 1px solid var(--gb); }
+  .doc-brand { display: flex; align-items: center; gap: 12px; }
+  .doc-logo { width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, var(--ac), #6D28D9); display: flex; align-items: center; justify-content: center; color: #fff; font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 20px; }
+  .doc-brand-text .b-name { font-size: 14px; font-weight: 700; }
+  .doc-brand-text .b-meta { font-size: 10.5px; color: var(--mu); }
+  .doc-actions { display: flex; gap: 4px; }
+  .btn { display: inline-flex; align-items: center; gap: 4px; padding: 6px 11px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; border: none; transition: .1s; }
+  .btn-primary { background: var(--ac); color: #fff; }
+  .btn-outline { background: rgba(255,255,255,.08); border: 1px solid var(--gb); color: var(--fg); }
+  .btn-outline:hover { background: rgba(255,255,255,.12); }
+  .btn-ghost { background: transparent; color: var(--mu2); }
+  .btn-ghost:hover { background: rgba(255,255,255,.06); }
+  .doc-title { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 2px; }
+  .doc-sub { font-size: 11.5px; color: var(--mu); margin-bottom: 22px; }
+
+  h3.section-h { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ac); margin: 18px 0 10px; display: flex; align-items: center; gap: 6px; }
+  h3.section-h::after { content: ''; flex: 1; height: 1px; background: var(--gb); }
+  h4.sub-h { font-size: 12px; font-weight: 700; color: var(--fg); margin: 14px 0 6px; }
+
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 12px 0 18px; }
+  .kpi { padding: 12px 14px; border-radius: var(--r); border: 1px solid var(--gb); background: rgba(0,0,0,.2); }
+  .kpi-label { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--mu); margin-bottom: 4px; }
+  .kpi-val { font-family: var(--mono); font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+  .kpi-delta { font-size: 10.5px; margin-top: 3px; font-weight: 600; }
+  .kpi-delta.up { color: var(--ok); }
+  .kpi-delta.down { color: var(--urg); }
+
+  .dt { width: 100%; border-collapse: collapse; font-size: 11.5px; margin: 6px 0 10px; }
+  .dt th { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--gb2); color: var(--mu); font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; background: rgba(255,255,255,.02); }
+  .dt th.right { text-align: right; }
+  .dt td { padding: 7px 10px; border-bottom: 1px solid var(--gb); color: var(--mu2); }
+  .dt td.right { text-align: right; font-family: var(--mono); }
+  .dt tr:hover td { background: rgba(255,255,255,.03); }
+  .dt tfoot td { background: rgba(0,0,0,.25); font-weight: 700; color: var(--fg); border-top: 1px solid var(--gb2); }
+  .dt tfoot td.right { font-family: var(--mono); }
+
+  .bar-row { display: grid; grid-template-columns: 120px 1fr 60px; gap: 10px; align-items: center; margin-bottom: 6px; font-size: 11px; }
+  .bar-row .lbl { color: var(--mu2); }
+  .bar-row .bar { height: 6px; background: var(--gb); border-radius: 3px; overflow: hidden; }
+  .bar-row .bar > i { display: block; height: 100%; }
+  .bar-row .val { text-align: right; font-family: var(--mono); color: var(--fg); font-weight: 600; }
+  .cat-bar { display: flex; align-items: center; gap: 6px; }
+  .cat-bar .stk { width: 60px; height: 5px; background: var(--gb); border-radius: 2px; position: relative; overflow: hidden; }
+  .cat-bar .stk > i { position: absolute; left: 0; top: 0; height: 100%; border-radius: 2px; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .note-block { padding: 10px 12px; border-left: 3px solid var(--ac); background: rgba(0,0,0,.15); border-radius: 0 var(--r) var(--r) 0; margin-bottom: 8px; }
+  .note-block p { font-size: 11.5px; color: var(--mu2); line-height: 1.55; }
+
+  .summary-list { list-style: none; }
+  .summary-list li { padding: 7px 0; border-bottom: 1px solid var(--gb); display: flex; justify-content: space-between; font-size: 12px; color: var(--mu2); }
+  .summary-list li:last-child { border-bottom: none; }
+  .summary-list li strong { color: var(--fg); font-weight: 600; }
+
+  .pl-row { display: grid; grid-template-columns: 1fr 100px 100px 90px; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--gb); font-size: 12px; }
+  .pl-row:first-of-type { border-top: 1px solid var(--gb2); padding-top: 10px; margin-top: 6px; }
+  .pl-row .lbl { color: var(--mu2); }
+  .pl-row .v { font-family: var(--mono); text-align: right; color: var(--fg); }
+  .pl-row.subtotal { background: rgba(255,255,255,.03); padding: 10px; border-radius: 5px; border: 1px solid var(--gb); }
+  .pl-row.total { background: rgba(140,95,219,.12); padding: 12px 10px; border-radius: 5px; border: 1px solid var(--ac); margin-top: 6px; }
+  .pl-row.total .lbl { color: var(--ac); font-weight: 700; }
+  .pl-row.total .v { color: var(--ac); font-weight: 700; }
+
+  .cover { padding: 40px 20px; text-align: center; border-bottom: 1px solid var(--gb); margin-bottom: 24px; }
+  .cover-tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.18em; color: var(--ac); margin-bottom: 12px; }
+  .cover-title { font-size: 36px; font-weight: 800; letter-spacing: -1.5px; margin-bottom: 10px; }
+  .cover-sub { font-size: 14px; color: var(--mu2); max-width: 580px; margin: 0 auto 18px; }
+  .cover-meta { display: flex; justify-content: center; gap: 24px; font-size: 11px; color: var(--mu); }
+  .cover-meta strong { color: var(--fg); display: block; font-size: 12px; margin-bottom: 2px; }
+
+  .scope-list { list-style: none; }
+  .scope-list li { padding: 10px 0; border-bottom: 1px solid var(--gb); display: flex; align-items: flex-start; gap: 10px; font-size: 12px; color: var(--mu2); }
+  .scope-list li:last-child { border-bottom: none; }
+  .scope-list li i { color: var(--ok); font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+  .scope-list li strong { color: var(--fg); display: block; margin-bottom: 2px; }
+
+  .price-table { border: 1px solid var(--gb); border-radius: var(--r); overflow: hidden; margin: 12px 0; }
+  .price-row { display: grid; grid-template-columns: 1fr 80px 100px; padding: 10px 14px; border-bottom: 1px solid var(--gb); font-size: 12px; }
+  .price-row:last-child { border-bottom: none; }
+  .price-row.head { background: rgba(255,255,255,.03); font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--mu); font-weight: 700; }
+  .price-row .v { text-align: right; font-family: var(--mono); }
+
+  .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 50px; }
+  .sig-line { border-top: 1px solid var(--gb2); padding-top: 8px; text-align: center; font-size: 11px; color: var(--mu); }
+  .sig-line strong { display: block; color: var(--fg); font-size: 12px; margin-bottom: 2px; }
+
+  .barcode { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 24px; padding: 16px; border: 1px solid var(--gb); border-radius: var(--r); }
+  .bars { display: flex; gap: 1px; align-items: end; height: 50px; }
+  .bars i { display: block; width: 2px; background: var(--fg); }
+  .barcode-num { font-family: var(--mono); font-size: 11px; color: var(--mu); letter-spacing: 0.2em; }
+
+  .total-summary { display: flex; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--gb2); margin-top: 8px; font-weight: 700; font-size: 14px; }
+  .total-summary .v { font-family: var(--mono); color: var(--ac); font-size: 18px; }
+
+  .row-info { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--mu); margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px dashed var(--gb); }
+  .row-info strong { color: var(--fg); }
+
+  .bs-section { padding: 14px; border: 1px solid var(--gb); border-radius: var(--r); background: rgba(0,0,0,.18); }
+  .bs-section h4 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ac); margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--gb); }
+  .bs-section .item { display: flex; justify-content: space-between; padding: 5px 0; font-size: 12px; color: var(--mu2); border-bottom: 1px solid var(--gb); }
+  .bs-section .item:last-of-type { border-bottom: none; }
+  .bs-section .item .v { font-family: var(--mono); }
+  .bs-section .sub { color: var(--mu); font-size: 11px; padding-left: 12px; }
+  .bs-section .total { display: flex; justify-content: space-between; padding: 8px 0; font-weight: 700; border-top: 1px solid var(--gb2); margin-top: 6px; color: var(--fg); }
+  .bs-section .total .v { font-family: var(--mono); }
+
+  @media (max-width: 800px) { .grid-2, .grid-3, .kpi-grid { grid-template-columns: 1fr; } .signatures { grid-template-columns: 1fr; gap: 30px; } }
+  @media print {
+    body { background: #fff !important; color: #000 !important; padding: 0 !important; }
+    .page { max-width: 100% !important; }
+    .doc { background: #fff !important; border: 1px solid #000 !important; box-shadow: none !important; backdrop-filter: none !important; padding: 1.5cm !important; margin: 0 0 1cm !important; page-break-after: always; border-radius: 0 !important; }
+    .doc-logo { background: #000 !important; }
+    .doc-head, h3.section-h { border-color: #000 !important; }
+    h3.section-h { color: #1a237e !important; }
+    h3.section-h::after { background: #000 !important; }
+    .nav, .doc-actions, .btn { display: none !important; }
+    .kpi, .bs-section, .price-table, .note-block, .dt tfoot td, .pl-row.subtotal, .pl-row.total, .barcode { background: #fff !important; border-color: #000 !important; box-shadow: none !important; }
+    .kpi-val, .pl-row.total .lbl, .pl-row.total .v, .total-summary .v { color: #1a237e !important; }
+    .pl-row.total { border: 1px solid #000 !important; }
+    .dt th { background: #f5f5f5 !important; color: #000 !important; }
+    .dt td { color: #000 !important; border-bottom: 1px solid #999 !important; }
+    .dt tfoot td { background: #f5f5f5 !important; color: #000 !important; }
+    .scope-list li i { color: #000 !important; }
+    .barcode { display: flex !important; }
+    .bars i { background: #000 !important; }
+    .bar-row .bar { background: #ddd !important; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="page-title">Documentos Financeiros</div>
+  <div class="page-sub">Sete modelos: fechamento mensal, fluxo de caixa, orcamento, invoice, proposta comercial, relatorio de despesas e balanco patrimonial</div>
+  <nav class="nav">
+    <a href="#fechamento">Fechamento mensal</a>
+    <a href="#fluxo">Fluxo de caixa</a>
+    <a href="#orcamento">Proposta de orcamento</a>
+    <a href="#invoice">Invoice</a>
+    <a href="#proposta">Proposta comercial</a>
+    <a href="#despesas">Relatorio de despesas</a>
+    <a href="#balanco">Balanco patrimonial</a>
+  </nav>
+
+  <!-- 1. FECHAMENTO MENSAL -->
+  <article class="doc" id="fechamento">
+    <div class="doc-head">
+      <div class="doc-brand">
+        <div class="doc-logo">b</div>
+        <div class="doc-brand-text">
+          <div class="b-name">Blu Contabilidade</div>
+          <div class="b-meta">CNPJ 12.345.678/0001-90</div>
+        </div>
+      </div>
+      <div class="doc-actions">
+        <button class="btn btn-ghost"><i class="ph ph-share-network"></i> Compartilhar</button>
+        <button class="btn btn-outline" onclick="window.print()"><i class="ph ph-download-simple"></i> Exportar</button>
+      </div>
+    </div>
+    <div class="doc-title">Fechamento Mensal — Fevereiro 2026</div>
+    <div class="doc-sub">Periodo: 01/02/2026 a 28/02/2026 | Gerado em 03/03/2026 | Status: Fechado</div>
+
+    <h3 class="section-h"><i class="ph ph-lightbulb"></i> Sumario executivo</h3>
+    <p style="font-size: 12px; color: var(--mu2); margin-bottom: 14px;">Fevereiro fechou com receita liquida de R$ 163.370 e lucro liquido de R$ 62.620, crescimento de 9,7% sobre janeiro. Margem operacional subiu para 38,3%. MRR atingiu R$ 84.320, melhor marca historica, puxado por 14 novos clientes. Principal atencao: CAC acima da meta (R$ 412 vs R$ 400) e inadimplencia subindo 0,4pp.</p>
+
+    <div class="kpi-grid">
+      <div class="kpi"><div class="kpi-label">Receita liquida</div><div class="kpi-val">R$ 163.370</div><div class="kpi-delta up">+ 9,7% MoM</div></div>
+      <div class="kpi"><div class="kpi-label">Lucro liquido</div><div class="kpi-val">R$ 62.620</div><div class="kpi-delta up">+ 14,2% MoM</div></div>
+      <div class="kpi"><div class="kpi-label">Margem liquida</div><div class="kpi-val">38,3%</div><div class="kpi-delta up">+ 1,5pp</div></div>
+      <div class="kpi"><div class="kpi-label">EBITDA</div><div class="kpi-val">R$ 74.200</div><div class="kpi-delta up">+ 11,0% MoM</div></div>
+    </div>
+
+    <h3 class="section-h"><i class="ph ph-trend-up"></i> Receitas</h3>
+    <table class="dt">
+      <thead><tr><th>Linha</th><th class="right">Fev 2026</th><th class="right">Jan 2026</th><th class="right">% Total</th></tr></thead>
+      <tbody>
+        <tr><td>Servicos recorrentes</td><td class="right">R$ 84.320</td><td class="right">R$ 75.020</td><td class="right">51,6%</td></tr>
+        <tr><td>Consultoria e implementacao</td><td class="right">R$ 47.800</td><td class="right">R$ 44.200</td><td class="right">29,3%</td></tr>
+        <tr><td>Licencas de software</td><td class="right">R$ 31.250</td><td class="right">R$ 30.280</td><td class="right">19,1%</td></tr>
+      </tbody>
+      <tfoot><tr><td>Total de receitas</td><td class="right">R$ 163.370</td><td class="right">R$ 149.500</td><td class="right">100%</td></tr></tfoot>
+    </table>
+
+    <h3 class="section-h"><i class="ph ph-trend-down"></i> Despesas</h3>
+    <table class="dt">
+      <thead><tr><th>Categoria</th><th class="right">Fev 2026</th><th class="right">Budget</th><th class="right">Variacao</th></tr></thead>
+      <tbody>
+        <tr><td>Folha de pagamento</td><td class="right">R$ 52.400</td><td class="right">R$ 50.000</td><td class="right" style="color:var(--urg)">+ 4,8%</td></tr>
+        <tr><td>Infraestrutura cloud</td><td class="right">R$ 18.900</td><td class="right">R$ 20.000</td><td class="right" style="color:var(--ok)">- 5,5%</td></tr>
+        <tr><td>Marketing e trafego pago</td><td class="right">R$ 14.500</td><td class="right">R$ 12.000</td><td class="right" style="color:var(--urg)">+ 20,8%</td></tr>
+        <tr><td>Aluguel e condominio</td><td class="right">R$ 8.200</td><td class="right">R$ 8.200</td><td class="right" style="color:var(--mu)">0,0%</td></tr>
+        <tr><td>Impostos e taxas</td><td class="right">R$ 6.750</td><td class="right">R$ 6.500</td><td class="right" style="color:var(--att)">+ 3,8%</td></tr>
+      </tbody>
+      <tfoot><tr><td>Total de despesas</td><td class="right">R$ 100.750</td><td class="right">R$ 96.700</td><td class="right" style="color:var(--urg)">+ 4,2%</td></tr></tfoot>
+    </table>
+
+    <h3 class="section-h"><i class="ph ph-chart-line-up"></i> Demonstrativo P&L</h3>
+    <div class="pl-row"><div class="lbl">Receita bruta</div><div class="v">R$ 163.370,00</div><div class="v">100,0%</div><div></div></div>
+    <div class="pl-row"><div class="lbl">(-) Impostos sobre vendas</div><div class="v">-R$ 13.890,00</div><div class="v">-8,5%</div><div></div></div>
+    <div class="pl-row subtotal"><div class="lbl">= Receita liquida</div><div class="v">R$ 149.480,00</div><div class="v">91,5%</div><div></div></div>
+    <div class="pl-row"><div class="lbl">(-) CMV</div><div class="v">-R$ 28.400,00</div><div class="v">-17,4%</div><div></div></div>
+    <div class="pl-row subtotal"><div class="lbl">= Lucro bruto</div><div class="v">R$ 121.080,00</div><div class="v">74,1%</div><div></div></div>
+    <div class="pl-row"><div class="lbl">(-) Despesas operacionais</div><div class="v">-R$ 45.560,00</div><div class="v">-27,9%</div><div></div></div>
+    <div class="pl-row subtotal"><div class="lbl">= EBIT</div><div class="v">R$ 75.520,00</div><div class="v">46,2%</div><div></div></div>
+    <div class="pl-row"><div class="lbl">(-) Depreciacao e amortizacao</div><div class="v">-R$ 1.320,00</div><div class="v">-0,8%</div><div></div></div>
+    <div class="pl-row total"><div class="lbl">= Lucro liquido</div><div class="v">R$ 62.620,00</div><div class="v">38,3%</div><div></div></div>
+
+    <h3 class="section-h"><i class="ph ph-flag"></i> KPIs-chave</h3>
+    <div class="kpi-grid">
+      <div class="kpi"><div class="kpi-label">MRR</div><div class="kpi-val">R$ 84.320</div><div class="kpi-delta up">+ 12,4%</div></div>
+      <div class="kpi"><div class="kpi-label">Churn</div><div class="kpi-val">2,1%</div><div class="kpi-delta up">- 0,7pp</div></div>
+      <div class="kpi"><div class="kpi-label">Novos clientes</div><div class="kpi-val">14</div><div class="kpi-delta up">+ 5</div></div>
+      <div class="kpi"><div class="kpi-label">CAC</div><div class="kpi-val">R$ 412</div><div class="kpi-delta down">+ R$ 32</div></div>
+    </div>
+
+    <h3 class="section-h"><i class="ph ph-note-pencil"></i> Notas e observacoes</h3>
+    <div class="note-block"><p>Receita de consultoria acima do orcamento em 8% puxada por 3 implementacoes enterprise (TechMade, Norte, Pharma). Recomendamos revisar capacidade do time tecnico para Q2.</p></div>
+    <div class="note-block"><p>Marketing acima do budget em 20,8% devido a campanha de lancamento de produto. ROI calculado em 3,2x, dentro do aceitavel para campanhas de lancamento.</p></div>
+    <div class="note-block"><p>Dois clientes em risco de churn (Boutique Vintage, Agro Sul) - acao do time de Customer Success em andamento. Previsao de receita considera churn de 1 cliente ate final de marco.</p></div>
+  </article>
+
+  <!-- 2. FLUXO DE CAIXA -->
+  <article class="doc" id="fluxo">
+    <div class="doc-head">
+      <div class="doc-brand">
+        <div class="doc-logo">b</div>
+        <div class="doc-brand-text">
+          <div class="b-name">Blu Contabilidade</div>
+          <div class="b-meta">Fluxo de Caixa — Fev 2026</div>
+        </div>
+      </div>
+      <div class="doc-actions">
+        <button class="btn btn-outline" onclick="window.print()"><i class="ph ph-download-simple"></i> Exportar</button>
+      </div>
+    </div>
+    <div class="doc-title">Fluxo de Caixa</div>
+    <div class="doc-sub">Periodo: 01/02/2026 a 28/02/2026 | Metodo: Indireto | Moeda: BRL</div>
+
+    <h3 class="section-h"><i class="ph ph-cash-register"></i> Saldo inicial</h3>
+    <div class="kpi-grid" style="grid-template-columns: repeat(3,1fr);">
+      <div class="kpi"><div class="kpi-label">Caixa e equivalentes</div><div class="kpi-val">R$ 142.800</div><div class="kpi-delta" style="color:var(--mu)">Inicio do periodo</div></div>
+      <div class="kpi"><div class="kpi-label">Aplicacoes financeiras</div><div class="kpi-val">R$ 280.000</div><div class="kpi-delta" style="color:var(--mu)">CDB e tesouro</div></div>
+      <div class="kpi"><div class="kpi-label">Caixa total</div><div class="kpi-val">R$ 422.800</div><div class="kpi-delta" style="color:var(--mu)">Disponivel</div></div>
+    </div>
+
+    <h3 class="section-h"><i class="ph ph-arrow-up"></i> Atividades operacionais</h3>
+    <table class="dt">
+      <thead><tr><th>Descricao</th><th class="right">Entrada</th><th class="right">Saida</th></tr></thead>
+      <tbody>
+        <tr><td>Recebimento de clientes</td><td class="right">R$ 158.900,00</td><td class="right">-</td></tr>
+        <tr><td>Pagamento a fornecedores</td><td class="right">-</td><td class="right">-R$ 42.300,00</td></tr>
+        <tr><td>Folha de pagamento</td><td class="right">-</td><td class="right">-R$ 52.400,00</td></tr>
+        <tr><td>Impostos e encargos</td><td class="right">-</td><td class="right">-R$ 18.640,00</td></tr>
+        <tr><td>Despesas gerais e administrativas</td><td class="right">-</td><td class="right">-R$ 12.800,00</td></tr>
+      </tbody>
+      <tfoot><tr><td>Caixa operacional liquido</td><td class="right">R$ 158.900</td><td class="right">-R$ 126.140</td></tr></tfoot>
+    </table>
+    <div class="total-summary"><span>Saldo operacional</span><span class="v" style="color:var(--ok)">+ R$ 32.760,00</span></div>
+
+    <h3 class="section-h"><i class="ph ph-arrow-down"></i> Atividades de investimento</h3>
+    <table class="dt">
+      <thead><tr><th>Descricao</th><th class="right">Entrada</th><th class="right">Saida</th></tr></thead>
+      <tbody>
+        <tr><td>Resgate de aplicacoes financeiras</td><td class="right">R$ 30.000,00</td><td class="right">-</td></tr>
+        <tr><td>Aplicacao em CDB</td><td class="right">-</td><td class="right">-R$ 50.000,00</td></tr>
+        <tr><td>Aquisiscao de equipamentos</td><td class="right">-</td><td class="right">-R$ 8.400,00</td></tr>
+        <tr><td>Desenvolvimento de software</td><td class="right">-</td><td class="right">-R$ 12.000,00</td></tr>
+      </tbody>
+      <tfoot><tr><td>Caixa de investimento liquido</td><td class="right">R$ 30.000</td><td class="right">-R$ 70.400</td></tr></tfoot>
+    </table>
+    <div class="total-summary"><span>Saldo de investimento</span><span class="v" style="color:var(--urg)">- R$ 40.400,00</span></div>
+
+    <h3 class="section-h"><i class="ph ph-bank"></i> Atividades de financiamento</h3>
+    <table class="dt">
+      <thead><tr><th>Descricao</th><th class="right">Entrada</th><th class="right">Saida</th></tr></thead>
+      <tbody>
+        <tr><td>Amortizacao de emprestimos</td><td class="right">-</td><td class="right">-R$ 4.500,00</td></tr>
+        <tr><td>Juros pagos</td><td class="right">-</td><td class="right">-R$ 1.280,00</td></tr>
+        <tr><td>Distribuicao de lucros aos socios</td><td class="right">-</td><td class="right">-R$ 20.000,00</td></tr>
+      </tbody>
+      <tfoot><tr><td>Caixa de financiamento liquido</td><td class="right">-</td><td class="right">-R$ 25.780</td></tr></tfoot>
+    </table>
+    <div class="total-summary"><span>Saldo de financiamento</span><span class="v" style="color:var(--urg)">- R$ 25.780,00</span></div>
+
+    <h3 class="section-h"><i class="ph ph-piggy-bank"></i> Saldo final do periodo</h3>
+    <div class="kpi-grid" style="grid-template-columns: repeat(3,1fr);">
+      <div class="kpi"><div class="kpi-label">Variacao liquida de caixa</div><div class="kpi-val" style="color:var(--urg)">- R$ 33.420</div><div class="kpi-delta" style="color:var(--mu)">Operacional + Invest. + Financ.</div></div>
+      <div class="kpi"><div class="kpi-label">Caixa ao final do periodo</div><div class="kpi-val">R$ 389.380</div><div class="kpi-delta" style="color:var(--mu)">Caixa + aplicacoes</div></div>
+      <div class="kpi"><div class="kpi-label">Runway estimado</div><div class="kpi-val">8,2 meses</div><div class="kpi-delta up">Saudavel</div></div>
+    </div>
+  </article>
+
+  <!-- 3. PROPOSTA DE ORCAMENTO -->
+  <article class="doc" id="orcamento">
+    <div class="doc-head">
+      <div class="doc-brand">
+        <div class="doc-logo">b</div>
+        <div class="doc-brand-text">
+          <div class="b-name">Blu — Proposta Orcamentaria</div>
+          <div class="b-meta">Exercicio 2026 vs 2025</div>
+        </div>
+      </div>
+      <div class="doc-actions">
+        <button class="btn btn-outline" onclick="window.print()"><i class="ph ph-download-simple"></i> Exportar</button>
+      </div>
+    </div>
+    <div class="doc-title">Proposta de Orcamento 2026</div>
+    <div class="doc-sub">Comparativo year-over-year por departamento | Aprovacao dos socios necessaria ate 15/12/2025</div>
+
+    <div class="grid-3" style="margin-bottom: 18px;">
+      <div class="kpi"><div class="kpi-label">Orcamento total 2026</div><div class="kpi-val">R$ 3.240.000</div><div class="kpi-delta up">+ 8,0% YoY</div></div>
+      <div class="kpi"><div class="kpi-label">Despesas operacionais</div><div class="kpi-val">R$ 2.480.000</div><div class="kpi-delta" style="color:var(--mu)">76,5% do total</div></div>
+      <div class="kpi"><div class="kpi-label">Investimentos</div><div class="kpi-val">R$ 760.000</div><div class="kpi-delta" style="color:var(--mu)">23,5% do total</div></div>
+    </div>
+
+    <h3 class="section-h"><i class="ph ph-buildings"></i> Orcamento por departamento</h3>
+    <table class="dt">
+      <thead><tr><th>Departamento</th><th class="right">2025</th><th class="right">2026</th><th class="right">Variacao YoY</th><th class="right">% do total</th></tr></thead>
+      <tbody>
+        <tr><td>Engenharia e produto</td><td class="right">R$ 980.000</td><td class="right">R$ 1.080.000</td><td class="right" style="color:var(--ok)">+ 10,2%</td><td class="right">33,3%</td></tr>
+        <tr><td>Vendas e marketing</td><td class="right">R$ 620.000</td><td class="right">R$ 720.000</td><td class="right" style="color:var(--urg)">+ 16,1%</td><td class="right">22,2%</td></tr>
+        <tr><td>Customer success</td><td class="right">R$ 360.000</td><td class="right">R$ 420.000</td><td class="right" style="color:var(--ok)">+ 16,7%</td><td class="right">13,0%</td></tr>
+        <tr><td>Infraestrutura e TI</td><td class="right">R$ 320.000</td><td class="right">R$ 340.000</td><td class="right" style="color:var(--ok)">+ 6,3%</td><td class="right">10,5%</td></tr>
+        <tr><td>Administrativo e RH</td><td class="right">R$ 280.000</td><td class="right">R$ 290.000</td><td class="right" style="color:var(--ok)">+ 3,6%</td><td class="right">9,0%</td></tr>
+        <tr><td>Financeiro e contabilidade</td><td class="right">R$ 180.000</td><td class="right">R$ 195.000</td><td class="right" style="color:var(--ok)">+ 8,3%</td><td class="right">6,0%</td></tr>
+        <tr><td>Diretoria e conselho</td><td class="right">R$ 160.000</td><td class="right">R$ 170.000</td><td class="right" style="color:var(--mu)">+ 6,3%</td><td class="right">5,2%</td></tr>
+      </tbody>
+      <tfoot><tr><td>Total operacional</td><td class="right">R$ 2.900.000</td><td class="right">R$ 3.215.000</td><td class="right" style="color:var(--ok)">+ 10,9%</td><td class="right">100%</td></tr></tfoot>
+    </table>
+
+    <h3 class="section-h"><i class="ph ph-stack"></i> Assinaturas e servicos recorrentes</h3>
+    <table class="dt">
+      <thead><tr><th>Servico</th><th class="right">Mensal</th><th class="right">Anual</th><th>Justificativa</th></tr></thead>
+      <tbody>
+        <tr><td>AWS (infraestrutura)</td><td class="right">R$ 14.200</td><td class="right">R$ 170.400</td><td>Crescimento da base de clientes</td></tr>
+        <tr><td>Datadog (observabilidade)</td><td class="right">R$ 3.400</td><td class="right">R$ 40.800</td><td>Monitoramento 24x7</td></tr>
+        <tr><td>Linear (gestao de projetos)</td><td class="right">R$ 480</td><td class="right">R$ 5.760</td><td>Ferramenta de produto</td></tr>
+        <tr><td>Hubspot (CRM)</td><td class="right">R$ 2.800</td><td class="right">R$ 33.600</td><td>Funil de vendas e marketing</td></tr>
+      </tbody>
+    </table>
+
+    <h3 class="section-h"><i class="ph ph-signature"></i> Aprovacao dos socios</h3>
+    <div class="signatures">
+      <div class="sig-line"><strong>Carlos Mendes</strong>CEO & Socio</div>
+      <div class="sig-line"><strong>Patricia Souza</strong>CFO & Socia</div>
+      <div class="sig-line"><strong>Ricardo Lima</strong>COO & Socio</div>
+      <div class="sig-line"><strong>Beatriz Alves</strong>CTO & Socia</div>
+    </div>
+  </article>
+
+  <!-- 4. INVOICE -->
+  <article class="doc" id="invoice">
+    <div class="doc-head">
+      <div class="doc-brand">
+        <div class="doc-logo">b</div>
+        <div class="doc-brand-text">
+          <div class="b-name">Blu Tecnologia Ltda.</div>
+          <div class="b-meta">Rua Augusta, 1234 — Sao Paulo / SP — 01304-001</div>
+          <div class="b-meta">CNPJ 12.345.678/0001-90 | IE 116.982.304.117</div>
+        </div>
+      </div>
+      <div class="doc-actions">
+        <button class="btn btn-outline" onclick="window.print()"><i class="ph ph-download-simple"></i> Exportar</button>
+      </div>
+    </div>
+
+    <div class="row-info">
+      <div>
+        <strong style="display:block; font-size: 22px; color: var(--ac);">INVOICE #2026-0247</strong>
+        <span>Emissao: 28/02/2026 | Vencimento: 15/03/2026</span>
+      </div>
+      <div style="text-align: right;">
+        <strong>Status</strong>
+        <span class="badge b-att" style="background: var(--adm2);">Aguardando pagamento</span>
+      </div>
+    </div>
+
+    <div class="grid-2" style="margin-bottom: 18px;">
+      <div>
+        <h4 class="sub-h" style="font-size: 9.5px; text-transform: uppercase; color: var(--mu); letter-spacing: 0.1em; margin-bottom: 6px;">Faturado para</h4>
+        <div style="font-size: 13px; color: var(--fg); font-weight: 600;">TechMade Solutions S.A.</div>
+        <div style="font-size: 11.5px; color: var(--mu2);">Av. Paulista, 2000 — Bela Vista</div>
+        <div style="font-size: 11.5px; color: var(--mu2);">Sao Paulo / SP — 01310-100</div>
+        <div style="font-size: 11.5px; color: var(--mu2);">CNPJ 23.456.789/0001-12</div>
+        <div style="font-size: 11.5px; color: var(--mu2);">contato@techmade.com.br</div>
+      </div>
+      <div style="text-align: right;">
+        <h4 class="sub-h" style="font-size: 9.5px; text-transform: uppercase; color: var(--mu); letter-spacing: 0.1em; margin-bottom: 6px;">Condicoes</h4>
+        <div style="font-size: 11.5px; color: var(--mu2);">Pagamento: Boleto bancario / PIX</div>
+        <div style="font-size: 11.5px; color: var(--mu2);">Prazo: 15 dias</div>
+        <div style="font-size: 11.5px; color: var(--mu2);">Moeda: BRL (Real)</div>
+        <div style="font-size: 11.5px; color: var(--mu2);">Conta: Banco Itau — Ag 0001 — CC 12345-6</div>
+      </div>
+    </div>
+
+    <h3 class="section-h"><i class="ph ph-list-bullets"></i> Itens faturados</h3>
+    <table class="dt">
+      <thead><tr><th>Descricao</th><th class="right">Qtd</th><th class="right">Valor unit.</th><th class="right">Total</th></tr></thead>
+      <tbody>
+        <tr><td>Licenca Blu Pro — 25 usuarios (mensal)</td><td class="right">25</td><td class="right">R$ 240,00</td><td class="right">R$ 6.000,00</td></tr>
+        <tr><td>Suporte premium 24/7</td><td class="right">1</td><td class="right">R$ 1.500,00</td><td class="right">R$ 1.500,00</td></tr>
+        <tr><td>Onboarding e migracao de dados</td><td class="right">1</td><td class="right">R$ 3.200,00</td><td class="right">R$ 3.200,00</td></tr>
+        <tr><td>Treinamento da equipe (8h)</td><td class="right">2</td><td class="right">R$ 1.050,00</td><td class="right">R$ 2.100,00</td></tr>
+      </tbody>
+      <tfoot>
+        <tr><td colspan="3">Subtotal</td><td class="right">R$ 12.800,00</td></tr>
+        <tr><td colspan="3">Desconto contratual (5%)</td><td class="right" style="color:var(--ok)">-R$ 640,00</td></tr>
+        <tr><td colspan="3">ISS (5%)</td><td class="right">R$ 608,00</td></tr>
+      </tfoot>
+    </table>
+    <div class="total-summary"><span>Total a pagar</span><span class="v">R$ 12.768,00</span></div>
+
+    <div class="barcode">
+      <div class="bars">
+        <i style="height: 30px"></i><i style="height: 50px"></i><i style="height: 20px"></i><i style="height: 45px"></i><i style="height: 35px"></i><i style="height: 50px"></i><i style="height: 25px"></i><i style="height: 40px"></i><i style="height: 30px"></i><i style="height: 50px"></i><i style="height: 20px"></i><i style="height: 45px"></i><i style="height: 35px"></i><i style="height: 50px"></i><i style="height: 30px"></i><i style="height: 40px"></i><i style="height: 25px"></i><i style="height: 50px"></i><i style="height: 35px"></i><i style="height: 45px"></i><i style="height: 30px"></i><i style="height: 50px"></i><i style="height: 20px"></i><i style="height: 40px"></i><i style="height: 35px"></i><i style="height: 50px"></i><i style="height: 25px"></i><i style="height: 45px"></i><i style="height: 30px"></i><i style="height: 50px"></i><i style="height: 35px"></i><i style="height: 20px"></i><i style="height: 45px"></i><i style="height: 50px"></i><i style="height: 30px"></i><i style="height: 25px"></i><i style="height: 40px"></i><i style="height: 50px"></i><i style="height: 30px"></i><i style="height: 45px"></i>
+      </div>
+      <div class="barcode-num">23793.38128 60082.004728 47002.470008 1 89420001276800</div>
+      <div style="font-size: 10px; color: var(--mu); text-align: center;">Linha digitavel do boleto bancario</div>
+    </div>
+  </article>
+
+  <!-- 5. PROPOSTA COMERCIAL -->
+  <article class="doc" id="proposta">
+    <div class="doc-head">
+      <div class="doc-brand">
+        <div class="doc-logo">b</div>
+        <div class="doc-brand-text">
+          <div class="b-name">Blu Tecnologia</div>
+          <div class="b-meta">CNPJ 12.345.678/0001-90</div>
+        </div>
+      </div>
+      <div class="doc-actions">
+        <button class="btn btn-outline" onclick="window.print()"><i class="ph ph-download-simple"></i> Exportar</button>
+      </div>
+    </div>
+
+    <div class="cover">
+      <div class="cover-tag">Proposta Comercial</div>
+      <div class="cover-title">Plataforma Blu Enterprise</div>
+      <div class="cover-sub">Plataforma de inteligencia artificial para gestao de negocios com agentes autonomos, integracoes nativas e dashboards executivos.</div>
+      <div class="cover-meta">
+        <div><strong>Cliente</strong>Construtora Norte Ltda.</div>
+        <div><strong>Proposta</strong>PC-2026-018</div>
+        <div><strong>Validade</strong>30 dias</div>
+        <div><strong>Emissao</strong>25/02/2026</div>
+      </div>
+    </div>
+
+    <h3 class="section-h"><i class="ph ph-target"></i> 1. Escopo da proposta</h3>
+    <ul class="scope-list">
+      <li><i class="ph ph-check-circle"></i><div><strong>Agentes de IA dedicados</strong>4 agentes especializados (Financeiro, Compras, Estrategia, Clientes) rodando 24x7 em background com rotinas automaticas.</div></li>
+      <li><i class="ph ph-check-circle"></i><div><strong>Integracoes nativas</strong>Conexao com seu ERP (TOTVS), banco Inter, Google Workspace, WhatsApp Business e ferramentas fiscais.</div></li>
+      <li><i class="ph ph-check-circle"></i><div><strong>Painel executivo</strong>Dashboards em tempo real com KPIs financeiros, fluxo de caixa, previsao de receita e alertas de risco.</div></li>
+      <li><i class="ph ph-check-circle"></i><div><strong>Chat com agentes</strong>Interface conversacional em portugues para consultas e aprovacoes via web e mobile.</div></li>
+      <li><i class="ph ph-check-circle"></i><div><strong>Onboarding assistido</strong>Configuracao completa em 14 dias com consultor dedicado e migracao de dados historicos.</div></li>
+      <li><i class="ph ph-check-circle"></i><div><strong>Suporte e treinamento</strong>Suporte 24/7 via chat prioritario, 2 treinamentos presenciais e 1 sessao mensal de revisao.</div></li>
+    </ul>
+
+    <h3 class="section-h"><i class="ph ph-currency-dollar"></i> 2. Precificacao</h3>
+    <div class="price-table">
+      <div class="price-row head"><div>Item</div><div class="v">Qtd</div><div class="v">Total</div></div>
+      <div class="price-row"><div>Licenca Blu Enterprise (anual)</div><div class="v">1</div><div class="v">R$ 84.000,00</div></div>
+      <div class="price-row"><div>Setup e onboarding</div><div class="v">1</div><div class="v">R$ 12.000,00</div></div>
+      <div class="price-row"><div>Integracoes customizadas (3)</div><div class="v">3</div><div class="v">R$ 9.000,00</div></div>
+      <div class="price-row"><div>Treinamento presencial</div><div class="v">2</div><div class="v">R$ 3.600,00</div></div>
+      <div class="price-row" style="background: rgba(140,95,219,.12); font-weight: 700;"><div>Total do investimento</div><div class="v">-</div><div class="v" style="color: var(--ac);">R$ 108.600,00</div></div>
+    </div>
+    <p style="font-size: 11px; color: var(--mu); margin-top: 8px;">Pagamento: 30% na assinatura, 40% no go-live (D+30), 30% em D+60. Faturamento mensal disponivel mediante analise de credito.</p>
+
+    <h3 class="section-h"><i class="ph ph-shield-check"></i> 3. Termos e condicoes</h3>
+    <ul class="summary-list">
+      <li><span>Duracao do contrato</span><strong>12 meses, renovacao automatica</strong></li>
+      <li><span>Carencia</span><strong>30 dias para cancelamento sem multa</strong></li>
+      <li><span>SLA de uptime</span><strong>99,5% garantido, com credito proporcional</strong></li>
+      <li><span>LGPD</span><strong>Conformidade total, dados em territorio nacional</strong></li>
+      <li><span>Reajuste anual</span><strong>IPCA ou 5% (o menor entre os dois)</strong></li>
+    </ul>
+
+    <h3 class="section-h"><i class="ph ph-handshake"></i> 4. Aceitacao</h3>
+    <p style="font-size: 12px; color: var(--mu2); margin-bottom: 30px;">Ao assinar esta proposta, as partes concordam com todos os termos apresentados. A presente proposta tem validade de 30 dias a partir da data de emissao.</p>
+    <div class="signatures">
+      <div class="sig-line"><strong>Patricia Souza</strong>Blu Tecnologia — Diretora Comercial</div>
+      <div class="sig-line"><strong>Roberto Mendes</strong>Construtora Norte — Diretor</div>
+    </div>
+  </article>
+
+  <!-- 6. RELATORIO DE DESPESAS -->
+  <article class="doc" id="despesas">
+    <div class="doc-head">
+      <div class="doc-brand">
+        <div class="doc-logo">b</div>
+        <div class="doc-brand-text">
+          <div class="b-name">Relatorio de Despesas</div>
+          <div class="b-meta">Fevereiro 2026</div>
+        </div>
+      </div>
+      <div class="doc-actions">
+        <button class="btn btn-outline" onclick="window.print()"><i class="ph ph-download-simple"></i> Exportar</button>
+      </div>
+    </div>
+    <div class="doc-title">Relatorio de Despesas</div>
+    <div class="doc-sub">Solicitante: Patricia Souza | Departamento: Financeiro | Periodo: 01/02 a 28/02/2026</div>
+
+    <div class="kpi-grid">
+      <div class="kpi"><div class="kpi-label">Total solicitado</div><div class="kpi-val">R$ 8.420,00</div><div class="kpi-delta" style="color:var(--mu)">18 itens</div></div>
+      <div class="kpi"><div class="kpi-label">Aprovado</div><div class="kpi-val" style="color:var(--ok)">R$ 6.840,00</div><div class="kpi-delta up">14 itens</div></div>
+      <div class="kpi"><div class="kpi-label">Em analise</div><div class="kpi-val" style="color:var(--att)">R$ 1.200,00</div><div class="kpi-delta" style="color:var(--mu)">3 itens</div></div>
+      <div class="kpi"><div class="kpi-label">Rejeitado</div><div class="kpi-val" style="color:var(--urg)">R$ 380,00</div><div class="kpi-delta down">1 item</div></div>
+    </div>
+
+    <h3 class="section-h"><i class="ph ph-receipt"></i> Itens do relatorio</h3>
+    <table class="dt">
+      <thead><tr><th>Data</th><th>Categoria</th><th>Descricao</th><th>Recibo</th><th class="right">Valor</th><th class="center">Status</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="mono">03/02/2026</td>
+          <td><div class="cat-bar"><div class="stk"><i style="width:100%; background:var(--ac)"></i></div><span>Viagem</span></div></td>
+          <td>Passagem aerea SP &rarr; RJ (reuniao cliente)</td>
+          <td><i class="ph ph-paperclip" style="color:var(--ok)"></i> Anexado</td>
+          <td class="right">R$ 1.240,00</td>
+          <td class="center"><span class="badge b-ok">Aprovado</span></td>
+        </tr>
+        <tr>
+          <td class="mono">05/02/2026</td>
+          <td><div class="cat-bar"><div class="stk"><i style="width:60%; background:var(--info)"></i></div><span>Hospedagem</span></div></td>
+          <td>Hotel 2 diarias (RJ)</td>
+          <td><i class="ph ph-paperclip" style="color:var(--ok)"></i> Anexado</td>
+          <td class="right">R$ 820,00</td>
+          <td class="center"><span class="badge b-ok">Aprovado</span></td>
+        </tr>
+        <tr>
+          <td class="mono">08/02/2026</td>
+          <td><div class="cat-bar"><div class="stk"><i style="width:40%; background:var(--ok)"></i></div><span>Refeicao</span></div></td>
+          <td>Almoco de negocios com fornecedor</td>
+          <td><i class="ph ph-paperclip" style="color:var(--ok)"></i> Anexado</td>
+          <td class="right">R$ 180,00</td>
+          <td class="center"><span class="badge b-ok">Aprovado</span></td>
+        </tr>
+        <tr>
+          <td class="mono">12/02/2026</td>
+          <td><div class="cat-bar"><div class="stk"><i style="width:25%; background:var(--att)"></i></div><span>Software</span></div></td>
+          <td>Licenca Figma (anual)</td>
+          <td><i class="ph ph-paperclip" style="color:var(--ok)"></i> Anexado</td>
+          <td class="right">R$ 1.200,00</td>
+          <td class="center"><span class="badge b-att">Em analise</span></td>
+        </tr>
+        <tr>
+          <td class="mono">15/02/2026</td>
+          <td><div class="cat-bar"><div class="stk"><i style="width:50%; background:var(--urg)"></i></div><span>Marketing</span></div></td>
+          <td>Material grafico impresso</td>
+          <td><i class="ph ph-paperclip" style="color:var(--urg)"></i> Sem NF</td>
+          <td class="right">R$ 380,00</td>
+          <td class="center"><span class="badge b-urg">Rejeitado</span></td>
+        </tr>
+        <tr>
+          <td class="mono">18/02/2026</td>
+          <td><div class="cat-bar"><div class="stk"><i style="width:35%; background:var(--mu)"></i></div><span>Outros</span></div></td>
+          <td>Material de escritorio</td>
+          <td><i class="ph ph-paperclip" style="color:var(--ok)"></i> Anexado</td>
+          <td class="right">R$ 220,00</td>
+          <td class="center"><span class="badge b-ok">Aprovado</span></td>
+        </tr>
+        <tr>
+          <td class="mono">22/02/2026</td>
+          <td><div class="cat-bar"><div class="stk"><i style="width:30%; background:var(--info)"></i></div><span>Combustivel</span></div></td>
+          <td>Uber para visitas a clientes</td>
+          <td><i class="ph ph-paperclip" style="color:var(--ok)"></i> Anexado</td>
+          <td class="right">R$ 340,00</td>
+          <td class="center"><span class="badge b-ok">Aprovado</span></td>
+        </tr>
+      </tbody>
+      <tfoot>
+        <tr><td colspan="4">Total aprovado para reembolso</td><td class="right">R$ 6.840,00</td><td class="center">14 itens</td></tr>
+      </tfoot>
+    </table>
+  </article>
+
+  <!-- 7. BALANCO PATRIMONIAL -->
+  <article class="doc" id="balanco">
+    <div class="doc-head">
+      <div class="doc-brand">
+        <div class="doc-logo">b</div>
+        <div class="doc-brand-text">
+          <div class="b-name">Balanco Patrimonial</div>
+          <div class="b-meta">Encerrado em 28/02/2026</div>
+        </div>
+      </div>
+      <div class="doc-actions">
+        <button class="btn btn-outline" onclick="window.print()"><i class="ph ph-download-simple"></i> Exportar</button>
+      </div>
+    </div>
+    <div class="doc-title">Balanco Patrimonial</div>
+    <div class="doc-sub">Expressos em milhares de reais (R$ x 1.000) | Conforme CPC 26 e Lei 6.404/76</div>
+
+    <div class="grid-2">
+      <div>
+        <h3 class="section-h"><i class="ph ph-package"></i> Ativo</h3>
+        <div class="bs-section">
+          <h4>Ativo circulante</h4>
+          <div class="item"><span>Caixa e equivalentes</span><span class="v">R$ 142,8</span></div>
+          <div class="item"><span>Aplicacoes financeiras</span><span class="v">R$ 280,0</span></div>
+          <div class="item"><span>Contas a receber</span><span class="v">R$ 184,2</span></div>
+          <div class="item"><span>Estoques</span><span class="v">R$ 32,5</span></div>
+          <div class="item"><span>Adiantamentos</span><span class="v">R$ 18,7</span></div>
+          <div class="total"><span>Total ativo circulante</span><span class="v">R$ 658,2</span></div>
+        </div>
+        <div class="bs-section" style="margin-top: 12px;">
+          <h4>Ativo nao circulante</h4>
+          <div class="item"><span>Investimentos</span><span class="v">R$ 45,0</span></div>
+          <div class="item"><span>Imobilizado</span><span class="v">R$ 320,4</span></div>
+          <div class="item sub">(-) Depreciacao acumulada</div>
+          <div class="item"><span>Intangivel</span><span class="v">R$ 78,0</span></div>
+          <div class="total"><span>Total ativo nao circulante</span><span class="v">R$ 388,5</span></div>
+        </div>
+        <div class="bs-section" style="margin-top: 12px; border-color: var(--ac);">
+          <div class="total" style="border: none; font-size: 14px;"><span style="color: var(--ac);">TOTAL DO ATIVO</span><span class="v" style="color: var(--ac);">R$ 1.046,7</span></div>
+        </div>
+      </div>
+      <div>
+        <h3 class="section-h"><i class="ph ph-stack"></i> Passivo</h3>
+        <div class="bs-section">
+          <h4>Passivo circulante</h4>
+          <div class="item"><span>Fornecedores</span><span class="v">R$ 84,3</span></div>
+          <div class="item"><span>Obrigacoes sociais</span><span class="v">R$ 62,8</span></div>
+          <div class="item"><span>Obrigacoes fiscais</span><span class="v">R$ 28,4</span></div>
+          <div class="item"><span>Emprestimos CP</span><span class="v">R$ 45,0</span></div>
+          <div class="item"><span>Adiantamento de clientes</span><span class="v">R$ 12,6</span></div>
+          <div class="total"><span>Total passivo circulante</span><span class="v">R$ 233,1</span></div>
+        </div>
+        <div class="bs-section" style="margin-top: 12px;">
+          <h4>Passivo nao circulante</h4>
+          <div class="item"><span>Emprestimos LP</span><span class="v">R$ 180,0</span></div>
+          <div class="item"><span>Provisoes</span><span class="v">R$ 32,5</span></div>
+          <div class="total"><span>Total passivo nao circulante</span><span class="v">R$ 212,5</span></div>
+        </div>
+        <div class="bs-section" style="margin-top: 12px;">
+          <h4>Patrimonio liquido</h4>
+          <div class="item"><span>Capital social</span><span class="v">R$ 300,0</span></div>
+          <div class="item"><span>Reservas de lucros</span><span class="v">R$ 238,6</span></div>
+          <div class="item"><span>Lucros acumulados</span><span class="v">R$ 62,5</span></div>
+          <div class="total"><span>Total PL</span><span class="v">R$ 601,1</span></div>
+        </div>
+        <div class="bs-section" style="margin-top: 12px; border-color: var(--ac);">
+          <div class="total" style="border: none; font-size: 14px;"><span style="color: var(--ac);">TOTAL DO PASSIVO + PL</span><span class="v" style="color: var(--ac);">R$ 1.046,7</span></div>
+        </div>
+      </div>
+    </div>
+
+    <h3 class="section-h"><i class="ph ph-chart-pie-slice"></i> Indicadores</h3>
+    <div class="kpi-grid">
+      <div class="kpi"><div class="kpi-label">Liquidez corrente</div><div class="kpi-val">2,82</div><div class="kpi-delta up">Saudavel</div></div>
+      <div class="kpi"><div class="kpi-label">Endividamento</div><div class="kpi-val">42,6%</div><div class="kpi-delta up">Controlado</div></div>
+      <div class="kpi"><div class="kpi-label">ROE</div><div class="kpi-val">12,5%</div><div class="kpi-delta up">Acima do setor</div></div>
+      <div class="kpi"><div class="kpi-label">ROA</div><div class="kpi-val">7,2%</div><div class="kpi-delta up">Estavel</div></div>
+    </div>
+  </article>
+</div>
+</body>
+</html>

@@ -1,0 +1,26 @@
+{
+  "task_id": "t_d782ad16",
+  "goal": "Adicionar suporte a upload em lote na knowledge base via funcao uploadMulti() em knowledgeBaseService.ts.",
+  "description": "Goal: Adicionar suporte a upload em lote na knowledge base via funcao uploadMulti() em knowledgeBaseService.ts.\n\nACs:\n- AC1: uploadMulti(files: File[]) exportada como async function\n- AC2: Suporte a pastas via webkitdirectory ou drop de diretorio\n- AC3: Cada arquivo da fila chama o fluxo de processamento individual\n\nTeste RED: tests/behaviors/test_b1_upload_multi.py\nIssue: #206 (F-3: Upload e Navegacao de Documentos)\nImplementacao alvo: apps/blu_v3/src/services/knowledgeBaseService.ts\n\nLatest su",
+  "acceptance_criteria": [
+    "uploadMulti(files: File[]) exportada como async function",
+    "Suporte a pastas via webkitdirectory ou drop de diretorio",
+    "Cada arquivo da fila chama o fluxo de processamento individual"
+  ],
+  "repo_root": "/home/ec2-user/repo_platform",
+  "test_red": "tests/behaviors/test_b1_upload_multi.py",
+  "source_hint": "apps/blu_v3/src/services/knowledgeBaseService.ts",
+  "llm_wiki": "/home/ec2-user/repo_platform/docs/llm_wiki/index.md",
+  "business_rules": [],
+  "constraints": {
+    "no_llm": false,
+    "max_files": 10,
+    "max_lines_per_file": 200
+  },
+  "output_format": {
+    "changed_files": "lista de arquivos modificados",
+    "test_results": "resultado dos testes",
+    "coverage": "porcentagem de cobertura",
+    "review_notes": "notas de review"
+  }
+}

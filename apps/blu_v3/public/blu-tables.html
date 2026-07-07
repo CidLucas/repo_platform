@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BLU — Tabelas</title>
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #03071C;
+    --glass: rgba(255,255,255,0.065);
+    --gl2: rgba(255,255,255,0.07);
+    --gb: rgba(255,255,255,0.10);
+    --gb2: rgba(255,255,255,0.20);
+    --fg: #DFE3EE;
+    --mu: rgba(223,227,238,0.42);
+    --mu2: rgba(223,227,238,0.64);
+    --ac: #8C5FDB;
+    --adim: rgba(140,95,219,0.15);
+    --urg: #EF4444;
+    --udim: rgba(239,68,68,0.13);
+    --att: #F59E0B;
+    --adm2: rgba(245,158,11,0.13);
+    --ok: #10B981;
+    --odim: rgba(16,185,129,0.13);
+    --info: #3B82F6;
+    --infodim: rgba(59,130,246,0.13);
+    --r: 8px;
+    --rl: 12px;
+    --body: 'Inter', -apple-system, system-ui, sans-serif;
+    --mono: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+    --shadow-1: 0 2px 14px rgba(0,0,0,.28);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 13px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  body { background-image: radial-gradient(at 12% 8%, rgba(59,130,246,0.10) 0px, transparent 50%), radial-gradient(at 88% 92%, rgba(140,95,219,0.10) 0px, transparent 50%); min-height: 100vh; padding: 32px; }
+  .page { max-width: 1300px; margin: 0 auto; }
+  .page-title { font-size: 28px; font-weight: 800; letter-spacing: -1px; margin-bottom: 4px; }
+  .page-sub { color: var(--mu); font-size: 13px; margin-bottom: 24px; }
+  .nav { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 28px; }
+  .nav a { padding: 5px 12px; border-radius: 6px; background: var(--glass); border: 1px solid var(--gb); color: var(--mu2); text-decoration: none; font-size: 11px; font-weight: 500; transition: .1s; }
+  .nav a:hover { background: var(--adim); border-color: var(--ac); color: var(--ac); }
+  .section { background: var(--glass); backdrop-filter: blur(16px); border: 1px solid var(--gb); border-radius: var(--rl); padding: 20px; margin-bottom: 22px; box-shadow: var(--shadow-1), inset 0 0 0 1px rgba(255,255,255,.05); }
+  .section-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px; }
+  .section-title { font-size: 16px; font-weight: 700; letter-spacing: -0.3px; display: flex; align-items: center; gap: 8px; }
+  .section-sub { font-size: 11px; color: var(--mu); margin-top: 2px; }
+  .section-tag { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--mu); padding: 4px 8px; border-radius: 6px; background: rgba(255,255,255,0.04); }
+  .btn { display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border-radius: 5px; font-size: 10.5px; font-weight: 600; cursor: pointer; border: none; transition: .1s; white-space: nowrap; }
+  .btn-primary { background: var(--ac); color: #fff; }
+  .btn-primary:hover { background: #7A4FC9; }
+  .btn-outline { background: rgba(255,255,255,.08); border: 1px solid var(--gb); color: var(--fg); }
+  .btn-outline:hover { background: rgba(255,255,255,.12); }
+  .btn-ghost { background: transparent; color: var(--mu2); }
+  .btn-ghost:hover { background: rgba(255,255,255,.06); }
+  .btn-danger { background: var(--udim); color: var(--urg); border: 1px solid rgba(239,68,68,.3); }
+
+  /* Table base */
+  .tbl-wrap { border: 1px solid var(--gb); border-radius: var(--r); overflow: hidden; background: rgba(0,0,0,.18); }
+  .tbl-toolbar { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--gb); background: rgba(255,255,255,.02); }
+  .tbl-search { position: relative; }
+  .tbl-search input { background: rgba(0,0,0,.3); border: 1px solid var(--gb); border-radius: 5px; padding: 5px 10px 5px 28px; color: var(--fg); font-size: 11px; font-family: var(--body); outline: none; width: 200px; }
+  .tbl-search input:focus { border-color: var(--ac); }
+  .tbl-search i { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--mu); font-size: 13px; }
+  .tbl-filters { display: flex; gap: 4px; }
+  .filter-chip { padding: 3px 9px; border-radius: 4px; font-size: 10px; font-weight: 600; background: rgba(255,255,255,.04); border: 1px solid var(--gb); color: var(--mu2); cursor: pointer; }
+  .filter-chip.active { background: var(--adim); border-color: var(--ac); color: var(--ac); }
+  .table-scroll { overflow-x: auto; max-height: 480px; overflow-y: auto; }
+  table.tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .tbl thead th { position: sticky; top: 0; z-index: 2; background: rgba(0,0,0,.4); backdrop-filter: blur(8px); text-align: left; padding: 10px 14px; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--mu); border-bottom: 1px solid var(--gb); white-space: nowrap; }
+  .tbl thead th i { margin-left: 3px; opacity: .5; font-size: 11px; }
+  .tbl thead th.sortable { cursor: pointer; user-select: none; }
+  .tbl thead th.sortable:hover { color: var(--ac); }
+  .tbl thead th.right { text-align: right; }
+  .tbl thead th.center { text-align: center; }
+  .tbl tbody td { padding: 10px 14px; border-bottom: 1px solid var(--gb); color: var(--mu2); vertical-align: middle; }
+  .tbl tbody td.right { text-align: right; font-family: var(--mono); font-weight: 500; }
+  .tbl tbody td.center { text-align: center; }
+  .tbl tbody td.mono { font-family: var(--mono); }
+  .tbl tbody tr:nth-child(even) { background: rgba(255,255,255,.015); }
+  .tbl tbody tr:hover { background: rgba(255,255,255,.04); }
+  .tbl tbody tr:hover td.right { color: var(--fg); }
+  .tbl tbody tr:last-child td { border-bottom: none; }
+  .tbl tfoot td { padding: 11px 14px; background: rgba(0,0,0,.25); font-weight: 700; font-size: 11.5px; color: var(--fg); border-top: 1px solid var(--gb2); }
+  .tbl tfoot td.right { font-family: var(--mono); text-align: right; }
+
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+  .b-ok { background: var(--odim); color: var(--ok); }
+  .b-att { background: var(--adm2); color: var(--att); }
+  .b-urg { background: var(--udim); color: var(--urg); }
+  .b-ac { background: var(--adim); color: var(--ac); }
+  .b-mu { background: rgba(255,255,255,.06); color: var(--mu2); }
+  .b-info { background: var(--infodim); color: var(--info); }
+  .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; }
+  .d-ok { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+  .d-att { background: var(--att); box-shadow: 0 0 8px var(--att); }
+  .d-urg { background: var(--urg); box-shadow: 0 0 8px var(--urg); }
+  .d-mu { background: var(--mu); }
+  .delta { font-family: var(--mono); font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 2px; }
+  .delta.up { color: var(--ok); }
+  .delta.down { color: var(--urg); }
+  .delta.flat { color: var(--mu); }
+
+  .progress { display: inline-block; width: 80px; height: 4px; background: var(--gb); border-radius: 2px; overflow: hidden; vertical-align: middle; }
+  .progress > i { display: block; height: 100%; background: var(--ac); }
+  .progress > i.ok { background: var(--ok); }
+  .progress > i.att { background: var(--att); }
+  .progress > i.urg { background: var(--urg); }
+
+  .cell-main { display: flex; align-items: center; gap: 9px; }
+  .avatar { width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, var(--ac), #6D28D9); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; }
+  .avatar.pink { background: linear-gradient(135deg, #f472b6, #db2777); }
+  .avatar.green { background: linear-gradient(135deg, var(--ok), #047857); }
+  .avatar.orange { background: linear-gradient(135deg, #fb923c, #ea580c); }
+  .avatar.blue { background: linear-gradient(135deg, #60a5fa, #2563eb); }
+  .cell-name { font-size: 12.5px; color: var(--fg); font-weight: 500; }
+  .cell-sub { font-size: 10.5px; color: var(--mu); }
+
+  .pagination { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-top: 1px solid var(--gb); background: rgba(255,255,255,.02); }
+  .pagination-info { font-size: 11px; color: var(--mu); }
+  .pagination-controls { display: flex; gap: 2px; align-items: center; }
+  .page-btn { min-width: 26px; height: 26px; padding: 0 6px; border-radius: 4px; background: transparent; border: 1px solid transparent; color: var(--mu2); font-size: 11px; cursor: pointer; font-family: var(--mono); }
+  .page-btn:hover { background: rgba(255,255,255,.06); color: var(--fg); }
+  .page-btn.active { background: var(--adim); color: var(--ac); border-color: var(--ac); }
+
+  .bar-cell { display: flex; align-items: center; gap: 8px; }
+  .bar-cell .mini-bar { flex: 1; height: 5px; background: var(--gb); border-radius: 3px; overflow: hidden; }
+  .bar-cell .mini-bar > i { display: block; height: 100%; background: var(--ac); }
+  .bar-cell .mini-bar > i.over { background: var(--urg); }
+  .bar-cell .mini-bar > i.ok { background: var(--ok); }
+  .bar-cell .pct { font-family: var(--mono); font-size: 11px; color: var(--mu2); min-width: 38px; text-align: right; }
+
+  @media (max-width: 900px) { .tbl-search input { width: 140px; } .tbl-toolbar { flex-wrap: wrap; gap: 8px; } }
+  @media print {
+    body { background: #fff !important; color: #000 !important; padding: 1cm !important; }
+    .section, .tbl-wrap { background: #fff !important; border: 1px solid #000 !important; box-shadow: none !important; backdrop-filter: none !important; }
+    .tbl thead th { background: #f5f5f5 !important; color: #000 !important; border-bottom: 1px solid #000 !important; }
+    .tbl tbody td { color: #000 !important; border-bottom: 1px solid #999 !important; }
+    .tbl tbody tr:nth-child(even) { background: #fafafa !important; }
+    .tbl tfoot td { background: #f5f5f5 !important; color: #000 !important; border-top: 1px solid #000 !important; }
+    .badge, .delta, .pagination, .nav, .btn, .tbl-toolbar { display: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="page-title">Tabelas</div>
+  <div class="page-sub">Quatro tipos de tabela para o sistema: financeiro, KPIs, clientes e budget vs real. Sticky header, alternancia, badges, mono para numeros e paginacao.</div>
+  <nav class="nav">
+    <a href="#financeiro">Financeiro</a>
+    <a href="#kpis">KPIs</a>
+    <a href="#clientes">Clientes</a>
+    <a href="#budget">Budget vs Real</a>
+  </nav>
+
+  <!-- 1. TABELA FINANCEIRA -->
+  <section class="section" id="financeiro">
+    <div class="section-head">
+      <div>
+        <div class="section-title"><i class="ph ph-chart-bar" style="color:var(--ac)"></i> Tabela financeira</div>
+        <div class="section-sub">Resumo de receitas e despesas do periodo, com variacao month-over-month</div>
+      </div>
+      <div class="section-tag">Fev 2026</div>
+    </div>
+    <div class="tbl-wrap">
+      <div class="tbl-toolbar">
+        <div class="tbl-search">
+          <i class="ph ph-magnifying-glass"></i>
+          <input type="text" placeholder="Buscar descricao...">
+        </div>
+        <div class="tbl-filters">
+          <button class="filter-chip active">Todos</button>
+          <button class="filter-chip">Receitas</button>
+          <button class="filter-chip">Despesas</button>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th class="sortable">Descricao <i class="ph ph-arrows-down-up"></i></th>
+              <th class="sortable">Categoria</th>
+              <th class="right sortable">Valor <i class="ph ph-arrows-down-up"></i></th>
+              <th class="right">% Total</th>
+              <th class="right">Variacao MoM</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Receita de servicos recorrentes</td>
+              <td><span class="badge b-ok">Receita</span></td>
+              <td class="right">R$ 84.320,00</td>
+              <td class="right">42,1%</td>
+              <td class="right"><span class="delta up"><i class="ph ph-trend-up"></i> 12,4%</span></td>
+            </tr>
+            <tr>
+              <td>Consultoria e implementacoes</td>
+              <td><span class="badge b-ok">Receita</span></td>
+              <td class="right">R$ 47.800,00</td>
+              <td class="right">23,9%</td>
+              <td class="right"><span class="delta up"><i class="ph ph-trend-up"></i> 8,1%</span></td>
+            </tr>
+            <tr>
+              <td>Licencas de software</td>
+              <td><span class="badge b-ok">Receita</span></td>
+              <td class="right">R$ 31.250,00</td>
+              <td class="right">15,6%</td>
+              <td class="right"><span class="delta up"><i class="ph ph-trend-up"></i> 3,2%</span></td>
+            </tr>
+            <tr>
+              <td>Folha de pagamento</td>
+              <td><span class="badge b-urg">Despesa</span></td>
+              <td class="right">-R$ 52.400,00</td>
+              <td class="right">26,2%</td>
+              <td class="right"><span class="delta down"><i class="ph ph-trend-up"></i> 4,5%</span></td>
+            </tr>
+            <tr>
+              <td>Infraestrutura cloud</td>
+              <td><span class="badge b-urg">Despesa</span></td>
+              <td class="right">-R$ 18.900,00</td>
+              <td class="right">9,4%</td>
+              <td class="right"><span class="delta down"><i class="ph ph-trend-up"></i> 11,3%</span></td>
+            </tr>
+            <tr>
+              <td>Marketing e trafego pago</td>
+              <td><span class="badge b-urg">Despesa</span></td>
+              <td class="right">-R$ 14.500,00</td>
+              <td class="right">7,2%</td>
+              <td class="right"><span class="delta flat"><i class="ph ph-minus"></i> 0,0%</span></td>
+            </tr>
+            <tr>
+              <td>Aluguel e condominio</td>
+              <td><span class="badge b-urg">Despesa</span></td>
+              <td class="right">-R$ 8.200,00</td>
+              <td class="right">4,1%</td>
+              <td class="right"><span class="delta flat"><i class="ph ph-minus"></i> 0,0%</span></td>
+            </tr>
+            <tr>
+              <td>Impostos e taxas</td>
+              <td><span class="badge b-urg">Despesa</span></td>
+              <td class="right">-R$ 6.750,00</td>
+              <td class="right">3,4%</td>
+              <td class="right"><span class="delta down"><i class="ph ph-trend-up"></i> 2,8%</span></td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr>
+              <td>Resultado liquido do periodo</td>
+              <td>7 itens</td>
+              <td class="right">R$ 62.620,00</td>
+              <td class="right">100%</td>
+              <td class="right"><span class="delta up"><i class="ph ph-trend-up"></i> 9,7%</span></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <div class="pagination">
+        <div class="pagination-info">Mostrando 1-8 de 23 linhas</div>
+        <div class="pagination-controls">
+          <button class="page-btn"><i class="ph ph-caret-left"></i></button>
+          <button class="page-btn active">1</button>
+          <button class="page-btn">2</button>
+          <button class="page-btn">3</button>
+          <button class="page-btn"><i class="ph ph-caret-right"></i></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. TABELA KPIS -->
+  <section class="section" id="kpis">
+    <div class="section-head">
+      <div>
+        <div class="section-title"><i class="ph ph-gauge" style="color:var(--att)"></i> Tabela de KPIs</div>
+        <div class="section-sub">Performance dos indicadores-chave vs meta e mes anterior</div>
+      </div>
+      <div class="section-tag">Fev 2026</div>
+    </div>
+    <div class="tbl-wrap">
+      <div class="tbl-toolbar">
+        <div class="tbl-search">
+          <i class="ph ph-magnifying-glass"></i>
+          <input type="text" placeholder="Buscar KPI...">
+        </div>
+        <div class="tbl-filters">
+          <button class="filter-chip active">Todos</button>
+          <button class="filter-chip"><span class="dot d-ok"></span> No alvo</button>
+          <button class="filter-chip"><span class="dot d-att"></span> Atencao</button>
+          <button class="filter-chip"><span class="dot d-urg"></span> Critico</button>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th class="sortable">Nome <i class="ph ph-arrows-down-up"></i></th>
+              <th class="right sortable">Mes atual</th>
+              <th class="right">Mes anterior</th>
+              <th class="right">Meta</th>
+              <th class="center">Progresso</th>
+              <th class="center">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>MRR (Receita Recorrente Mensal)</td>
+              <td class="right">R$ 84.320</td>
+              <td class="right">R$ 75.020</td>
+              <td class="right">R$ 90.000</td>
+              <td class="center"><div class="progress"><i class="ok" style="width:94%"></i></div></td>
+              <td class="center"><span class="badge b-att">Atencao</span></td>
+            </tr>
+            <tr>
+              <td>Churn rate</td>
+              <td class="right">2,1%</td>
+              <td class="right">2,8%</td>
+              <td class="right">< 3,0%</td>
+              <td class="center"><div class="progress"><i class="ok" style="width:88%"></i></div></td>
+              <td class="center"><span class="badge b-ok">No alvo</span></td>
+            </tr>
+            <tr>
+              <td>NPS (Net Promoter Score)</td>
+              <td class="right">62</td>
+              <td class="right">58</td>
+              <td class="right">> 60</td>
+              <td class="center"><div class="progress"><i class="ok" style="width:96%"></i></div></td>
+              <td class="center"><span class="badge b-ok">No alvo</span></td>
+            </tr>
+            <tr>
+              <td>Novos clientes</td>
+              <td class="right">14</td>
+              <td class="right">9</td>
+              <td class="right">12</td>
+              <td class="center"><div class="progress"><i class="" style="width:100%; background: var(--ok)"></i></div></td>
+              <td class="center"><span class="badge b-ok">No alvo</span></td>
+            </tr>
+            <tr>
+              <td>Ticket medio</td>
+              <td class="right">R$ 1.247</td>
+              <td class="right">R$ 1.180</td>
+              <td class="right">R$ 1.300</td>
+              <td class="center"><div class="progress"><i class="ok" style="width:78%"></i></div></td>
+              <td class="center"><span class="badge b-att">Atencao</span></td>
+            </tr>
+            <tr>
+              <td>CAC (Custo de Aquisicao)</td>
+              <td class="right">R$ 412</td>
+              <td class="right">R$ 380</td>
+              <td class="right">< R$ 400</td>
+              <td class="center"><div class="progress"><i class="urg" style="width:62%"></i></div></td>
+              <td class="center"><span class="badge b-urg">Critico</span></td>
+            </tr>
+            <tr>
+              <td>LTV (Lifetime Value)</td>
+              <td class="right">R$ 8.940</td>
+              <td class="right">R$ 8.500</td>
+              <td class="right">R$ 9.000</td>
+              <td class="center"><div class="progress"><i class="ok" style="width:92%"></i></div></td>
+              <td class="center"><span class="badge b-ok">No alvo</span></td>
+            </tr>
+            <tr>
+              <td>Margem bruta</td>
+              <td class="right">68,2%</td>
+              <td class="right">67,8%</td>
+              <td class="right">> 65%</td>
+              <td class="center"><div class="progress"><i class="ok" style="width:100%; background: var(--ok)"></i></div></td>
+              <td class="center"><span class="badge b-ok">No alvo</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="pagination">
+        <div class="pagination-info">8 KPIs monitorados</div>
+        <div class="pagination-controls">
+          <button class="page-btn"><i class="ph ph-caret-left"></i></button>
+          <button class="page-btn active">1</button>
+          <button class="page-btn"><i class="ph ph-caret-right"></i></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. TABELA CLIENTES -->
+  <section class="section" id="clientes">
+    <div class="section-head">
+      <div>
+        <div class="section-title"><i class="ph ph-users-three" style="color:#f472b6"></i> Lista de clientes</div>
+        <div class="section-sub">Base ativa com receita, plano e indicador de saude</div>
+      </div>
+      <button class="btn btn-primary"><i class="ph ph-plus"></i> Novo cliente</button>
+    </div>
+    <div class="tbl-wrap">
+      <div class="tbl-toolbar">
+        <div class="tbl-search">
+          <i class="ph ph-magnifying-glass"></i>
+          <input type="text" placeholder="Buscar empresa...">
+        </div>
+        <div class="tbl-filters">
+          <button class="filter-chip active">Todos (28)</button>
+          <button class="filter-chip">Enterprise</button>
+          <button class="filter-chip">Pro</button>
+          <button class="filter-chip">Starter</button>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th class="sortable">Empresa <i class="ph ph-arrows-down-up"></i></th>
+              <th class="right sortable">Receita mensal</th>
+              <th>Plano</th>
+              <th class="right">Ultima atividade</th>
+              <th class="center">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <div class="cell-main">
+                  <div class="avatar">TM</div>
+                  <div>
+                    <div class="cell-name">TechMade Solutions</div>
+                    <div class="cell-sub">contato@techmade.com.br</div>
+                  </div>
+                </div>
+              </td>
+              <td class="right">R$ 12.800,00</td>
+              <td><span class="badge b-ac">Enterprise</span></td>
+              <td class="right mono">2h atras</td>
+              <td class="center"><span class="badge b-ok"><span class="dot d-ok"></span> Ativo</span></td>
+            </tr>
+            <tr>
+              <td>
+                <div class="cell-main">
+                  <div class="avatar green">CN</div>
+                  <div>
+                    <div class="cell-name">Construtora Norte</div>
+                    <div class="cell-sub">financeiro@cnorte.com.br</div>
+                  </div>
+                </div>
+              </td>
+              <td class="right">R$ 8.450,00</td>
+              <td><span class="badge b-ac">Enterprise</span></td>
+              <td class="right mono">1d atras</td>
+              <td class="center"><span class="badge b-ok"><span class="dot d-ok"></span> Ativo</span></td>
+            </tr>
+            <tr>
+              <td>
+                <div class="cell-main">
+                  <div class="avatar orange">LP</div>
+                  <div>
+                    <div class="cell-name">Lab Pharma</div>
+                    <div class="cell-sub">admin@labpharma.com.br</div>
+                  </div>
+                </div>
+              </td>
+              <td class="right">R$ 4.200,00</td>
+              <td><span class="badge b-info">Pro</span></td>
+              <td class="right mono">3h atras</td>
+              <td class="center"><span class="badge b-ok"><span class="dot d-ok"></span> Ativo</span></td>
+            </tr>
+            <tr>
+              <td>
+                <div class="cell-main">
+                  <div class="avatar pink">BV</div>
+                  <div>
+                    <div class="cell-name">Boutique Vintage</div>
+                    <div class="cell-sub">vendas@boutiquevintage.com.br</div>
+                  </div>
+                </div>
+              </td>
+              <td class="right">R$ 1.890,00</td>
+              <td><span class="badge b-info">Pro</span></td>
+              <td class="right mono">5d atras</td>
+              <td class="center"><span class="badge b-att"><span class="dot d-att"></span> Risco</span></td>
+            </tr>
+            <tr>
+              <td>
+                <div class="cell-main">
+                  <div class="avatar blue">EC</div>
+                  <div>
+                    <div class="cell-name">Estudio Criativo</div>
+                    <div class="cell-sub">oi@estudiocriativo.art</div>
+                  </div>
+                </div>
+              </td>
+              <td class="right">R$ 1.240,00</td>
+              <td><span class="badge b-mu">Starter</span></td>
+              <td class="right mono">1d atras</td>
+              <td class="center"><span class="badge b-ok"><span class="dot d-ok"></span> Ativo</span></td>
+            </tr>
+            <tr>
+              <td>
+                <div class="cell-main">
+                  <div class="avatar">AS</div>
+                  <div>
+                    <div class="cell-name">Agro Sul</div>
+                    <div class="cell-sub">comercial@agrosul.com.br</div>
+                  </div>
+                </div>
+              </td>
+              <td class="right">R$ 980,00</td>
+              <td><span class="badge b-mu">Starter</span></td>
+              <td class="right mono">12d atras</td>
+              <td class="center"><span class="badge b-urg"><span class="dot d-urg"></span> Inativo</span></td>
+            </tr>
+            <tr>
+              <td>
+                <div class="cell-main">
+                  <div class="avatar green">MC</div>
+                  <div>
+                    <div class="cell-name">Marcenaria Central</div>
+                    <div class="cell-sub">marcenaria@central.com.br</div>
+                  </div>
+                </div>
+              </td>
+              <td class="right">R$ 760,00</td>
+              <td><span class="badge b-mu">Starter</span></td>
+              <td class="right mono">2d atras</td>
+              <td class="center"><span class="badge b-ok"><span class="dot d-ok"></span> Ativo</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="pagination">
+        <div class="pagination-info">Mostrando 1-7 de 28 clientes</div>
+        <div class="pagination-controls">
+          <button class="page-btn"><i class="ph ph-caret-left"></i></button>
+          <button class="page-btn active">1</button>
+          <button class="page-btn">2</button>
+          <button class="page-btn">3</button>
+          <button class="page-btn">4</button>
+          <button class="page-btn"><i class="ph ph-caret-right"></i></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. TABELA BUDGET VS REAL -->
+  <section class="section" id="budget">
+    <div class="section-head">
+      <div>
+        <div class="section-title"><i class="ph ph-scales" style="color:var(--ok)"></i> Budget vs Real</div>
+        <div class="section-sub">Comparacao orcamentaria por categoria com variacao percentual e barras de progresso</div>
+      </div>
+      <div class="section-tag">Acumulado YTD</div>
+    </div>
+    <div class="tbl-wrap">
+      <div class="tbl-toolbar">
+        <div class="tbl-search">
+          <i class="ph ph-magnifying-glass"></i>
+          <input type="text" placeholder="Buscar categoria...">
+        </div>
+        <div class="tbl-filters">
+          <button class="filter-chip active">Todas</button>
+          <button class="filter-chip"><span class="dot d-ok"></span> Dentro do orcamento</button>
+          <button class="filter-chip"><span class="dot d-urg"></span> Acima do orcamento</button>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th class="sortable">Categoria <i class="ph ph-arrows-down-up"></i></th>
+              <th class="right sortable">Budget</th>
+              <th class="right">Real</th>
+              <th class="right">Variacao</th>
+              <th>Utilizacao</th>
+              <th class="center">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Engenharia e desenvolvimento</td>
+              <td class="right">R$ 240.000</td>
+              <td class="right">R$ 218.400</td>
+              <td class="right"><span class="delta up"><i class="ph ph-trend-down"></i> 9,0%</span></td>
+              <td>
+                <div class="bar-cell">
+                  <div class="mini-bar"><i class="ok" style="width:91%"></i></div>
+                  <div class="pct">91%</div>
+                </div>
+              </td>
+              <td class="center"><span class="badge b-ok">OK</span></td>
+            </tr>
+            <tr>
+              <td>Vendas e marketing</td>
+              <td class="right">R$ 120.000</td>
+              <td class="right">R$ 138.200</td>
+              <td class="right"><span class="delta down"><i class="ph ph-trend-up"></i> 15,2%</span></td>
+              <td>
+                <div class="bar-cell">
+                  <div class="mini-bar"><i class="over" style="width:100%; background: var(--urg)"></i></div>
+                  <div class="pct">115%</div>
+                </div>
+              </td>
+              <td class="center"><span class="badge b-urg">Acima</span></td>
+            </tr>
+            <tr>
+              <td>Infraestrutura e cloud</td>
+              <td class="right">R$ 80.000</td>
+              <td class="right">R$ 71.600</td>
+              <td class="right"><span class="delta up"><i class="ph ph-trend-down"></i> 10,5%</span></td>
+              <td>
+                <div class="bar-cell">
+                  <div class="mini-bar"><i class="ok" style="width:89.5%"></i></div>
+                  <div class="pct">89%</div>
+                </div>
+              </td>
+              <td class="center"><span class="badge b-ok">OK</span></td>
+            </tr>
+            <tr>
+              <td>Atendimento ao cliente</td>
+              <td class="right">R$ 60.000</td>
+              <td class="right">R$ 58.900</td>
+              <td class="right"><span class="delta up"><i class="ph ph-trend-down"></i> 1,8%</span></td>
+              <td>
+                <div class="bar-cell">
+                  <div class="mini-bar"><i class="ok" style="width:98%"></i></div>
+                  <div class="pct">98%</div>
+                </div>
+              </td>
+              <td class="center"><span class="badge b-ok">OK</span></td>
+            </tr>
+            <tr>
+              <td>Administrativo e RH</td>
+              <td class="right">R$ 45.000</td>
+              <td class="right">R$ 48.700</td>
+              <td class="right"><span class="delta down"><i class="ph ph-trend-up"></i> 8,2%</span></td>
+              <td>
+                <div class="bar-cell">
+                  <div class="mini-bar"><i class="over" style="width:100%"></i></div>
+                  <div class="pct">108%</div>
+                </div>
+              </td>
+              <td class="center"><span class="badge b-urg">Acima</span></td>
+            </tr>
+            <tr>
+              <td>Viagens e eventos</td>
+              <td class="right">R$ 30.000</td>
+              <td class="right">R$ 18.400</td>
+              <td class="right"><span class="delta up"><i class="ph ph-trend-down"></i> 38,7%</span></td>
+              <td>
+                <div class="bar-cell">
+                  <div class="mini-bar"><i class="ok" style="width:61%"></i></div>
+                  <div class="pct">61%</div>
+                </div>
+              </td>
+              <td class="center"><span class="badge b-ok">OK</span></td>
+            </tr>
+            <tr>
+              <td>Impostos e taxas</td>
+              <td class="right">R$ 25.000</td>
+              <td class="right">R$ 24.100</td>
+              <td class="right"><span class="delta up"><i class="ph ph-trend-down"></i> 3,6%</span></td>
+              <td>
+                <div class="bar-cell">
+                  <div class="mini-bar"><i class="ok" style="width:96%"></i></div>
+                  <div class="pct">96%</div>
+                </div>
+              </td>
+              <td class="center"><span class="badge b-ok">OK</span></td>
+            </tr>
+            <tr>
+              <td>P&D experimental</td>
+              <td class="right">R$ 20.000</td>
+              <td class="right">R$ 22.800</td>
+              <td class="right"><span class="delta down"><i class="ph ph-trend-up"></i> 14,0%</span></td>
+              <td>
+                <div class="bar-cell">
+                  <div class="mini-bar"><i class="over" style="width:100%"></i></div>
+                  <div class="pct">114%</div>
+                </div>
+              </td>
+              <td class="center"><span class="badge b-urg">Acima</span></td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr>
+              <td>Total acumulado</td>
+              <td class="right">R$ 620.000</td>
+              <td class="right">R$ 601.100</td>
+              <td class="right"><span class="delta up"><i class="ph ph-trend-down"></i> 3,0%</span></td>
+              <td class="right">97% utilizado</td>
+              <td class="center"><span class="badge b-att">2 acimas</span></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <div class="pagination">
+        <div class="pagination-info">Mostrando 1-8 de 8 categorias</div>
+        <div class="pagination-controls">
+          <button class="page-btn"><i class="ph ph-caret-left"></i></button>
+          <button class="page-btn active">1</button>
+          <button class="page-btn"><i class="ph ph-caret-right"></i></button>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+</body>
+</html>

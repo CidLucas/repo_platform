@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BLU — Elementos de Chat</title>
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Nunito:wght@900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #03071C;
+    --glass: rgba(255,255,255,0.065);
+    --gl2: rgba(255,255,255,0.07);
+    --gb: rgba(255,255,255,0.10);
+    --gb2: rgba(255,255,255,0.20);
+    --fg: #DFE3EE;
+    --mu: rgba(223,227,238,0.42);
+    --mu2: rgba(223,227,238,0.64);
+    --ac: #8C5FDB;
+    --adim: rgba(140,95,219,0.15);
+    --urg: #EF4444;
+    --udim: rgba(239,68,68,0.13);
+    --att: #F59E0B;
+    --adm2: rgba(245,158,11,0.13);
+    --ok: #10B981;
+    --odim: rgba(16,185,129,0.13);
+    --info: #3B82F6;
+    --infodim: rgba(59,130,246,0.13);
+    --r: 8px;
+    --rl: 12px;
+    --rxl: 20px;
+    --body: 'Inter', -apple-system, system-ui, sans-serif;
+    --mono: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+    --shadow-1: 0 2px 14px rgba(0,0,0,.28);
+    --shadow-2: 0 4px 22px rgba(0,0,0,.36);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 13px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  body { background-image: radial-gradient(at 12% 8%, rgba(59,130,246,0.10) 0px, transparent 50%), radial-gradient(at 88% 92%, rgba(140,95,219,0.10) 0px, transparent 50%); min-height: 100vh; padding: 32px; }
+  .page { max-width: 1200px; margin: 0 auto; }
+  .page-title { font-size: 28px; font-weight: 800; letter-spacing: -1px; margin-bottom: 4px; }
+  .page-sub { color: var(--mu); font-size: 13px; margin-bottom: 24px; }
+  .nav { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 28px; }
+  .nav a { padding: 5px 12px; border-radius: 6px; background: var(--glass); border: 1px solid var(--gb); color: var(--mu2); text-decoration: none; font-size: 11px; font-weight: 500; }
+  .nav a:hover { background: var(--adim); border-color: var(--ac); color: var(--ac); }
+
+  .section { background: var(--glass); backdrop-filter: blur(16px); border: 1px solid var(--gb); border-radius: var(--rl); padding: 24px; margin-bottom: 22px; box-shadow: var(--shadow-1), inset 0 0 0 1px rgba(255,255,255,.05); }
+  .section-head { margin-bottom: 18px; }
+  .section-tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: var(--ac); margin-bottom: 4px; }
+  .section-title { font-size: 18px; font-weight: 800; letter-spacing: -0.4px; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+  .section-sub { font-size: 12px; color: var(--mu); }
+
+  /* CHAT CONTAINER */
+  .chat-frame { background: rgba(0,0,0,.22); border: 1px solid var(--gb); border-radius: var(--rxl); padding: 24px; min-height: 520px; display: flex; flex-direction: column; gap: 14px; }
+  .chat-header { display: flex; align-items: center; gap: 10px; padding-bottom: 14px; border-bottom: 1px solid var(--gb); }
+  .chat-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, var(--ac), #6D28D9); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 13px; }
+  .chat-name { font-size: 13px; font-weight: 600; }
+  .chat-status { font-size: 10.5px; color: var(--mu); display: flex; align-items: center; gap: 4px; }
+  .chat-status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+  .chat-body { display: flex; flex-direction: column; gap: 12px; flex: 1; }
+  .chat-date { text-align: center; font-size: 10px; color: var(--mu); text-transform: uppercase; letter-spacing: 0.1em; margin: 4px 0; }
+
+  /* MESSAGE BUBBLES */
+  .msg { display: flex; gap: 8px; max-width: 78%; }
+  .msg-bubble { padding: 10px 14px; border-radius: var(--r); font-size: 12.5px; line-height: 1.5; position: relative; }
+  .msg-meta { font-size: 10px; color: var(--mu); margin-top: 4px; padding: 0 4px; }
+  .msg-agent { align-self: flex-start; }
+  .msg-agent .msg-bubble { background: var(--glass); border: 1px solid var(--gb); color: var(--fg); border-top-left-radius: 4px; }
+  .msg-agent .msg-bubble .agent-label { font-size: 10px; font-weight: 700; color: var(--ac); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+  .msg-user { align-self: flex-end; flex-direction: row-reverse; }
+  .msg-user .msg-bubble { background: var(--ac); color: #fff; border-top-right-radius: 4px; }
+  .msg-user .msg-meta { text-align: right; }
+  .msg-avatar { width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; }
+  .msg-avatar.agent { background: linear-gradient(135deg, var(--ac), #6D28D9); }
+  .msg-avatar.user { background: linear-gradient(135deg, var(--info), #1e40af); }
+
+  /* INLINE STRUCTURED CARD */
+  .inline-card { background: rgba(0,0,0,.25); border: 1px solid var(--gb); border-radius: var(--r); padding: 12px 14px; margin-top: 8px; }
+  .inline-card-head { display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ac); margin-bottom: 10px; }
+  .ic-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 11.5px; border-bottom: 1px solid var(--gb); }
+  .ic-row:last-child { border-bottom: none; }
+  .ic-row .k { color: var(--mu); }
+  .ic-row .v { color: var(--fg); font-family: var(--mono); font-weight: 500; }
+
+  /* COLLAPSIBLE TABLE */
+  .collapsible { margin-top: 8px; border: 1px solid var(--gb); border-radius: var(--r); overflow: hidden; }
+  .collapsible-head { display: flex; justify-content: space-between; align-items: center; padding: 9px 12px; background: rgba(255,255,255,.04); cursor: pointer; }
+  .collapsible-head:hover { background: rgba(255,255,255,.06); }
+  .collapsible-head .title { font-size: 11.5px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .collapsible-head .meta { font-size: 10.5px; color: var(--mu); }
+  .collapsible-body { padding: 8px 12px; background: rgba(0,0,0,.2); }
+  .mini-table { width: 100%; font-size: 11px; }
+  .mini-table th, .mini-table td { padding: 4px 6px; text-align: left; border-bottom: 1px solid var(--gb); }
+  .mini-table th { color: var(--mu); font-size: 9.5px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.06em; }
+  .mini-table td { color: var(--mu2); }
+  .mini-table td.r { text-align: right; font-family: var(--mono); }
+
+  /* QUICK ACTION CHIPS */
+  .quick-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chip { padding: 6px 12px; border-radius: 100px; background: rgba(255,255,255,.04); border: 1px solid var(--gb); color: var(--fg); font-size: 11.5px; font-weight: 500; cursor: pointer; transition: .1s; display: inline-flex; align-items: center; gap: 5px; }
+  .chip:hover { background: var(--adim); border-color: var(--ac); color: var(--ac); }
+  .chip.primary { background: var(--adim); border-color: var(--ac); color: var(--ac); }
+
+  /* TYPING DOTS */
+  .typing { display: inline-flex; align-items: center; gap: 4px; padding: 14px 16px; }
+  .typing .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--mu); animation: bounce 1.4s ease-in-out infinite; }
+  .typing .dot:nth-child(2) { animation-delay: .2s; }
+  .typing .dot:nth-child(3) { animation-delay: .4s; }
+  @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); opacity: .4; } 30% { transform: translateY(-6px); opacity: 1; } }
+  .typing-meta { font-size: 10px; color: var(--mu); font-style: italic; margin-left: 8px; }
+
+  /* DOCUMENT PREVIEW */
+  .doc-preview { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: rgba(0,0,0,.3); border: 1px solid var(--gb); border-radius: var(--r); margin-top: 8px; max-width: 360px; }
+  .doc-thumb { width: 40px; height: 48px; border-radius: 4px; background: linear-gradient(135deg, rgba(255,255,255,.08), rgba(255,255,255,.02)); border: 1px solid var(--gb2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; position: relative; }
+  .doc-thumb::before { content: ''; position: absolute; top: 0; right: 0; width: 8px; height: 8px; background: rgba(255,255,255,.04); border-bottom-left-radius: 3px; }
+  .doc-thumb i { font-size: 18px; color: var(--ac); }
+  .doc-thumb.pdf i { color: var(--urg); }
+  .doc-thumb.sheet i { color: var(--ok); }
+  .doc-info { flex: 1; min-width: 0; }
+  .doc-name { font-size: 12px; font-weight: 600; color: var(--fg); margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .doc-meta { font-size: 10.5px; color: var(--mu); }
+  .doc-actions { display: flex; gap: 4px; }
+  .doc-action-btn { width: 28px; height: 28px; border-radius: 5px; background: rgba(255,255,255,.04); border: 1px solid var(--gb); color: var(--mu2); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+  .doc-action-btn:hover { background: var(--adim); color: var(--ac); border-color: var(--ac); }
+
+  /* INLINE APPROVE/REJECT */
+  .inline-actions { display: flex; gap: 6px; margin-top: 10px; }
+  .ia-btn { padding: 7px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid transparent; display: inline-flex; align-items: center; gap: 5px; transition: .1s; }
+  .ia-approve { background: var(--odim); color: var(--ok); border-color: rgba(16,185,129,.3); }
+  .ia-approve:hover { background: rgba(16,185,129,.2); }
+  .ia-reject { background: var(--udim); color: var(--urg); border-color: rgba(239,68,68,.3); }
+  .ia-reject:hover { background: rgba(239,68,68,.2); }
+  .ia-secondary { background: rgba(255,255,255,.04); color: var(--mu2); border-color: var(--gb); }
+  .ia-secondary:hover { background: rgba(255,255,255,.08); color: var(--fg); }
+
+  /* MINI CHART IN CHAT */
+  .mini-chart { margin-top: 8px; padding: 12px; background: rgba(0,0,0,.25); border: 1px solid var(--gb); border-radius: var(--r); }
+  .mini-chart-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .mini-chart-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--mu); }
+  .mini-chart-val { font-size: 13px; font-weight: 700; font-family: var(--mono); color: var(--fg); }
+  .mini-chart-val .delta { font-size: 10.5px; margin-left: 6px; }
+  .delta { font-family: var(--mono); font-weight: 600; }
+  .delta.up { color: var(--ok); }
+  .delta.down { color: var(--urg); }
+
+  /* DRAG-DROP ZONE */
+  .dropzone { border: 2px dashed var(--gb2); border-radius: var(--r); padding: 28px 20px; text-align: center; background: rgba(0,0,0,.15); transition: .15s; cursor: pointer; }
+  .dropzone:hover { border-color: var(--ac); background: var(--adim); }
+  .dropzone i { font-size: 32px; color: var(--ac); margin-bottom: 8px; display: block; }
+  .dropzone-title { font-size: 13px; font-weight: 600; color: var(--fg); margin-bottom: 4px; }
+  .dropzone-sub { font-size: 11px; color: var(--mu); }
+  .dropzone-sub strong { color: var(--ac); cursor: pointer; }
+
+  /* TWO-COLUMN CHAT DEMO */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+
+  /* BADGE */
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+  .b-ok { background: var(--odim); color: var(--ok); }
+  .b-att { background: var(--adm2); color: var(--att); }
+  .b-ac { background: var(--adim); color: var(--ac); }
+
+  /* VARIANT CHIPS FOR SECTION HEADERS */
+  .variant-label { display: inline-block; padding: 2px 8px; border-radius: 4px; background: var(--adim); color: var(--ac); font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-left: 8px; vertical-align: middle; }
+
+  @media (max-width: 900px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } .msg { max-width: 92%; } }
+  @media print {
+    body { background: #fff !important; color: #000 !important; padding: 1cm !important; }
+    .section, .chat-frame { background: #fff !important; border: 1px solid #000 !important; box-shadow: none !important; backdrop-filter: none !important; }
+    .msg-bubble { background: #f5f5f5 !important; color: #000 !important; border-color: #000 !important; }
+    .msg-user .msg-bubble { background: #ddd !important; }
+    .nav { display: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="page-title">Elementos de Chat</div>
+  <div class="page-sub">Bolhas, cards inline, tabelas colapsaveis, acoes rapidas, animacao de digitacao, preview de documentos, aprovacoes, charts e upload. Tudo dentro de uma conversa.</div>
+  <nav class="nav">
+    <a href="#bubbles">Bolhas</a>
+    <a href="#card">Card inline</a>
+    <a href="#table">Tabela colapsavel</a>
+    <a href="#quick">Acoes rapidas</a>
+    <a href="#typing">Digitacao</a>
+    <a href="#preview">Preview de doc</a>
+    <a href="#approve">Aprovacao</a>
+    <a href="#chart">Chart mini</a>
+    <a href="#upload">Upload</a>
+  </nav>
+
+  <!-- BUBBLES -->
+  <section class="section" id="bubbles">
+    <div class="section-head">
+      <div class="section-tag">01</div>
+      <div class="section-title"><i class="ph ph-chat-circle-dots" style="color:var(--ac)"></i> Bolhas de mensagem</div>
+      <div class="section-sub">Usuario a direita com fundo accent, agente a esquerda com vidro. Suporta cabecalho de agente e timestamp.</div>
+    </div>
+    <div class="grid-2">
+      <div>
+        <span class="variant-label">Variante A — conversa simples</span>
+        <div class="chat-frame" style="min-height: 360px; margin-top: 10px;">
+          <div class="chat-header">
+            <div class="chat-avatar">FR</div>
+            <div>
+              <div class="chat-name">Frontdesk</div>
+              <div class="chat-status">Online &middot; responde em segundos</div>
+            </div>
+          </div>
+          <div class="chat-body">
+            <div class="chat-date">Hoje, 14:32</div>
+            <div class="msg msg-agent">
+              <div class="msg-avatar agent">FR</div>
+              <div>
+                <div class="msg-bubble">
+                  <div class="agent-label">Frontdesk &middot; Orquestrador</div>
+                  Ola, Patricia. Detectei 3 inconsistencias no fechamento de fevereiro. Posso detalhar?
+                </div>
+                <div class="msg-meta">14:32</div>
+              </div>
+            </div>
+            <div class="msg msg-user">
+              <div class="msg-avatar user">PS</div>
+              <div>
+                <div class="msg-bubble">Sim, pode detalhar.</div>
+                <div class="msg-meta">14:32 &middot; lido</div>
+              </div>
+            </div>
+            <div class="msg msg-agent">
+              <div class="msg-avatar agent">FR</div>
+              <div>
+                <div class="msg-bubble">
+                  <div class="agent-label">Frontdesk &middot; Orquestrador</div>
+                  As 3 inconsistencias estao em receita de consultoria, marketing e impostos. Posso transferir para o Financeiro ou tratar aqui mesmo.
+                </div>
+                <div class="msg-meta">14:33</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <span class="variant-label">Variante B — multi-agente</span>
+        <div class="chat-frame" style="min-height: 360px; margin-top: 10px;">
+          <div class="chat-header">
+            <div class="chat-avatar" style="background: linear-gradient(135deg, #34d399, #047857);">FI</div>
+            <div>
+              <div class="chat-name">Financeiro</div>
+              <div class="chat-status">Online &middot; Sala Financeiro</div>
+            </div>
+          </div>
+          <div class="chat-body">
+            <div class="chat-date">Sala Financeiro</div>
+            <div class="msg msg-agent">
+              <div class="msg-avatar agent" style="background: linear-gradient(135deg, #34d399, #047857);">FI</div>
+              <div>
+                <div class="msg-bubble">
+                  <div class="agent-label" style="color: #34d399;">Financeiro &middot; Especialista</div>
+                  Analisei a receita de consultoria. As 3 notas que voce mencionou totalizam R$ 18.400, e estao reconhecidas no DRE.
+                </div>
+                <div class="msg-meta">14:35</div>
+              </div>
+            </div>
+            <div class="msg msg-user">
+              <div class="msg-avatar user">PS</div>
+              <div>
+                <div class="msg-bubble">Perfeito. E o item de marketing?</div>
+                <div class="msg-meta">14:36 &middot; lido</div>
+              </div>
+            </div>
+            <div class="msg msg-agent">
+              <div class="msg-avatar agent" style="background: linear-gradient(135deg, #34d399, #047857);">FI</div>
+              <div>
+                <div class="msg-bubble">
+                  <div class="agent-label" style="color: #34d399;">Financeiro &middot; Especialista</div>
+                  Esta 20,8% acima do budget (R$ 14.500 vs R$ 12.000). ROI calculado em 3,2x — dentro do aceitavel.
+                </div>
+                <div class="msg-meta">14:37</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- INLINE STRUCTURED CARD -->
+  <section class="section" id="card">
+    <div class="section-head">
+      <div class="section-tag">02</div>
+      <div class="section-title"><i class="ph ph-cardholder" style="color:var(--info)"></i> Card estruturado inline</div>
+      <div class="section-sub">Dados estruturados dentro de uma mensagem do agente: label + valor, com acoes contextuais.</div>
+    </div>
+    <div class="chat-frame">
+      <div class="chat-body">
+        <div class="msg msg-agent">
+          <div class="msg-avatar agent">FI</div>
+          <div>
+            <div class="msg-bubble">
+              <div class="agent-label">Financeiro &middot; Resumo do dia</div>
+              Aqui estao os 3 principais indicadores de hoje:
+              <div class="inline-card">
+                <div class="inline-card-head"><i class="ph ph-chart-line-up"></i> Performance diaria</div>
+                <div class="ic-row"><span class="k">Receita do dia</span><span class="v">R$ 12.480,00</span></div>
+                <div class="ic-row"><span class="k">Novos clientes</span><span class="v">3</span></div>
+                <div class="ic-row"><span class="k">Churn risco</span><span class="v">2 clientes</span></div>
+                <div class="ic-row"><span class="k">Inadimplencia</span><span class="v">R$ 4.200,00</span></div>
+                <div class="ic-row"><span class="k">Saldo em caixa</span><span class="v">R$ 389.380,00</span></div>
+              </div>
+              <div class="quick-actions">
+                <button class="chip"><i class="ph ph-arrow-down"></i> Ver detalhes</button>
+                <button class="chip primary"><i class="ph ph-bell"></i> Configurar alerta</button>
+              </div>
+            </div>
+            <div class="msg-meta">14:40</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- COLLAPSIBLE TABLE -->
+  <section class="section" id="table">
+    <div class="section-head">
+      <div class="section-tag">03</div>
+      <div class="section-title"><i class="ph ph-table" style="color:var(--ok)"></i> Tabela interativa colapsavel</div>
+      <div class="section-sub">Tabela que pode ser expandida/recolhida dentro do chat para nao poluir a conversa.</div>
+    </div>
+    <div class="chat-frame">
+      <div class="chat-body">
+        <div class="msg msg-agent">
+          <div class="msg-avatar agent">ES</div>
+          <div>
+            <div class="msg-bubble">
+              <div class="agent-label">Estrategia &middot; Top clientes</div>
+              O ranking de receita por cliente para o trimestre:
+              <div class="collapsible">
+                <div class="collapsible-head">
+                  <div class="title"><i class="ph ph-caret-down"></i> 5 clientes com maior receita</div>
+                  <div class="meta">R$ 1.42M total</div>
+                </div>
+                <div class="collapsible-body">
+                  <table class="mini-table">
+                    <thead><tr><th>Cliente</th><th>Plano</th><th class="r">Receita</th></tr></thead>
+                    <tbody>
+                      <tr><td>TechMade Solutions</td><td>Enterprise</td><td class="r">R$ 38.400</td></tr>
+                      <tr><td>Construtora Norte</td><td>Enterprise</td><td class="r">R$ 25.350</td></tr>
+                      <tr><td>Lab Pharma</td><td>Pro</td><td class="r">R$ 12.600</td></tr>
+                      <tr><td>Estudio Criativo</td><td>Starter</td><td class="r">R$ 3.720</td></tr>
+                      <tr><td>Boutique Vintage</td><td>Pro</td><td class="r">R$ 1.890</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+            <div class="msg-meta">14:42</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- QUICK ACTIONS -->
+  <section class="section" id="quick">
+    <div class="section-head">
+      <div class="section-tag">04</div>
+      <div class="section-title"><i class="ph ph-lightning" style="color:var(--att)"></i> Acoes rapidas</div>
+      <div class="section-sub">Chips de resposta sugerida que o agente propoe para avancar a conversa sem digitar.</div>
+    </div>
+    <div class="grid-2">
+      <div>
+        <span class="variant-label">Variante A — pergunta binaria</span>
+        <div class="chat-frame" style="min-height: 220px; margin-top: 10px;">
+          <div class="chat-body">
+            <div class="msg msg-agent">
+              <div class="msg-avatar agent">AG</div>
+              <div>
+                <div class="msg-bubble">
+                  <div class="agent-label">Agendador &middot; Proxima acao</div>
+                  Voce quer que eu agende a reuniao de revisao mensal para quinta-feira (06/03) as 14h?
+                  <div class="quick-actions">
+                    <button class="chip primary"><i class="ph ph-check"></i> Sim, agendar</button>
+                    <button class="chip"><i class="ph ph-clock-clockwise"></i> Adiar para semana que vem</button>
+                    <button class="chip"><i class="ph ph-x"></i> Cancelar</button>
+                  </div>
+                </div>
+                <div class="msg-meta">14:45</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <span class="variant-label">Variante B — multiplas opcoes</span>
+        <div class="chat-frame" style="min-height: 220px; margin-top: 10px;">
+          <div class="chat-body">
+            <div class="msg msg-agent">
+              <div class="msg-avatar agent">CO</div>
+              <div>
+                <div class="msg-bubble">
+                  <div class="agent-label">Compras &middot; Sugestoes</div>
+                  Encontrei 3 fornecedores para o item que voce buscou. Qual abordagem prefere?
+                  <div class="quick-actions">
+                    <button class="chip primary"><i class="ph ph-paper-plane-tilt"></i> Cotar em todos</button>
+                    <button class="chip"><i class="ph ph-arrows-clockwise"></i> Historico de pedidos</button>
+                    <button class="chip"><i class="ph ph-funnel"></i> Filtrar por preco</button>
+                    <button class="chip"><i class="ph ph-funnel"></i> Filtrar por prazo</button>
+                    <button class="chip"><i class="ph ph-list-magnifying-glass"></i> Ver detalhes</button>
+                  </div>
+                </div>
+                <div class="msg-meta">14:48</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TYPING ANIMATION -->
+  <section class="section" id="typing">
+    <div class="section-head">
+      <div class="section-tag">05</div>
+      <div class="section-title"><i class="ph ph-dots-three" style="color:var(--mu2)"></i> Animacao de digitacao</div>
+      <div class="section-sub">Tres pontos pulsando indicando que o agente esta gerando resposta.</div>
+    </div>
+    <div class="grid-3">
+      <div class="chat-frame" style="min-height: 180px;">
+        <div class="chat-body">
+          <div class="msg msg-agent">
+            <div class="msg-avatar agent">FR</div>
+            <div>
+              <div class="msg-bubble" style="padding: 0; background: var(--glass);">
+                <div class="typing"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+              </div>
+              <div class="msg-meta">Frontdesk esta digitando...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="chat-frame" style="min-height: 180px;">
+        <div class="chat-body">
+          <div class="msg msg-agent">
+            <div class="msg-avatar agent" style="background: linear-gradient(135deg, #34d399, #047857);">FI</div>
+            <div>
+              <div class="msg-bubble" style="padding: 0; background: var(--glass);">
+                <div class="typing"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+              </div>
+              <div class="msg-meta"><span class="typing-meta">Financeiro esta analisando dados...</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="chat-frame" style="min-height: 180px;">
+        <div class="chat-body">
+          <div class="msg msg-agent">
+            <div class="msg-avatar agent" style="background: linear-gradient(135deg, #a78bfa, #7c3aed);">ES</div>
+            <div>
+              <div class="msg-bubble" style="padding: 0; background: var(--glass);">
+                <div class="typing"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+              </div>
+              <div class="msg-meta"><span class="typing-meta">Estrategia esta gerando relatorio...</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DOCUMENT PREVIEW -->
+  <section class="section" id="preview">
+    <div class="section-head">
+      <div class="section-tag">06</div>
+      <div class="section-title"><i class="ph ph-file-text" style="color:var(--ac)"></i> Preview de documento</div>
+      <div class="section-sub">Thumbnail com icone do tipo + nome do arquivo + pasta + data + botoes de acao.</div>
+    </div>
+    <div class="chat-frame">
+      <div class="chat-body">
+        <div class="msg msg-agent">
+          <div class="msg-avatar agent">FI</div>
+          <div>
+            <div class="msg-bubble">
+              <div class="agent-label">Financeiro &middot; Documentos gerados</div>
+              Pronto! O fechamento mensal foi gerado e esta disponivel para download.
+              <div class="doc-preview">
+                <div class="doc-thumb pdf"><i class="ph ph-file-pdf"></i></div>
+                <div class="doc-info">
+                  <div class="doc-name">Fechamento_Fev_2026.pdf</div>
+                  <div class="doc-meta">Financeiro &middot; 28/02/2026 &middot; 1.2 MB</div>
+                </div>
+                <div class="doc-actions">
+                  <div class="doc-action-btn" title="Baixar"><i class="ph ph-download-simple"></i></div>
+                  <div class="doc-action-btn" title="Visualizar"><i class="ph ph-eye"></i></div>
+                  <div class="doc-action-btn" title="Compartilhar"><i class="ph ph-share-network"></i></div>
+                </div>
+              </div>
+              <div class="doc-preview">
+                <div class="doc-thumb sheet"><i class="ph ph-file-xls"></i></div>
+                <div class="doc-info">
+                  <div class="doc-name">DRE_Comparativo_2026.xlsx</div>
+                  <div class="doc-meta">Financeiro &middot; 28/02/2026 &middot; 480 KB</div>
+                </div>
+                <div class="doc-actions">
+                  <div class="doc-action-btn" title="Baixar"><i class="ph ph-download-simple"></i></div>
+                  <div class="doc-action-btn" title="Visualizar"><i class="ph ph-eye"></i></div>
+                </div>
+              </div>
+              <div class="doc-preview">
+                <div class="doc-thumb"><i class="ph ph-file-doc"></i></div>
+                <div class="doc-info">
+                  <div class="doc-name">Notas_Executivas_Fev.md</div>
+                  <div class="doc-meta">Biblioteca &middot; 28/02/2026 &middot; 12 KB</div>
+                </div>
+                <div class="doc-actions">
+                  <div class="doc-action-btn" title="Baixar"><i class="ph ph-download-simple"></i></div>
+                  <div class="doc-action-btn" title="Visualizar"><i class="ph ph-eye"></i></div>
+                </div>
+              </div>
+            </div>
+            <div class="msg-meta">14:50</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- INLINE APPROVAL -->
+  <section class="section" id="approve">
+    <div class="section-head">
+      <div class="section-tag">07</div>
+      <div class="section-title"><i class="ph ph-check-square" style="color:var(--ok)"></i> Aprovacao inline</div>
+      <div class="section-sub">Botoes aprovar/rejeitar dentro do chat para decisoes criticas. Toda acao que afeta o mundo real exige aprovacao explicita.</div>
+    </div>
+    <div class="chat-frame">
+      <div class="chat-body">
+        <div class="msg msg-agent">
+          <div class="msg-avatar agent" style="background: linear-gradient(135deg, #fb923c, #ea580c);">AG</div>
+          <div>
+            <div class="msg-bubble">
+              <div class="agent-label">Agenda &middot; Aprovacao necessaria</div>
+              Voce tem uma solicitacao de pagamento pendente. A funcionaria Carla Santos solicitou reembolso de R$ 1.240 referente a viagem SP-RJ.
+              <div class="inline-card">
+                <div class="inline-card-head"><i class="ph ph-warning"></i> Aguardando sua decisao</div>
+                <div class="ic-row"><span class="k">Solicitante</span><span class="v">Carla Santos</span></div>
+                <div class="ic-row"><span class="k">Motivo</span><span class="v">Viagem cliente SP-RJ</span></div>
+                <div class="ic-row"><span class="k">Data da despesa</span><span class="v">03/02/2026</span></div>
+                <div class="ic-row"><span class="k">Valor solicitado</span><span class="v" style="color: var(--att)">R$ 1.240,00</span></div>
+              </div>
+              <div class="inline-actions">
+                <button class="ia-btn ia-approve"><i class="ph ph-check-circle"></i> Aprovar</button>
+                <button class="ia-btn ia-reject"><i class="ph ph-x-circle"></i> Rejeitar</button>
+                <button class="ia-btn ia-secondary"><i class="ph ph-eye"></i> Ver detalhes</button>
+              </div>
+            </div>
+            <div class="msg-meta">14:55 &middot; Expira em 48h</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MINI CHART -->
+  <section class="section" id="chart">
+    <div class="section-head">
+      <div class="section-tag">08</div>
+      <div class="section-title"><i class="ph ph-chart-bar" style="color:var(--ok)"></i> Chart miniatura no chat</div>
+      <div class="section-sub">Visualizacoes inline que o agente envia para ilustrar pontos de dados sem perder o contexto.</div>
+    </div>
+    <div class="chat-frame">
+      <div class="chat-body">
+        <div class="msg msg-agent">
+          <div class="msg-avatar agent">FI</div>
+          <div>
+            <div class="msg-bubble">
+              <div class="agent-label">Financeiro &middot; Tendencia</div>
+              A evolucao da receita nos ultimos 6 meses mostra aceleracao em fevereiro:
+              <div class="mini-chart">
+                <div class="mini-chart-head">
+                  <span class="mini-chart-title">Receita mensal (R$ mil)</span>
+                  <span class="mini-chart-val">163,4 <span class="delta up">+ 9,7%</span></span>
+                </div>
+                <svg viewBox="0 0 300 80" style="width: 100%; height: 80px;">
+                  <defs>
+                    <linearGradient id="g1" x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="0%" stop-color="#8C5FDB" stop-opacity="0.6"/>
+                      <stop offset="100%" stop-color="#8C5FDB" stop-opacity="0"/>
+                    </linearGradient>
+                  </defs>
+                  <line x1="0" y1="60" x2="300" y2="60" stroke="rgba(255,255,255,.08)" stroke-dasharray="2 4"/>
+                  <line x1="0" y1="40" x2="300" y2="40" stroke="rgba(255,255,255,.05)" stroke-dasharray="2 4"/>
+                  <line x1="0" y1="20" x2="300" y2="20" stroke="rgba(255,255,255,.05)" stroke-dasharray="2 4"/>
+                  <path d="M 0,55 L 50,48 L 100,40 L 150,35 L 200,28 L 250,15 L 300,10 L 300,80 L 0,80 Z" fill="url(#g1)"/>
+                  <polyline points="0,55 50,48 100,40 150,35 200,28 250,15 300,10" fill="none" stroke="#8C5FDB" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <circle cx="0" cy="55" r="3" fill="#03071C" stroke="#8C5FDB" stroke-width="2"/>
+                  <circle cx="50" cy="48" r="3" fill="#03071C" stroke="#8C5FDB" stroke-width="2"/>
+                  <circle cx="100" cy="40" r="3" fill="#03071C" stroke="#8C5FDB" stroke-width="2"/>
+                  <circle cx="150" cy="35" r="3" fill="#03071C" stroke="#8C5FDB" stroke-width="2"/>
+                  <circle cx="200" cy="28" r="3" fill="#03071C" stroke="#8C5FDB" stroke-width="2"/>
+                  <circle cx="250" cy="15" r="3" fill="#03071C" stroke="#8C5FDB" stroke-width="2"/>
+                  <circle cx="300" cy="10" r="4" fill="#8C5FDB"/>
+                </svg>
+                <div style="display: flex; justify-content: space-between; margin-top: 6px; font-size: 9.5px; color: var(--mu); font-family: var(--mono);">
+                  <span>Set</span><span>Out</span><span>Nov</span><span>Dez</span><span>Jan</span><span>Fev</span>
+                </div>
+              </div>
+            </div>
+            <div class="msg-meta">15:00</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- UPLOAD DROPZONE -->
+  <section class="section" id="upload">
+    <div class="section-head">
+      <div class="section-tag">09</div>
+      <div class="section-title"><i class="ph ph-upload-simple" style="color:var(--info)"></i> Upload drag-and-drop</div>
+      <div class="section-sub">Area tracejada para o usuario arrastar arquivos (notas fiscais, contratos, comprovantes) direto no chat.</div>
+    </div>
+    <div class="grid-2">
+      <div>
+        <span class="variant-label">Estado padrao</span>
+        <div class="dropzone" style="margin-top: 10px;">
+          <i class="ph ph-cloud-arrow-up"></i>
+          <div class="dropzone-title">Arraste arquivos aqui</div>
+          <div class="dropzone-sub">ou <strong>clique para selecionar</strong> &middot; PDF, XML, DOC, XLS ate 10 MB</div>
+        </div>
+      </div>
+      <div>
+        <span class="variant-label">Estado hover / ativo</span>
+        <div class="dropzone" style="margin-top: 10px; border-color: var(--ac); background: var(--adim);">
+          <i class="ph ph-cloud-arrow-up"></i>
+          <div class="dropzone-title" style="color: var(--ac);">Solte para enviar</div>
+          <div class="dropzone-sub">3 arquivos prontos para upload</div>
+        </div>
+        <div style="margin-top: 12px; padding: 10px 12px; background: rgba(0,0,0,.2); border: 1px solid var(--gb); border-radius: var(--r); display: flex; align-items: center; gap: 10px;">
+          <i class="ph ph-file-text" style="font-size: 18px; color: var(--ok);"></i>
+          <div style="flex: 1; min-width: 0;">
+            <div style="font-size: 11.5px; color: var(--fg);">NFe_4526.xml</div>
+            <div style="font-size: 10px; color: var(--mu);">120 KB &middot; 100%</div>
+          </div>
+          <i class="ph ph-check-circle" style="color: var(--ok); font-size: 18px;"></i>
+        </div>
+        <div style="margin-top: 6px; padding: 10px 12px; background: rgba(0,0,0,.2); border: 1px solid var(--gb); border-radius: var(--r); display: flex; align-items: center; gap: 10px;">
+          <i class="ph ph-file-pdf" style="font-size: 18px; color: var(--urg);"></i>
+          <div style="flex: 1; min-width: 0;">
+            <div style="font-size: 11.5px; color: var(--fg);">Recibo_passagem.pdf</div>
+            <div style="font-size: 10px; color: var(--mu);">340 KB &middot; 67%</div>
+            <div style="height: 3px; background: var(--gb); border-radius: 2px; margin-top: 4px; overflow: hidden;">
+              <div style="width: 67%; height: 100%; background: var(--ac);"></div>
+            </div>
+          </div>
+          <i class="ph ph-x" style="color: var(--mu); font-size: 14px; cursor: pointer;"></i>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+</body>
+</html>

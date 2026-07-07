@@ -1,0 +1,58 @@
+{
+  "task_id": "t_004f033b",
+  "status": "fail",
+  "pr_number": 235,
+  "checks": {
+    "opencode": [
+      {
+        "check": "OpenCode exit code",
+        "status": "pass",
+        "detail": "exit=0"
+      },
+      {
+        "check": "PR criado",
+        "status": "pass",
+        "detail": "PR #235"
+      }
+    ],
+    "pytest": {
+      "status": "error",
+      "detail": "Arquivo de teste não encontrado: /home/ec2-user/repo_platform/test_etl_core_csv_etl_pipeline.py"
+    },
+    "changed_files": {
+      "status": "pass",
+      "detail": "7 arquivo(s) modificado(s)",
+      "files": [
+        "services/agent_api/src/agent_api/api/agents_router.py",
+        "services/agent_api/src/agent_api/api/chat_router.py",
+        "services/agent_api/src/agent_api/main.py",
+        "services/tool_pool_api/src/tool_pool_api/main.py",
+        "supabase/migrations/20260523999999_baseline_v2.sql",
+        "tests/behaviors/test_b3_2_post_flight_batch.py",
+        "tests/behaviors/test_b3_3_save_insights_batch.py"
+      ]
+    },
+    "acs": [
+      {
+        "ac": "AC1: run-csv-etl inline ETL (staging → dim/fact + UPDATE reg_jobs)",
+        "status": "pass",
+        "evidence": "mencionado no output"
+      },
+      {
+        "ac": "AC2: pg_cron schedule para sincronizar_csv_cliente",
+        "status": "pass",
+        "evidence": "mencionado no output"
+      },
+      {
+        "ac": "AC3: Fallback inline ETL (run-csv-etl chama RPC sync diretamente)",
+        "status": "pass",
+        "evidence": "mencionado no output"
+      }
+    ]
+  },
+  "summary": {
+    "total_checks": 7,
+    "passes": 6,
+    "fails": 0
+  }
+}

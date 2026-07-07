@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BLU — Cards & Kanban</title>
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #03071C;
+    --glass: rgba(255,255,255,0.065);
+    --gl2: rgba(255,255,255,0.07);
+    --gb: rgba(255,255,255,0.10);
+    --gb2: rgba(255,255,255,0.20);
+    --fg: #DFE3EE;
+    --mu: rgba(223,227,238,0.42);
+    --mu2: rgba(223,227,238,0.64);
+    --ac: #8C5FDB;
+    --adim: rgba(140,95,219,0.15);
+    --urg: #EF4444;
+    --udim: rgba(239,68,68,0.13);
+    --att: #F59E0B;
+    --adm2: rgba(245,158,11,0.13);
+    --ok: #10B981;
+    --odim: rgba(16,185,129,0.13);
+    --info: #3B82F6;
+    --infodim: rgba(59,130,246,0.13);
+    --r: 8px;
+    --rl: 12px;
+    --rxl: 20px;
+    --body: 'Inter', -apple-system, system-ui, sans-serif;
+    --mono: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+    --shadow-1: 0 2px 14px rgba(0,0,0,.28);
+    --shadow-2: 0 4px 22px rgba(0,0,0,.36);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 13px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  body { background-image: radial-gradient(at 12% 8%, rgba(59,130,246,0.10) 0px, transparent 50%), radial-gradient(at 88% 92%, rgba(140,95,219,0.10) 0px, transparent 50%); min-height: 100vh; padding: 32px; }
+  .page { max-width: 1300px; margin: 0 auto; }
+  .page-title { font-size: 28px; font-weight: 800; letter-spacing: -1px; margin-bottom: 4px; }
+  .page-sub { color: var(--mu); font-size: 13px; margin-bottom: 24px; }
+  .nav { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 28px; }
+  .nav a { padding: 5px 12px; border-radius: 6px; background: var(--glass); border: 1px solid var(--gb); color: var(--mu2); text-decoration: none; font-size: 11px; font-weight: 500; }
+  .nav a:hover { background: var(--adim); border-color: var(--ac); color: var(--ac); }
+
+  .section { background: var(--glass); backdrop-filter: blur(16px); border: 1px solid var(--gb); border-radius: var(--rl); padding: 24px; margin-bottom: 22px; box-shadow: var(--shadow-1), inset 0 0 0 1px rgba(255,255,255,.05); }
+  .section-head { margin-bottom: 18px; }
+  .section-tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: var(--ac); margin-bottom: 4px; }
+  .section-title { font-size: 18px; font-weight: 800; letter-spacing: -0.4px; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+  .section-sub { font-size: 12px; color: var(--mu); }
+
+  /* GRID LAYOUTS */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .card-stack { display: flex; flex-direction: column; gap: 12px; }
+
+  /* BASE CARD */
+  .card { background: rgba(0,0,0,.22); border: 1px solid var(--gb); border-radius: var(--rl); padding: 16px; box-shadow: var(--shadow-1); position: relative; transition: .15s; }
+  .card:hover { border-color: var(--gb2); }
+
+  /* ROUTINE ACTIVATION CARD */
+  .routine-card { padding: 18px; }
+  .routine-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .routine-icon { width: 38px; height: 38px; border-radius: 10px; background: var(--adim); border: 1px solid var(--ac); display: flex; align-items: center; justify-content: center; color: var(--ac); font-size: 18px; }
+  .routine-title { font-size: 14px; font-weight: 700; }
+  .routine-sub { font-size: 10.5px; color: var(--mu); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+  .routine-desc { font-size: 12px; color: var(--mu2); margin-bottom: 14px; line-height: 1.5; }
+  .routine-steps { list-style: none; margin-bottom: 16px; }
+  .routine-steps li { display: flex; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--gb); font-size: 11.5px; color: var(--mu2); }
+  .routine-steps li:last-child { border-bottom: none; }
+  .step-num { width: 20px; height: 20px; border-radius: 50%; background: var(--adim); color: var(--ac); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; font-family: var(--mono); }
+  .routine-actions { display: flex; gap: 6px; }
+  .btn { display: inline-flex; align-items: center; gap: 4px; padding: 7px 12px; border-radius: 6px; font-size: 11.5px; font-weight: 600; cursor: pointer; border: 1px solid transparent; transition: .1s; }
+  .btn-primary { background: var(--ac); color: #fff; }
+  .btn-primary:hover { background: #7A4FC9; }
+  .btn-outline { background: rgba(255,255,255,.04); border-color: var(--gb); color: var(--fg); }
+  .btn-outline:hover { background: rgba(255,255,255,.08); }
+  .btn-ok { background: var(--odim); color: var(--ok); border-color: rgba(16,185,129,.3); }
+  .btn-ok:hover { background: rgba(16,185,129,.2); }
+  .btn-urg { background: var(--udim); color: var(--urg); border-color: rgba(239,68,68,.3); }
+  .btn-urg:hover { background: rgba(239,68,68,.2); }
+
+  /* DECISION CARD */
+  .decision-card { padding: 16px; }
+  .decision-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .decision-agent { display: flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ac); }
+  .priority-badge { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 4px; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+  .p-urg { background: var(--udim); color: var(--urg); }
+  .p-att { background: var(--adm2); color: var(--att); }
+  .p-ok { background: var(--odim); color: var(--ok); }
+  .p-ac { background: var(--adim); color: var(--ac); }
+  .decision-title { font-size: 14px; font-weight: 700; letter-spacing: -0.2px; margin-bottom: 6px; }
+  .decision-body { font-size: 12px; color: var(--mu2); margin-bottom: 12px; line-height: 1.5; }
+  .decision-foot { display: flex; gap: 6px; }
+
+  /* KPI CARD */
+  .kpi-card { padding: 16px; }
+  .kpi-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--mu); margin-bottom: 8px; }
+  .kpi-row { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+  .kpi-val { font-family: var(--mono); font-size: 24px; font-weight: 700; letter-spacing: -0.5px; }
+  .kpi-delta { font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 2px; }
+  .kpi-delta.up { color: var(--ok); }
+  .kpi-delta.down { color: var(--urg); }
+  .spark { width: 100%; height: 30px; }
+
+  /* DOCUMENT CARD */
+  .doc-card { padding: 14px; display: flex; align-items: center; gap: 12px; }
+  .doc-thumb { width: 38px; height: 46px; border-radius: 5px; background: linear-gradient(135deg, rgba(255,255,255,.08), rgba(255,255,255,.02)); border: 1px solid var(--gb2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; position: relative; }
+  .doc-thumb::before { content: ''; position: absolute; top: 0; right: 0; width: 7px; height: 7px; background: rgba(255,255,255,.04); border-bottom-left-radius: 3px; }
+  .doc-thumb i { font-size: 16px; }
+  .doc-thumb.md i { color: var(--ac); }
+  .doc-thumb.pdf i { color: var(--urg); }
+  .doc-thumb.doc i { color: var(--info); }
+  .doc-thumb.xls i { color: var(--ok); }
+  .doc-info { flex: 1; min-width: 0; }
+  .doc-name { font-size: 12px; font-weight: 600; color: var(--fg); margin-bottom: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .doc-meta { font-size: 10.5px; color: var(--mu); display: flex; align-items: center; gap: 6px; }
+  .doc-meta .dot { width: 3px; height: 3px; border-radius: 50%; background: var(--mu); }
+
+  /* CLIENT CARD */
+  .client-card { padding: 16px; }
+  .client-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .avatar { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 12px; flex-shrink: 0; }
+  .avatar.purple { background: linear-gradient(135deg, var(--ac), #6D28D9); }
+  .avatar.pink { background: linear-gradient(135deg, #f472b6, #db2777); }
+  .avatar.green { background: linear-gradient(135deg, var(--ok), #047857); }
+  .avatar.orange { background: linear-gradient(135deg, #fb923c, #ea580c); }
+  .avatar.blue { background: linear-gradient(135deg, var(--info), #1e40af); }
+  .client-name { font-size: 13px; font-weight: 600; }
+  .client-email { font-size: 10.5px; color: var(--mu); }
+  .client-stats { display: flex; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--gb); border-bottom: 1px solid var(--gb); margin-bottom: 10px; }
+  .client-stat .k { font-size: 9.5px; color: var(--mu); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+  .client-stat .v { font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--fg); margin-top: 2px; }
+  .status-pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 100px; font-size: 10px; font-weight: 600; }
+  .status-pill .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .sp-ok { background: var(--odim); color: var(--ok); }
+  .sp-ok .dot { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+  .sp-att { background: var(--adm2); color: var(--att); }
+  .sp-att .dot { background: var(--att); box-shadow: 0 0 6px var(--att); }
+  .sp-urg { background: var(--udim); color: var(--urg); }
+  .sp-urg .dot { background: var(--urg); box-shadow: 0 0 6px var(--urg); }
+  .sp-mu { background: rgba(255,255,255,.05); color: var(--mu2); }
+  .sp-mu .dot { background: var(--mu); }
+
+  /* TASK CARD */
+  .task-card { padding: 12px 14px; display: flex; align-items: flex-start; gap: 10px; }
+  .checkbox { width: 18px; height: 18px; border-radius: 4px; border: 1.5px solid var(--gb2); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; margin-top: 1px; transition: .1s; }
+  .checkbox:hover { border-color: var(--ac); }
+  .checkbox.checked { background: var(--ac); border-color: var(--ac); }
+  .checkbox.checked::after { content: ''; width: 5px; height: 9px; border: 2px solid #fff; border-top: 0; border-left: 0; transform: rotate(45deg) translate(-1px, -1px); }
+  .task-body { flex: 1; min-width: 0; }
+  .task-title { font-size: 12.5px; color: var(--fg); margin-bottom: 4px; line-height: 1.4; }
+  .task-title.done { color: var(--mu); text-decoration: line-through; }
+  .task-meta { display: flex; gap: 10px; font-size: 10.5px; color: var(--mu); align-items: center; }
+  .task-meta .due { font-family: var(--mono); }
+  .task-meta .due.urg { color: var(--urg); }
+  .task-meta .due.att { color: var(--att); }
+  .assignee { width: 18px; height: 18px; border-radius: 50%; background: linear-gradient(135deg, var(--ac), #6D28D9); display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 8px; font-weight: 700; }
+
+  /* KANBAN */
+  .kanban { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 6px; }
+  .kanban-col { background: rgba(0,0,0,.18); border: 1px solid var(--gb); border-radius: var(--rl); padding: 14px; min-height: 400px; }
+  .kanban-col-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--gb); }
+  .kanban-col-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--mu2); display: flex; align-items: center; gap: 6px; }
+  .kanban-col-title .count { background: var(--adim); color: var(--ac); padding: 1px 6px; border-radius: 4px; font-size: 9.5px; font-family: var(--mono); }
+  .kanban-col-title .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .kc-todo .dot { background: var(--mu); }
+  .kc-doing .dot { background: var(--info); box-shadow: 0 0 6px var(--info); }
+  .kc-review .dot { background: var(--att); box-shadow: 0 0 6px var(--att); }
+  .kc-done .dot { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+  .kanban-add { width: 22px; height: 22px; border-radius: 5px; background: rgba(255,255,255,.04); border: 1px solid var(--gb); color: var(--mu); display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 12px; }
+  .kanban-add:hover { background: var(--adim); border-color: var(--ac); color: var(--ac); }
+  .kanban-cards { display: flex; flex-direction: column; gap: 8px; }
+
+  .kanban-card { background: var(--glass); border: 1px solid var(--gb); border-radius: var(--r); padding: 10px 12px; cursor: grab; transition: .1s; }
+  .kanban-card:hover { border-color: var(--gb2); transform: translateY(-1px); box-shadow: var(--shadow-2); }
+  .kanban-card.dragging { opacity: .4; }
+  .kc-tag { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+  .kc-title { font-size: 12px; color: var(--fg); font-weight: 500; margin-bottom: 8px; line-height: 1.4; }
+  .kc-foot { display: flex; justify-content: space-between; align-items: center; }
+  .kc-meta { display: flex; gap: 8px; font-size: 10px; color: var(--mu); }
+  .kc-meta i { margin-right: 2px; }
+  .kc-assignee { width: 18px; height: 18px; border-radius: 50%; background: linear-gradient(135deg, var(--ac), #6D28D9); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; }
+
+  /* EXPANDABLE */
+  .expand-body { max-height: 0; overflow: hidden; transition: max-height .2s ease-out; }
+  .expand-body.open { max-height: 600px; }
+  .expand-toggle { font-size: 10.5px; color: var(--ac); font-weight: 600; cursor: pointer; margin-top: 6px; display: inline-flex; align-items: center; gap: 4px; }
+
+  .variant-label { display: inline-block; padding: 2px 8px; border-radius: 4px; background: var(--adim); color: var(--ac); font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px; }
+
+  @media (max-width: 1100px) { .grid-4 { grid-template-columns: repeat(2, 1fr); } .kanban { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 700px) { .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; } .kanban { grid-template-columns: 1fr; } }
+  @media print {
+    body { background: #fff !important; color: #000 !important; padding: 1cm !important; }
+    .section, .card, .kanban-col, .kanban-card { background: #fff !important; border: 1px solid #000 !important; box-shadow: none !important; backdrop-filter: none !important; }
+    .nav, .btn, .kanban-add, .expand-toggle { display: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="page-title">Cards & Kanban</div>
+  <div class="page-sub">Seis tipos de card (ativacao, decisao, KPI, documento, cliente, tarefa) e o board kanban de 4 colunas para gestao visual.</div>
+  <nav class="nav">
+    <a href="#routine">Ativacao de rotina</a>
+    <a href="#decision">Decisao</a>
+    <a href="#kpi">KPI</a>
+    <a href="#doc">Documento</a>
+    <a href="#client">Cliente</a>
+    <a href="#task">Tarefa</a>
+    <a href="#kanban">Kanban</a>
+  </nav>
+
+  <!-- ROUTINE ACTIVATION CARD -->
+  <section class="section" id="routine">
+    <div class="section-head">
+      <div class="section-tag">01</div>
+      <div class="section-title"><i class="ph ph-play-circle" style="color:var(--ac)"></i> Card de ativacao de rotina</div>
+      <div class="section-sub">O agente propoe a ativacao de uma rotina automatica. Lista os passos e aguarda aprovacao do usuario.</div>
+    </div>
+    <div class="grid-2">
+      <div>
+        <span class="variant-label">Variante A — completa</span>
+        <div class="card routine-card">
+          <div class="routine-head">
+            <div class="routine-icon"><i class="ph ph-arrows-clockwise"></i></div>
+            <div>
+              <div class="routine-title">Fechamento mensal automatico</div>
+              <div class="routine-sub">Rotina &middot; Proposta pelo Financeiro</div>
+            </div>
+          </div>
+          <div class="routine-desc">Todo dia 5 de cada mes, gerar fechamento completo do mes anterior com P&L, fluxo de caixa e KPIs, e salvar na Biblioteca.</div>
+          <ul class="routine-steps">
+            <li><span class="step-num">1</span><div>Coletar transacoes bancarias e concilia-las com o ERP</div></li>
+            <li><span class="step-num">2</span><div>Calcular receita, despesas e lucro liquido do periodo</div></li>
+            <li><span class="step-num">3</span><div>Gerar documento PDF com sumario executivo + tabelas</div></li>
+            <li><span class="step-num">4</span><div>Enviar copia por email e salvar na Biblioteca</div></li>
+          </ul>
+          <div class="routine-actions">
+            <button class="btn btn-primary"><i class="ph ph-play"></i> Ativar rotina</button>
+            <button class="btn btn-outline"><i class="ph ph-pencil"></i> Editar</button>
+            <button class="btn btn-outline"><i class="ph ph-x"></i> Recusar</button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <span class="variant-label">Variante B — resumida</span>
+        <div class="card routine-card">
+          <div class="routine-head">
+            <div class="routine-icon" style="background: var(--odim); border-color: var(--ok); color: var(--ok);"><i class="ph ph-bell-ringing"></i></div>
+            <div>
+              <div class="routine-title">Alerta de inadimplencia</div>
+              <div class="routine-sub">Rotina &middot; Diaria as 8h</div>
+            </div>
+          </div>
+          <div class="routine-desc">Verificar faturas vencidas a mais de 7 dias e notificar o time financeiro com lista priorizada.</div>
+          <ul class="routine-steps">
+            <li><span class="step-num">1</span><div>Buscar faturas com status vencido no ERP</div></li>
+            <li><span class="step-num">2</span><div>Calcular dias de atraso e valor total</div></li>
+            <li><span class="step-num">3</span><div>Enviar resumo no canal do Financeiro</div></li>
+          </ul>
+          <div class="routine-actions">
+            <button class="btn btn-primary"><i class="ph ph-play"></i> Ativar</button>
+            <button class="btn btn-outline">Recusar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DECISION CARD -->
+  <section class="section" id="decision">
+    <div class="section-head">
+      <div class="section-tag">02</div>
+      <div class="section-title"><i class="ph ph-lightbulb" style="color:var(--att)"></i> Card de decisao</div>
+      <div class="section-sub">O agente recomenda uma acao com base em dados. Inclui label do agente, badge de prioridade, corpo expansivel.</div>
+    </div>
+    <div class="grid-3">
+      <div>
+        <span class="variant-label">Critico</span>
+        <div class="card decision-card">
+          <div class="decision-head">
+            <span class="decision-agent"><i class="ph ph-shield-warning"></i> Financeiro</span>
+            <span class="priority-badge p-urg"><i class="ph ph-lightning"></i> Urgente</span>
+          </div>
+          <div class="decision-title">CAC acima da meta por 2 meses</div>
+          <div class="decision-body">Custo de aquisicao de cliente subiu para R$ 412 (meta: R$ 400). Recomendo revisar a campanha de ads que esta com ROI baixo.</div>
+          <div class="expand-body open" style="max-height: none;">
+            <div style="background: rgba(0,0,0,.2); border-radius: 6px; padding: 10px 12px; margin-bottom: 12px; font-size: 11px; color: var(--mu2); line-height: 1.5;">
+              <strong style="color: var(--fg); display: block; margin-bottom: 4px;">Analise detalhada</strong>
+              A campanha "Linkedin Q1" consumiu R$ 18.400 em fevereiro e gerou apenas 11 leads qualificados. Custo por lead: R$ 1.673. Sugiro pausar e realocar budget para SEO e conteudo.
+            </div>
+          </div>
+          <div class="decision-foot">
+            <button class="btn btn-ok"><i class="ph ph-check"></i> Aprovar</button>
+            <button class="btn btn-urg"><i class="ph ph-x"></i> Rejeitar</button>
+            <button class="btn btn-outline"><i class="ph ph-eye"></i> Detalhes</button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <span class="variant-label">Atencao</span>
+        <div class="card decision-card">
+          <div class="decision-head">
+            <span class="decision-agent"><i class="ph ph-target"></i> Estrategia</span>
+            <span class="priority-badge p-att"><i class="ph ph-flag"></i> Atencao</span>
+          </div>
+          <div class="decision-title">Oportunidade de upsell em 3 contas</div>
+          <div class="decision-body">Tres clientes enterprise estao proximos do limite de usuarios. Proposta de upgrade para o tier premium disponivel.</div>
+          <div class="decision-foot">
+            <button class="btn btn-ok"><i class="ph ph-check"></i> Aprovar</button>
+            <button class="btn btn-outline">Adiar</button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <span class="variant-label">Sugestao</span>
+        <div class="card decision-card">
+          <div class="decision-head">
+            <span class="decision-agent"><i class="ph ph-shopping-cart"></i> Compras</span>
+            <span class="priority-badge p-ac"><i class="ph ph-lightbulb"></i> Sugestao</span>
+          </div>
+          <div class="decision-title">Renovar contrato com fornecedor X</div>
+          <div class="decision-body">Contrato atual vence em 30 dias. Renovacao com 8% de desconto se confirmada ate a proxima semana.</div>
+          <div class="decision-foot">
+            <button class="btn btn-ok"><i class="ph ph-check"></i> Aprovar</button>
+            <button class="btn btn-urg">Rejeitar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- KPI CARD -->
+  <section class="section" id="kpi">
+    <div class="section-head">
+      <div class="section-tag">03</div>
+      <div class="section-title"><i class="ph ph-gauge" style="color:var(--ok)"></i> Card de KPI</div>
+      <div class="section-sub">Label, valor atual, delta (positivo/negativo) e sparkline mostrando tendencia.</div>
+    </div>
+    <div class="grid-4">
+      <div class="card kpi-card">
+        <div class="kpi-label">MRR</div>
+        <div class="kpi-row">
+          <div class="kpi-val">R$ 84.320</div>
+          <div class="kpi-delta up"><i class="ph ph-trend-up"></i> 12,4%</div>
+        </div>
+        <svg class="spark" viewBox="0 0 100 30" preserveAspectRatio="none">
+          <defs><linearGradient id="sk1" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#10B981" stop-opacity=".4"/><stop offset="1" stop-color="#10B981" stop-opacity="0"/></linearGradient></defs>
+          <path d="M 0,22 L 10,20 L 20,18 L 30,16 L 40,17 L 50,12 L 60,10 L 70,8 L 80,6 L 90,5 L 100,3 L 100,30 L 0,30 Z" fill="url(#sk1)"/>
+          <polyline points="0,22 10,20 20,18 30,16 40,17 50,12 60,10 70,8 80,6 90,5 100,3" fill="none" stroke="#10B981" stroke-width="1.5"/>
+        </svg>
+      </div>
+      <div class="card kpi-card">
+        <div class="kpi-label">Novos clientes</div>
+        <div class="kpi-row">
+          <div class="kpi-val">14</div>
+          <div class="kpi-delta up"><i class="ph ph-trend-up"></i> 5 vs jan</div>
+        </div>
+        <svg class="spark" viewBox="0 0 100 30" preserveAspectRatio="none">
+          <defs><linearGradient id="sk2" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#8C5FDB" stop-opacity=".4"/><stop offset="1" stop-color="#8C5FDB" stop-opacity="0"/></linearGradient></defs>
+          <path d="M 0,20 L 10,18 L 20,22 L 30,15 L 40,12 L 50,16 L 60,10 L 70,8 L 80,11 L 90,6 L 100,4 L 100,30 L 0,30 Z" fill="url(#sk2)"/>
+          <polyline points="0,20 10,18 20,22 30,15 40,12 50,16 60,10 70,8 80,11 90,6 100,4" fill="none" stroke="#8C5FDB" stroke-width="1.5"/>
+        </svg>
+      </div>
+      <div class="card kpi-card">
+        <div class="kpi-label">Churn rate</div>
+        <div class="kpi-row">
+          <div class="kpi-val">2,1%</div>
+          <div class="kpi-delta up"><i class="ph ph-trend-down"></i> 0,7pp</div>
+        </div>
+        <svg class="spark" viewBox="0 0 100 30" preserveAspectRatio="none">
+          <defs><linearGradient id="sk3" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#10B981" stop-opacity=".4"/><stop offset="1" stop-color="#10B981" stop-opacity="0"/></linearGradient></defs>
+          <path d="M 0,5 L 10,8 L 20,10 L 30,12 L 40,14 L 50,18 L 60,20 L 70,18 L 80,22 L 90,24 L 100,26 L 100,30 L 0,30 Z" fill="url(#sk3)"/>
+          <polyline points="0,5 10,8 20,10 30,12 40,14 50,18 60,20 70,18 80,22 90,24 100,26" fill="none" stroke="#10B981" stroke-width="1.5"/>
+        </svg>
+      </div>
+      <div class="card kpi-card">
+        <div class="kpi-label">CAC</div>
+        <div class="kpi-row">
+          <div class="kpi-val">R$ 412</div>
+          <div class="kpi-delta down"><i class="ph ph-trend-up"></i> R$ 32</div>
+        </div>
+        <svg class="spark" viewBox="0 0 100 30" preserveAspectRatio="none">
+          <defs><linearGradient id="sk4" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#EF4444" stop-opacity=".4"/><stop offset="1" stop-color="#EF4444" stop-opacity="0"/></linearGradient></defs>
+          <path d="M 0,20 L 10,18 L 20,15 L 30,17 L 40,12 L 50,14 L 60,10 L 70,8 L 80,11 L 90,7 L 100,5 L 100,30 L 0,30 Z" fill="url(#sk4)"/>
+          <polyline points="0,20 10,18 20,15 30,17 40,12 50,14 60,10 70,8 80,11 90,7 100,5" fill="none" stroke="#EF4444" stroke-width="1.5"/>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- DOCUMENT CARD -->
+  <section class="section" id="doc">
+    <div class="section-head">
+      <div class="section-tag">04</div>
+      <div class="section-title"><i class="ph ph-file-text" style="color:var(--info)"></i> Card de documento</div>
+      <div class="section-sub">Miniatura com icone do tipo (MD, DOC, PDF, XLS) + nome + pasta + data + status.</div>
+    </div>
+    <div class="card-stack">
+      <div class="card doc-card">
+        <div class="doc-thumb md"><i class="ph ph-file-doc"></i></div>
+        <div class="doc-info">
+          <div class="doc-name">Fechamento mensal — Fevereiro 2026</div>
+          <div class="doc-meta">Biblioteca <span class="dot"></span> 28/02/2026 <span class="dot"></span> 1.2 MB <span class="dot"></span> <span style="color: var(--ok);">Sincronizado</span></div>
+        </div>
+        <div style="display: flex; gap: 4px;">
+          <button class="btn btn-outline" style="padding: 5px 8px;"><i class="ph ph-eye"></i></button>
+          <button class="btn btn-outline" style="padding: 5px 8px;"><i class="ph ph-download-simple"></i></button>
+        </div>
+      </div>
+      <div class="card doc-card">
+        <div class="doc-thumb pdf"><i class="ph ph-file-pdf"></i></div>
+        <div class="doc-info">
+          <div class="doc-name">Proposta_Comercial_Construtora_Norte.pdf</div>
+          <div class="doc-meta">Comercial <span class="dot"></span> 25/02/2026 <span class="dot"></span> 480 KB <span class="dot"></span> <span style="color: var(--att);">Aguardando assinatura</span></div>
+        </div>
+        <div style="display: flex; gap: 4px;">
+          <button class="btn btn-outline" style="padding: 5px 8px;"><i class="ph ph-eye"></i></button>
+          <button class="btn btn-outline" style="padding: 5px 8px;"><i class="ph ph-pencil"></i></button>
+        </div>
+      </div>
+      <div class="card doc-card">
+        <div class="doc-thumb doc"><i class="ph ph-file-doc"></i></div>
+        <div class="doc-info">
+          <div class="doc-name">Contrato_Fornecedor_X_2026.docx</div>
+          <div class="doc-meta">Compras <span class="dot"></span> 20/02/2026 <span class="dot"></span> 220 KB <span class="dot"></span> <span style="color: var(--ac);">Em revisao</span></div>
+        </div>
+        <div style="display: flex; gap: 4px;">
+          <button class="btn btn-outline" style="padding: 5px 8px;"><i class="ph ph-eye"></i></button>
+          <button class="btn btn-outline" style="padding: 5px 8px;"><i class="ph ph-share-network"></i></button>
+        </div>
+      </div>
+      <div class="card doc-card">
+        <div class="doc-thumb xls"><i class="ph ph-file-xls"></i></div>
+        <div class="doc-info">
+          <div class="doc-name">DRE_Comparativo_2026.xlsx</div>
+          <div class="doc-meta">Financeiro <span class="dot"></span> 28/02/2026 <span class="dot"></span> 480 KB <span class="dot"></span> <span style="color: var(--ok);">Atualizado</span></div>
+        </div>
+        <div style="display: flex; gap: 4px;">
+          <button class="btn btn-outline" style="padding: 5px 8px;"><i class="ph ph-eye"></i></button>
+          <button class="btn btn-outline" style="padding: 5px 8px;"><i class="ph ph-download-simple"></i></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CLIENT CARD -->
+  <section class="section" id="client">
+    <div class="section-head">
+      <div class="section-tag">05</div>
+      <div class="section-title"><i class="ph ph-users-three" style="color:#f472b6"></i> Card de cliente</div>
+      <div class="section-sub">Avatar com iniciais, nome, receita, plano e indicador de saude (status dot).</div>
+    </div>
+    <div class="grid-3">
+      <div class="card client-card">
+        <div class="client-head">
+          <div class="avatar purple">TM</div>
+          <div>
+            <div class="client-name">TechMade Solutions</div>
+            <div class="client-email">contato@techmade.com.br</div>
+          </div>
+        </div>
+        <div class="client-stats">
+          <div class="client-stat"><div class="k">Receita mensal</div><div class="v">R$ 12.800</div></div>
+          <div class="client-stat"><div class="k">Plano</div><div class="v" style="color: var(--ac);">Enterprise</div></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span class="status-pill sp-ok"><span class="dot"></span> Ativo</span>
+          <span style="font-size: 10.5px; color: var(--mu); font-family: var(--mono);">2h atras</span>
+        </div>
+      </div>
+      <div class="card client-card">
+        <div class="client-head">
+          <div class="avatar orange">LP</div>
+          <div>
+            <div class="client-name">Lab Pharma</div>
+            <div class="client-email">admin@labpharma.com.br</div>
+          </div>
+        </div>
+        <div class="client-stats">
+          <div class="client-stat"><div class="k">Receita mensal</div><div class="v">R$ 4.200</div></div>
+          <div class="client-stat"><div class="k">Plano</div><div class="v" style="color: var(--info);">Pro</div></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span class="status-pill sp-ok"><span class="dot"></span> Ativo</span>
+          <span style="font-size: 10.5px; color: var(--mu); font-family: var(--mono);">3h atras</span>
+        </div>
+      </div>
+      <div class="card client-card">
+        <div class="client-head">
+          <div class="avatar pink">BV</div>
+          <div>
+            <div class="client-name">Boutique Vintage</div>
+            <div class="client-email">vendas@boutiquevintage.com.br</div>
+          </div>
+        </div>
+        <div class="client-stats">
+          <div class="client-stat"><div class="k">Receita mensal</div><div class="v">R$ 1.890</div></div>
+          <div class="client-stat"><div class="k">Plano</div><div class="v" style="color: var(--info);">Pro</div></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span class="status-pill sp-att"><span class="dot"></span> Risco</span>
+          <span style="font-size: 10.5px; color: var(--mu); font-family: var(--mono);">5d atras</span>
+        </div>
+      </div>
+      <div class="card client-card">
+        <div class="client-head">
+          <div class="avatar green">CN</div>
+          <div>
+            <div class="client-name">Construtora Norte</div>
+            <div class="client-email">financeiro@cnorte.com.br</div>
+          </div>
+        </div>
+        <div class="client-stats">
+          <div class="client-stat"><div class="k">Receita mensal</div><div class="v">R$ 8.450</div></div>
+          <div class="client-stat"><div class="k">Plano</div><div class="v" style="color: var(--ac);">Enterprise</div></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span class="status-pill sp-ok"><span class="dot"></span> Ativo</span>
+          <span style="font-size: 10.5px; color: var(--mu); font-family: var(--mono);">1d atras</span>
+        </div>
+      </div>
+      <div class="card client-card">
+        <div class="client-head">
+          <div class="avatar blue">EC</div>
+          <div>
+            <div class="client-name">Estudio Criativo</div>
+            <div class="client-email">oi@estudiocriativo.art</div>
+          </div>
+        </div>
+        <div class="client-stats">
+          <div class="client-stat"><div class="k">Receita mensal</div><div class="v">R$ 1.240</div></div>
+          <div class="client-stat"><div class="k">Plano</div><div class="v" style="color: var(--mu2);">Starter</div></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span class="status-pill sp-ok"><span class="dot"></span> Ativo</span>
+          <span style="font-size: 10.5px; color: var(--mu); font-family: var(--mono);">1d atras</span>
+        </div>
+      </div>
+      <div class="card client-card">
+        <div class="client-head">
+          <div class="avatar purple">AS</div>
+          <div>
+            <div class="client-name">Agro Sul</div>
+            <div class="client-email">comercial@agrosul.com.br</div>
+          </div>
+        </div>
+        <div class="client-stats">
+          <div class="client-stat"><div class="k">Receita mensal</div><div class="v">R$ 980</div></div>
+          <div class="client-stat"><div class="k">Plano</div><div class="v" style="color: var(--mu2);">Starter</div></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span class="status-pill sp-urg"><span class="dot"></span> Inativo</span>
+          <span style="font-size: 10.5px; color: var(--mu); font-family: var(--mono);">12d atras</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TASK CARD -->
+  <section class="section" id="task">
+    <div class="section-head">
+      <div class="section-tag">06</div>
+      <div class="section-title"><i class="ph ph-check-square" style="color:var(--ok)"></i> Card de tarefa</div>
+      <div class="section-sub">Checkbox, titulo, data de vencimento, responsavel com avatar.</div>
+    </div>
+    <div class="card-stack">
+      <div class="card task-card">
+        <div class="checkbox"></div>
+        <div class="task-body">
+          <div class="task-title">Revisar proposta da Construtora Norte antes do envio</div>
+          <div class="task-meta">
+            <span class="due urg"><i class="ph ph-calendar"></i> Vence hoje</span>
+            <span><span class="assignee">PS</span> Patricia Souza</span>
+          </div>
+        </div>
+      </div>
+      <div class="card task-card">
+        <div class="checkbox"></div>
+        <div class="task-body">
+          <div class="task-title">Aprovar reembolso de viagem da Carla Santos (R$ 1.240)</div>
+          <div class="task-meta">
+            <span class="due att"><i class="ph ph-calendar"></i> 03/03/2026</span>
+            <span><span class="assignee" style="background: linear-gradient(135deg, var(--ok), #047857);">FI</span> Financeiro</span>
+          </div>
+        </div>
+      </div>
+      <div class="card task-card">
+        <div class="checkbox checked"></div>
+        <div class="task-body">
+          <div class="task-title done">Atualizar dashboard de KPIs mensais</div>
+          <div class="task-meta">
+            <span class="due"><i class="ph ph-check"></i> Concluida 25/02</span>
+            <span><span class="assignee" style="background: linear-gradient(135deg, var(--info), #1e40af);">DA</span> Dados</span>
+          </div>
+        </div>
+      </div>
+      <div class="card task-card">
+        <div class="checkbox"></div>
+        <div class="task-body">
+          <div class="task-title">Reuniao de revisao mensal com time de vendas</div>
+          <div class="task-meta">
+            <span class="due"><i class="ph ph-calendar"></i> 06/03/2026 &middot; 14h</span>
+            <span><span class="assignee" style="background: linear-gradient(135deg, #fb923c, #ea580c);">AG</span> Agenda</span>
+          </div>
+        </div>
+      </div>
+      <div class="card task-card">
+        <div class="checkbox"></div>
+        <div class="task-body">
+          <div class="task-title">Negociar renovacao do contrato com fornecedor X</div>
+          <div class="task-meta">
+            <span class="due"><i class="ph ph-calendar"></i> 10/03/2026</span>
+            <span><span class="assignee" style="background: linear-gradient(135deg, #f472b6, #db2777);">CO</span> Compras</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- KANBAN -->
+  <section class="section" id="kanban">
+    <div class="section-head">
+      <div class="section-tag">07</div>
+      <div class="section-title"><i class="ph ph-columns" style="color:var(--info)"></i> Kanban &middot; Quadro de tarefas</div>
+      <div class="section-sub">Quatro colunas: A fazer, Fazendo, Revisao, Pronto. Cards arrastaveis com tag, assignee e meta info.</div>
+    </div>
+    <div class="kanban">
+      <div class="kanban-col kc-todo">
+        <div class="kanban-col-head">
+          <div class="kanban-col-title"><span class="dot"></span> A fazer <span class="count">4</span></div>
+          <div class="kanban-add"><i class="ph ph-plus"></i></div>
+        </div>
+        <div class="kanban-cards">
+          <div class="kanban-card">
+            <span class="kc-tag" style="background: var(--adim); color: var(--ac);">Estrategia</span>
+            <div class="kc-title">Definir metas de receita para Q2 2026</div>
+            <div class="kc-foot">
+              <div class="kc-meta"><span><i class="ph ph-chat-circle-dots"></i> 3</span><span><i class="ph ph-paperclip"></i> 2</span></div>
+              <div class="kc-assignee">ES</div>
+            </div>
+          </div>
+          <div class="kanban-card">
+            <span class="kc-tag" style="background: var(--infodim); color: var(--info);">Comercial</span>
+            <div class="kc-title">Preparar deck de pitch para TechMade</div>
+            <div class="kc-foot">
+              <div class="kc-meta"><span><i class="ph ph-calendar"></i> 15/03</span></div>
+              <div class="kc-assignee" style="background: linear-gradient(135deg, var(--info), #1e40af);">CO</div>
+            </div>
+          </div>
+          <div class="kanban-card">
+            <span class="kc-tag" style="background: var(--odim); color: var(--ok);">Financeiro</span>
+            <div class="kc-title">Revisar planilha de comissoes do trimestre</div>
+            <div class="kc-foot">
+              <div class="kc-meta"><span><i class="ph ph-paperclip"></i> 1</span></div>
+              <div class="kc-assignee" style="background: linear-gradient(135deg, var(--ok), #047857);">FI</div>
+            </div>
+          </div>
+          <div class="kanban-card">
+            <span class="kc-tag" style="background: var(--adm2); color: var(--att);">Compras</span>
+            <div class="kc-title">Cotar fornecedor alternativo para materia-prima</div>
+            <div class="kc-foot">
+              <div class="kc-meta"><span><i class="ph ph-clock"></i> 7d</span></div>
+              <div class="kc-assignee" style="background: linear-gradient(135deg, #f472b6, #db2777);">CP</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="kanban-col kc-doing">
+        <div class="kanban-col-head">
+          <div class="kanban-col-title"><span class="dot"></span> Fazendo <span class="count">3</span></div>
+          <div class="kanban-add"><i class="ph ph-plus"></i></div>
+        </div>
+        <div class="kanban-cards">
+          <div class="kanban-card">
+            <span class="kc-tag" style="background: var(--adim); color: var(--ac);">Produto</span>
+            <div class="kc-title">Implementar agente de fechamento automatico</div>
+            <div class="kc-foot">
+              <div class="kc-meta"><span><i class="ph ph-chat-circle-dots"></i> 8</span><span><i class="ph ph-paperclip"></i> 4</span></div>
+              <div class="kc-assignee" style="background: linear-gradient(135deg, #a78bfa, #7c3aed);">PR</div>
+            </div>
+          </div>
+          <div class="kanban-card">
+            <span class="kc-tag" style="background: var(--udim); color: var(--urg);">Urgente</span>
+            <div class="kc-title">Resolver problema de sincronizacao do ERP</div>
+            <div class="kc-foot">
+              <div class="kc-meta"><span><i class="ph ph-warning"></i> Critico</span></div>
+              <div class="kc-assignee" style="background: linear-gradient(135deg, var(--urg), #b91c1c);">TI</div>
+            </div>
+          </div>
+          <div class="kanban-card">
+            <span class="kc-tag" style="background: var(--infodim); color: var(--info);">Comercial</span>
+            <div class="kc-title">Onboarding do cliente Boutique Vintage</div>
+            <div class="kc-foot">
+              <div class="kc-meta"><span><i class="ph ph-clock"></i> 2d</span></div>
+              <div class="kc-assignee" style="background: linear-gradient(135deg, var(--info), #1e40af);">CO</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="kanban-col kc-review">
+        <div class="kanban-col-head">
+          <div class="kanban-col-title"><span class="dot"></span> Revisao <span class="count">2</span></div>
+          <div class="kanban-add"><i class="ph ph-plus"></i></div>
+        </div>
+        <div class="kanban-cards">
+          <div class="kanban-card">
+            <span class="kc-tag" style="background: var(--odim); color: var(--ok);">Financeiro</span>
+            <div class="kc-title">Aprovar fechamento mensal de fevereiro</div>
+            <div class="kc-foot">
+              <div class="kc-meta"><span><i class="ph ph-eye"></i> Aguardando</span></div>
+              <div class="kc-assignee">PS</div>
+            </div>
+          </div>
+          <div class="kanban-card">
+            <span class="kc-tag" style="background: var(--adim); color: var(--ac);">Marketing</span>
+            <div class="kc-title">Revisar campanha de lancamento Q1</div>
+            <div class="kc-foot">
+              <div class="kc-meta"><span><i class="ph ph-chat-circle-dots"></i> 2</span></div>
+              <div class="kc-assignee" style="background: linear-gradient(135deg, #fb923c, #ea580c);">MK</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="kanban-col kc-done">
+        <div class="kanban-col-head">
+          <div class="kanban-col-title"><span class="dot"></span> Pronto <span class="count">3</span></div>
+          <div class="kanban-add"><i class="ph ph-plus"></i></div>
+        </div>
+        <div class="kanban-cards">
+          <div class="kanban-card" style="opacity: 0.7;">
+            <span class="kc-tag" style="background: var(--odim); color: var(--ok);">Concluido</span>
+            <div class="kc-title" style="text-decoration: line-through; color: var(--mu);">Atualizar dashboard de KPIs</div>
+            <div class="kc-foot">
+              <div class="kc-meta"><span><i class="ph ph-check"></i> 25/02</span></div>
+              <div class="kc-assignee" style="background: linear-gradient(135deg, var(--info), #1e40af);">DA</div>
+            </div>
+          </div>
+          <div class="kanban-card" style="opacity: 0.7;">
+            <span class="kc-tag" style="background: var(--odim); color: var(--ok);">Concluido</span>
+            <div class="kc-title" style="text-decoration: line-through; color: var(--mu);">Migrar 3 clientes para novo plano</div>
+            <div class="kc-foot">
+              <div class="kc-meta"><span><i class="ph ph-check"></i> 24/02</span></div>
+              <div class="kc-assignee" style="background: linear-gradient(135deg, var(--ok), #047857);">FI</div>
+            </div>
+          </div>
+          <div class="kanban-card" style="opacity: 0.7;">
+            <span class="kc-tag" style="background: var(--odim); color: var(--ok);">Concluido</span>
+            <div class="kc-title" style="text-decoration: line-through; color: var(--mu);">Reuniao com Lab Pharma</div>
+            <div class="kc-foot">
+              <div class="kc-meta"><span><i class="ph ph-check"></i> 22/02</span></div>
+              <div class="kc-assignee">CM</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+</body>
+</html>

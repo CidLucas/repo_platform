@@ -1,0 +1,27 @@
+{
+  "task_id": "t_1ddac250",
+  "goal": "Aba Documentos deve ter gerador com opção de criar do zero, usar template/modelo ou editar.",
+  "description": "Goal: Aba Documentos deve ter gerador com opção de criar do zero, usar template/modelo ou editar.\nACs:\n- AC1: Botão \"Novo Documento\" na aba Documentos\n- AC2: Seleção de template/modelo (fetchDocTemplates)\n- AC3: EditorOverlay integrado para criar/editar\n- AC4: Salvamento como documento ativo (saveDocument)\nIssue: #208",
+  "acceptance_criteria": [
+    "Botão \"Novo Documento\" na aba Documentos",
+    "Seleção de template/modelo (fetchDocTemplates)",
+    "EditorOverlay integrado para criar/editar",
+    "Salvamento como documento ativo (saveDocument)"
+  ],
+  "repo_root": "/home/ec2-user/repo_platform",
+  "test_red": "tests/behaviors/test_b5_gerador_documentos.py",
+  "source_hint": null,
+  "llm_wiki": "/home/ec2-user/repo_platform/docs/llm_wiki/index.md",
+  "business_rules": [],
+  "constraints": {
+    "no_llm": false,
+    "max_files": 10,
+    "max_lines_per_file": 200
+  },
+  "output_format": {
+    "changed_files": "lista de arquivos modificados",
+    "test_results": "resultado dos testes",
+    "coverage": "porcentagem de cobertura",
+    "review_notes": "notas de review"
+  }
+}

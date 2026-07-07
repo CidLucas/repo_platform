@@ -1,0 +1,28 @@
+{
+  "rotation_index": 47,
+  "last_source": "concepts/shared-memory",
+  "next_page": "concepts/shared-memory-handoff",
+  "processed_sources": [
+    "AGENT_SYSTEM.md",
+    "TOOL_INVENTORY.md",
+    "ROUTINES_SYSTEM.md",
+    "FEATURE_MAP.md",
+    "SKILLS_SYSTEM.md",
+    "TASK_PLAYBOOKS.md",
+    "SHARED_MEMORY_DESIGN.md",
+    "ONBOARDING.md"
+  ],
+  "stats": {
+    "pages_created": 34,
+    "pages_enriched": 60,
+    "pages_on_disk": 34,
+    "pages_archived": 0,
+    "wikilinks_total": 380,
+    "open_questions": 23,
+    "last_run": "2026-07-04",
+    "total_ticks": 606
+  },
+  "notes": {
+    "2026-07-04 (Tick 606)": "606º ciclo: concepts/shared-memory (rotation_index=46). Clean pass — zero source drift (AGENT_SYSTEM 766e3dc4, TOOL_INVENTORY 170bc9bb, SKILLS_SYSTEM 1222cc13, HERMES eddcb9d9). 16/16 wikilinks validos. 7/7 tags na taxonomia. 1 markdown link valido. Pagina 202 linhas (borderline >200, flag mantida). 0 contradicoes. Sem enriquecimento (fontes inalteradas). Proximo: concepts/shared-memory-handoff (rotation_index=47)."
+  }
+}

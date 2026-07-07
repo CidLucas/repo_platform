@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BLU — Navegacao & Shell</title>
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Nunito:wght@900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #03071C;
+    --glass: rgba(255,255,255,0.065);
+    --gl2: rgba(255,255,255,0.07);
+    --gb: rgba(255,255,255,0.10);
+    --gb2: rgba(255,255,255,0.20);
+    --fg: #DFE3EE;
+    --mu: rgba(223,227,238,0.42);
+    --mu2: rgba(223,227,238,0.64);
+    --ac: #8C5FDB;
+    --adim: rgba(140,95,219,0.15);
+    --urg: #EF4444;
+    --udim: rgba(239,68,68,0.13);
+    --att: #F59E0B;
+    --adm2: rgba(245,158,11,0.13);
+    --ok: #10B981;
+    --odim: rgba(16,185,129,0.13);
+    --info: #3B82F6;
+    --infodim: rgba(59,130,246,0.13);
+    --r: 8px;
+    --rl: 12px;
+    --rxl: 20px;
+    --body: 'Inter', -apple-system, system-ui, sans-serif;
+    --mono: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+    --shadow-1: 0 2px 14px rgba(0,0,0,.28);
+    --shadow-2: 0 4px 22px rgba(0,0,0,.36);
+    --shadow-3: 0 12px 40px rgba(0,0,0,.6);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 13px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  body { background-image: radial-gradient(at 12% 8%, rgba(59,130,246,0.10) 0px, transparent 50%), radial-gradient(at 88% 92%, rgba(140,95,219,0.10) 0px, transparent 50%); min-height: 100vh; padding: 32px; }
+  .page { max-width: 1400px; margin: 0 auto; }
+  .page-title { font-size: 28px; font-weight: 800; letter-spacing: -1px; margin-bottom: 4px; }
+  .page-sub { color: var(--mu); font-size: 13px; margin-bottom: 24px; }
+  .nav { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 28px; }
+  .nav a { padding: 5px 12px; border-radius: 6px; background: var(--glass); border: 1px solid var(--gb); color: var(--mu2); text-decoration: none; font-size: 11px; font-weight: 500; }
+  .nav a:hover { background: var(--adim); border-color: var(--ac); color: var(--ac); }
+
+  .section { background: var(--glass); backdrop-filter: blur(16px); border: 1px solid var(--gb); border-radius: var(--rl); padding: 24px; margin-bottom: 22px; box-shadow: var(--shadow-1), inset 0 0 0 1px rgba(255,255,255,.05); }
+  .section-head { margin-bottom: 18px; }
+  .section-tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: var(--ac); margin-bottom: 4px; }
+  .section-title { font-size: 18px; font-weight: 800; letter-spacing: -0.4px; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+  .section-sub { font-size: 12px; color: var(--mu); }
+  .variant-label { display: inline-block; padding: 2px 8px; border-radius: 4px; background: var(--adim); color: var(--ac); font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
+
+  /* APP SHELL DEMO */
+  .app-shell { background: var(--bg); border: 1px solid var(--gb); border-radius: var(--rxl); overflow: hidden; display: grid; grid-template-columns: 220px 1fr; min-height: 720px; box-shadow: var(--shadow-3); }
+
+  /* SIDEBAR */
+  .sidebar { background: rgba(0,0,0,.3); border-right: 1px solid var(--gb); padding: 16px 10px; display: flex; flex-direction: column; }
+  .sidebar-brand { display: flex; align-items: center; gap: 10px; padding: 6px 8px 16px; border-bottom: 1px solid var(--gb); margin-bottom: 14px; }
+  .brand-logo { width: 32px; height: 32px; border-radius: 9px; background: linear-gradient(135deg, var(--ac), #6D28D9); display: flex; align-items: center; justify-content: center; color: #fff; font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 18px; }
+  .brand-name { font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 17px; letter-spacing: -0.3px; color: var(--fg); }
+  .brand-name .blu { color: var(--ac); }
+  .sidebar-section { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: var(--mu); padding: 10px 10px 4px; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 7px; color: var(--mu2); font-size: 12.5px; cursor: pointer; transition: .1s; position: relative; }
+  .nav-item i { font-size: 16px; flex-shrink: 0; }
+  .nav-item:hover { background: rgba(255,255,255,.05); color: var(--fg); }
+  .nav-item.active { background: var(--adim); color: var(--ac); }
+  .nav-item.active::before { content: ''; position: absolute; left: -10px; top: 50%; transform: translateY(-50%); width: 3px; height: 18px; background: var(--ac); border-radius: 0 2px 2px 0; }
+  .nav-item .badge { margin-left: auto; background: var(--udim); color: var(--urg); padding: 1px 6px; border-radius: 4px; font-size: 9px; font-weight: 700; font-family: var(--mono); }
+  .nav-item .badge.ac { background: var(--adim); color: var(--ac); }
+  .nav-item .badge.ok { background: var(--odim); color: var(--ok); }
+  .sidebar-foot { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--gb); }
+  .user-card { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 7px; background: rgba(0,0,0,.2); border: 1px solid var(--gb); }
+  .user-avatar { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, var(--ac), #6D28D9); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+  .user-info { flex: 1; min-width: 0; }
+  .user-name { font-size: 12px; font-weight: 600; color: var(--fg); }
+  .user-role { font-size: 10px; color: var(--mu); }
+  .user-card i { color: var(--mu); font-size: 14px; }
+
+  /* MAIN AREA */
+  .main { display: flex; flex-direction: column; min-width: 0; }
+  .topbar { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--gb); background: rgba(0,0,0,.15); }
+  .breadcrumb { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--mu); }
+  .breadcrumb i { font-size: 12px; }
+  .breadcrumb a { color: var(--mu2); text-decoration: none; }
+  .breadcrumb a:hover { color: var(--fg); }
+  .breadcrumb .current { color: var(--fg); font-weight: 600; }
+  .topbar-search { flex: 1; max-width: 460px; position: relative; }
+  .topbar-search input { width: 100%; padding: 7px 12px 7px 32px; border-radius: 7px; background: rgba(0,0,0,.3); border: 1px solid var(--gb); color: var(--fg); font-size: 12px; outline: none; }
+  .topbar-search input:focus { border-color: var(--ac); }
+  .topbar-search i { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--mu); font-size: 13px; }
+  .topbar-search kbd { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); font-size: 9.5px; color: var(--mu); background: rgba(255,255,255,.04); border: 1px solid var(--gb); padding: 1px 6px; border-radius: 4px; font-family: var(--mono); }
+  .topbar-actions { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+  .icon-btn { width: 32px; height: 32px; border-radius: 6px; background: transparent; border: none; color: var(--mu2); display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; transition: .1s; }
+  .icon-btn:hover { background: rgba(255,255,255,.05); color: var(--fg); }
+  .icon-btn .dot { position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--urg); border: 1.5px solid var(--bg); }
+  .topbar-avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, var(--ac), #6D28D9); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 11px; font-weight: 700; cursor: pointer; }
+
+  .main-body { padding: 20px; overflow-y: auto; flex: 1; }
+
+  /* ROOM GRID */
+  .room-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; margin-bottom: 14px; }
+
+  /* PANELS */
+  .panel { background: var(--glass); backdrop-filter: blur(16px); border: 1px solid var(--gb); border-radius: var(--rl); box-shadow: var(--shadow-1); overflow: hidden; }
+  .panel-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--gb); }
+  .panel-title { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .panel-title .accent { width: 4px; height: 14px; background: var(--ac); border-radius: 2px; }
+  .panel-actions { display: flex; gap: 3px; align-items: center; }
+  .panel-tab { padding: 4px 10px; border-radius: 5px; font-size: 11px; font-weight: 600; color: var(--mu2); cursor: pointer; transition: .1s; }
+  .panel-tab:hover { color: var(--fg); }
+  .panel-tab.active { background: var(--adim); color: var(--ac); }
+  .panel-body { padding: 16px; }
+  .panel-foot { padding: 10px 16px; border-top: 1px solid var(--gb); background: rgba(0,0,0,.15); display: flex; gap: 12px; }
+  .foot-stat { flex: 1; }
+  .foot-stat .k { font-size: 9.5px; color: var(--mu); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+  .foot-stat .v { font-family: var(--mono); font-size: 14px; font-weight: 700; color: var(--fg); margin-top: 2px; }
+  .foot-stat .d { font-size: 10.5px; margin-top: 1px; }
+  .foot-stat .d.up { color: var(--ok); }
+  .foot-stat .d.down { color: var(--urg); }
+
+  /* INSIGHT CARDS */
+  .insight { background: rgba(0,0,0,.22); border: 1px solid var(--gb); border-radius: var(--r); padding: 12px 14px; display: flex; gap: 10px; align-items: flex-start; }
+  .insight-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .insight-icon.ac { background: var(--adim); color: var(--ac); }
+  .insight-icon.ok { background: var(--odim); color: var(--ok); }
+  .insight-icon.att { background: var(--adm2); color: var(--att); }
+  .insight-icon.urg { background: var(--udim); color: var(--urg); }
+  .insight-body { flex: 1; min-width: 0; }
+  .insight-title { font-size: 11.5px; font-weight: 700; color: var(--fg); margin-bottom: 2px; }
+  .insight-text { font-size: 11px; color: var(--mu2); line-height: 1.4; }
+
+  .bottom-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 14px 16px; border-top: 1px solid var(--gb); background: rgba(0,0,0,.15); }
+
+  /* MINI CHART (for room) */
+  .mini-area { height: 100px; width: 100%; }
+
+  /* ACTIVITY LIST */
+  .activity { display: flex; flex-direction: column; }
+  .activity-item { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--gb); }
+  .activity-item:last-child { border-bottom: none; }
+  .activity-icon { width: 26px; height: 26px; border-radius: 50%; background: var(--adim); color: var(--ac); display: flex; align-items: center; justify-content: center; flex-size: 12px; flex-shrink: 0; font-size: 12px; }
+  .activity-icon.ok { background: var(--odim); color: var(--ok); }
+  .activity-icon.att { background: var(--adm2); color: var(--att); }
+  .activity-body { flex: 1; min-width: 0; }
+  .activity-text { font-size: 11.5px; color: var(--mu2); line-height: 1.4; }
+  .activity-text strong { color: var(--fg); font-weight: 600; }
+  .activity-time { font-size: 10px; color: var(--mu); margin-top: 2px; font-family: var(--mono); }
+
+  /* KPI cells */
+  .kpi-cell { background: rgba(0,0,0,.25); border-radius: var(--r); padding: 10px 12px; }
+  .kpi-cell .l { font-size: 9.5px; color: var(--mu); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+  .kpi-cell .v { font-family: var(--mono); font-size: 18px; font-weight: 700; color: var(--fg); margin: 3px 0 1px; }
+  .kpi-cell .d { font-size: 10.5px; font-weight: 600; }
+  .kpi-cell .d.up { color: var(--ok); }
+  .kpi-cell .d.down { color: var(--urg); }
+  .kpi-cells { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+
+  /* LOADING SKELETONS */
+  .skeleton { background: linear-gradient(90deg, rgba(255,255,255,.04) 0%, rgba(255,255,255,.08) 50%, rgba(255,255,255,.04) 100%); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; border-radius: 4px; }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  .sk-line { height: 11px; margin: 8px 0; }
+  .sk-line.short { width: 60%; }
+  .sk-line.med { width: 80%; }
+  .sk-block { height: 70px; border-radius: var(--r); }
+  .sk-circle { width: 30px; height: 30px; border-radius: 50%; }
+
+  /* EMPTY STATE */
+  .empty { text-align: center; padding: 40px 20px; }
+  .empty-icon { width: 56px; height: 56px; border-radius: 14px; background: var(--adim); color: var(--ac); display: flex; align-items: center; justify-content: center; font-size: 24px; margin: 0 auto 14px; }
+  .empty-title { font-size: 14px; font-weight: 700; color: var(--fg); margin-bottom: 4px; }
+  .empty-text { font-size: 12px; color: var(--mu); max-width: 320px; margin: 0 auto 14px; line-height: 1.5; }
+
+  /* Standalone nav demos */
+  .demo-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+
+  @media (max-width: 1100px) { .app-shell { grid-template-columns: 1fr; } .sidebar { display: none; } .room-grid { grid-template-columns: 1fr; } .demo-grid { grid-template-columns: 1fr; } }
+  @media print {
+    body { background: #fff !important; color: #000 !important; padding: 1cm !important; }
+    .app-shell, .section, .panel, .insight { background: #fff !important; border: 1px solid #000 !important; box-shadow: none !important; backdrop-filter: none !important; }
+    .nav, .icon-btn, .topbar-avatar, .sidebar-foot, .skeleton { display: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="page-title">Navegacao & Shell</div>
+  <div class="page-sub">Topbar, sidebar, room grid, painel com tabs, analytics footer, loading skeletons e empty states. Tudo em dark theme.</div>
+  <nav class="nav">
+    <a href="#shell">App Shell completo</a>
+    <a href="#topbar">Topbar</a>
+    <a href="#sidebar">Sidebar</a>
+    <a href="#panels">Painel com tabs</a>
+    <a href="#skeletons">Loading</a>
+    <a href="#empty">Empty states</a>
+  </nav>
+
+  <!-- FULL APP SHELL -->
+  <section class="section" id="shell">
+    <div class="section-head">
+      <div class="section-tag">01</div>
+      <div class="section-title"><i class="ph ph-app-window" style="color:var(--ac)"></i> App Shell completo</div>
+      <div class="section-sub">Layout full com sidebar, topbar, room grid 2/3 + 1/3 e bottom strip de 3 insight cards.</div>
+    </div>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="sidebar-brand">
+          <div class="brand-logo">b</div>
+          <div class="brand-name"><span class="blu">blu</span></div>
+        </div>
+        <div class="sidebar-section">Salas</div>
+        <div class="nav-item"><i class="ph ph-house"></i> Home</div>
+        <div class="nav-item"><i class="ph ph-shopping-cart"></i> Compras <span class="badge">3</span></div>
+        <div class="nav-item active"><i class="ph ph-chart-bar"></i> Financeiro <span class="badge ac">5</span></div>
+        <div class="nav-item"><i class="ph ph-calendar-dots"></i> Agenda</div>
+        <div class="nav-item"><i class="ph ph-target"></i> Estrategia</div>
+        <div class="nav-item"><i class="ph ph-users-three"></i> Clientes</div>
+        <div class="nav-item"><i class="ph ph-books"></i> Biblioteca</div>
+        <div class="sidebar-section">Atividade</div>
+        <div class="nav-item"><i class="ph ph-bell"></i> Notificacoes <span class="badge">12</span></div>
+        <div class="nav-item"><i class="ph ph-gear"></i> Configuracoes</div>
+        <div class="sidebar-foot">
+          <div class="user-card">
+            <div class="user-avatar">PS</div>
+            <div class="user-info">
+              <div class="user-name">Patricia Souza</div>
+              <div class="user-role">Admin &middot; Blu Tech</div>
+            </div>
+            <i class="ph ph-caret-up-down"></i>
+          </div>
+        </div>
+      </aside>
+      <div class="main">
+        <div class="topbar">
+          <div class="breadcrumb">
+            <a href="#">Home</a>
+            <i class="ph ph-caret-right"></i>
+            <span class="current">Financeiro</span>
+          </div>
+          <div class="topbar-search">
+            <i class="ph ph-magnifying-glass"></i>
+            <input type="text" placeholder="Buscar transacoes, clientes, documentos...">
+            <kbd>&#8984; K</kbd>
+          </div>
+          <div class="topbar-actions">
+            <button class="icon-btn" title="Ajuda"><i class="ph ph-question"></i></button>
+            <button class="icon-btn" title="Notificacoes"><i class="ph ph-bell"></i><span class="dot"></span></button>
+            <button class="icon-btn" title="Config"><i class="ph ph-gear"></i></button>
+            <div class="topbar-avatar">PS</div>
+          </div>
+        </div>
+        <div class="main-body">
+          <div class="room-grid">
+            <div class="panel">
+              <div class="panel-head">
+                <div class="panel-title"><span class="accent"></span> Receita mensal &middot; Ultimos 12 meses</div>
+                <div class="panel-actions">
+                  <span class="panel-tab">7d</span>
+                  <span class="panel-tab">30d</span>
+                  <span class="panel-tab active">12m</span>
+                  <span class="panel-tab">Tudo</span>
+                </div>
+              </div>
+              <div class="panel-body">
+                <div class="kpi-cells">
+                  <div class="kpi-cell"><div class="l">MRR</div><div class="v">R$ 84.320</div><div class="d up">+ 12,4%</div></div>
+                  <div class="kpi-cell"><div class="l">ARR</div><div class="v">R$ 1.01M</div><div class="d up">+ 18,2%</div></div>
+                  <div class="kpi-cell"><div class="l">Churn</div><div class="v">2,1%</div><div class="d up">- 0,7pp</div></div>
+                </div>
+                <svg class="mini-area" viewBox="0 0 600 100" preserveAspectRatio="none" style="margin-top: 16px;">
+                  <defs>
+                    <linearGradient id="areaG" x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="0%" stop-color="#8C5FDB" stop-opacity="0.5"/>
+                      <stop offset="100%" stop-color="#8C5FDB" stop-opacity="0"/>
+                    </linearGradient>
+                  </defs>
+                  <line x1="0" y1="80" x2="600" y2="80" stroke="rgba(255,255,255,.06)" stroke-dasharray="2 4"/>
+                  <line x1="0" y1="50" x2="600" y2="50" stroke="rgba(255,255,255,.04)" stroke-dasharray="2 4"/>
+                  <line x1="0" y1="20" x2="600" y2="20" stroke="rgba(255,255,255,.04)" stroke-dasharray="2 4"/>
+                  <path d="M 0,70 L 50,65 L 100,68 L 150,55 L 200,58 L 250,45 L 300,48 L 350,38 L 400,42 L 450,30 L 500,22 L 550,18 L 600,12 L 600,100 L 0,100 Z" fill="url(#areaG)"/>
+                  <polyline points="0,70 50,65 100,68 150,55 200,58 250,45 300,48 350,38 400,42 450,30 500,22 550,18 600,12" fill="none" stroke="#8C5FDB" stroke-width="2"/>
+                  <circle cx="600" cy="12" r="3.5" fill="#8C5FDB"/>
+                </svg>
+              </div>
+              <div class="panel-foot">
+                <div class="foot-stat"><div class="k">Receita YTD</div><div class="v">R$ 925.420</div><div class="d up">+ 24,1% YoY</div></div>
+                <div class="foot-stat"><div class="k">Clientes ativos</div><div class="v">28</div><div class="d up">+ 14 vs jan</div></div>
+                <div class="foot-stat"><div class="k">Ticket medio</div><div class="v">R$ 1.247</div><div class="d up">+ 5,7%</div></div>
+                <div class="foot-stat"><div class="k">LTV/CAC</div><div class="v">21,7x</div><div class="d up">Saudavel</div></div>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-head">
+                <div class="panel-title"><span class="accent"></span> Atividade recente</div>
+                <div class="panel-actions">
+                  <button class="icon-btn" style="width: 24px; height: 24px;"><i class="ph ph-dots-three-vertical"></i></button>
+                </div>
+              </div>
+              <div class="panel-body">
+                <div class="activity">
+                  <div class="activity-item">
+                    <div class="activity-icon ok"><i class="ph ph-check"></i></div>
+                    <div class="activity-body">
+                      <div class="activity-text">Financeiro concluiu o <strong>fechamento mensal de fevereiro</strong></div>
+                      <div class="activity-time">14:42 &middot; ha 18 min</div>
+                    </div>
+                  </div>
+                  <div class="activity-item">
+                    <div class="activity-icon"><i class="ph ph-bell"></i></div>
+                    <div class="activity-body">
+                      <div class="activity-text"><strong>Alerta:</strong> CAC acima da meta pelo 2o mes consecutivo</div>
+                      <div class="activity-time">13:20 &middot; ha 1h 40min</div>
+                    </div>
+                  </div>
+                  <div class="activity-item">
+                    <div class="activity-icon att"><i class="ph ph-clock"></i></div>
+                    <div class="activity-body">
+                      <div class="activity-text">Aguardando aprovacao: <strong>reembolso Carla Santos R$ 1.240</strong></div>
+                      <div class="activity-time">12:00 &middot; ha 3h</div>
+                    </div>
+                  </div>
+                  <div class="activity-item">
+                    <div class="activity-icon ok"><i class="ph ph-plus"></i></div>
+                    <div class="activity-body">
+                      <div class="activity-text">Novo cliente <strong>Lab Pharma</strong> entrou no plano Pro</div>
+                      <div class="activity-time">10:15 &middot; ha 5h</div>
+                    </div>
+                  </div>
+                  <div class="activity-item">
+                    <div class="activity-icon att"><i class="ph ph-warning"></i></div>
+                    <div class="activity-body">
+                      <div class="activity-text"><strong>Boutique Vintage</strong> com risco de churn (5 dias sem login)</div>
+                      <div class="activity-time">08:00 &middot; ha 7h</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head">
+              <div class="panel-title"><span class="accent"></span> Painel secundario &middot; Resumo do dia</div>
+              <div class="panel-actions">
+                <span class="panel-tab active">Visao geral</span>
+                <span class="panel-tab">Insights</span>
+                <span class="panel-tab">Documentos</span>
+              </div>
+            </div>
+            <div class="bottom-strip">
+              <div class="insight">
+                <div class="insight-icon ac"><i class="ph ph-lightbulb"></i></div>
+                <div class="insight-body">
+                  <div class="insight-title">Otimizacao detectada</div>
+                  <div class="insight-text">Renegociar contrato do fornecedor X pode gerar economia de 8% (R$ 2.400/ano).</div>
+                </div>
+              </div>
+              <div class="insight">
+                <div class="insight-icon ok"><i class="ph ph-trend-up"></i></div>
+                <div class="insight-body">
+                  <div class="insight-title">Meta atingida</div>
+                  <div class="insight-text">14 novos clientes em fevereiro, superando a meta de 12 (+ 16,7%).</div>
+                </div>
+              </div>
+              <div class="insight">
+                <div class="insight-icon att"><i class="ph ph-warning"></i></div>
+                <div class="insight-body">
+                  <div class="insight-title">Atencao necessaria</div>
+                  <div class="insight-text">CAC subiu para R$ 412. Considere revisar a campanha "Linkedin Q1".</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TOPBAR DEMOS -->
+  <section class="section" id="topbar">
+    <div class="section-head">
+      <div class="section-tag">02</div>
+      <div class="section-title"><i class="ph ph-browser" style="color:var(--info)"></i> Topbar</div>
+      <div class="section-sub">Breadcrumb + busca global com atalho + botoes de acao + avatar do usuario.</div>
+    </div>
+    <div class="demo-grid">
+      <div>
+        <span class="variant-label">Topbar com todos os elementos</span>
+        <div class="topbar" style="border: 1px solid var(--gb); border-radius: var(--rl);">
+          <div class="breadcrumb">
+            <a href="#">Blu</a>
+            <i class="ph ph-caret-right"></i>
+            <a href="#">Salas</a>
+            <i class="ph ph-caret-right"></i>
+            <span class="current">Financeiro</span>
+          </div>
+          <div class="topbar-search">
+            <i class="ph ph-magnifying-glass"></i>
+            <input type="text" placeholder="Buscar transacoes, clientes...">
+            <kbd>Ctrl K</kbd>
+          </div>
+          <div class="topbar-actions">
+            <button class="icon-btn" title="Ajuda"><i class="ph ph-question"></i></button>
+            <button class="icon-btn" title="Notificacoes"><i class="ph ph-bell"></i><span class="dot"></span></button>
+            <button class="icon-btn" title="Atividade"><i class="ph ph-activity"></i></button>
+            <button class="icon-btn" title="Config"><i class="ph ph-gear"></i></button>
+            <div class="topbar-avatar">PS</div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <span class="variant-label">Topbar minimal (mobile-like)</span>
+        <div class="topbar" style="border: 1px solid var(--gb); border-radius: var(--rl);">
+          <div class="topbar-search" style="max-width: none;">
+            <i class="ph ph-magnifying-glass"></i>
+            <input type="text" placeholder="Buscar...">
+          </div>
+          <div class="topbar-actions">
+            <button class="icon-btn"><i class="ph ph-bell"></i><span class="dot"></span></button>
+            <div class="topbar-avatar">PS</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SIDEBAR DEMO -->
+  <section class="section" id="sidebar">
+    <div class="section-head">
+      <div class="section-tag">03</div>
+      <div class="section-title"><i class="ph ph-list" style="color:#f472b6"></i> Sidebar</div>
+      <div class="section-sub">Logo, grupos de navegacao, indicador ativo, badges de notificacao, card de usuario no rodape.</div>
+    </div>
+    <div class="demo-grid">
+      <div>
+        <span class="variant-label">Com agrupamento</span>
+        <div class="sidebar" style="border: 1px solid var(--gb); border-radius: var(--rl); min-height: 480px;">
+          <div class="sidebar-brand">
+            <div class="brand-logo">b</div>
+            <div class="brand-name"><span class="blu">blu</span></div>
+          </div>
+          <div class="sidebar-section">Principal</div>
+          <div class="nav-item"><i class="ph ph-house"></i> Home</div>
+          <div class="nav-item"><i class="ph ph-chart-bar"></i> Financeiro <span class="badge ac">5</span></div>
+          <div class="nav-item active"><i class="ph ph-shopping-cart"></i> Compras</div>
+          <div class="nav-item"><i class="ph ph-target"></i> Estrategia</div>
+          <div class="sidebar-section">Sistema</div>
+          <div class="nav-item"><i class="ph ph-bell"></i> Notificacoes <span class="badge">12</span></div>
+          <div class="nav-item"><i class="ph ph-gear"></i> Configuracoes</div>
+          <div class="sidebar-foot">
+            <div class="user-card">
+              <div class="user-avatar">PS</div>
+              <div class="user-info">
+                <div class="user-name">Patricia Souza</div>
+                <div class="user-role">Admin</div>
+              </div>
+              <i class="ph ph-sign-out"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <span class="variant-label">Sem agrupamento (compacto)</span>
+        <div class="sidebar" style="border: 1px solid var(--gb); border-radius: var(--rl); min-height: 480px; width: 60px; padding: 16px 6px;">
+          <div class="sidebar-brand" style="justify-content: center; padding-bottom: 16px;">
+            <div class="brand-logo" style="width: 28px; height: 28px; font-size: 16px;">b</div>
+          </div>
+          <div class="nav-item" style="justify-content: center; padding: 10px;"><i class="ph ph-house" style="font-size: 18px;"></i></div>
+          <div class="nav-item active" style="justify-content: center; padding: 10px;"><i class="ph ph-chart-bar" style="font-size: 18px;"></i></div>
+          <div class="nav-item" style="justify-content: center; padding: 10px; position: relative;"><i class="ph ph-shopping-cart" style="font-size: 18px;"></i><span class="dot" style="position: absolute; top: 6px; right: 8px; width: 6px; height: 6px; background: var(--urg); border-radius: 50%;"></span></div>
+          <div class="nav-item" style="justify-content: center; padding: 10px;"><i class="ph ph-target" style="font-size: 18px;"></i></div>
+          <div class="nav-item" style="justify-content: center; padding: 10px;"><i class="ph ph-users-three" style="font-size: 18px;"></i></div>
+          <div class="nav-item" style="justify-content: center; padding: 10px;"><i class="ph ph-books" style="font-size: 18px;"></i></div>
+          <div class="nav-item" style="justify-content: center; padding: 10px;"><i class="ph ph-bell" style="font-size: 18px;"></i></div>
+          <div class="nav-item" style="justify-content: center; padding: 10px;"><i class="ph ph-gear" style="font-size: 18px;"></i></div>
+          <div class="sidebar-foot" style="padding: 0;">
+            <div class="user-avatar" style="margin: 0 auto;">PS</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PANELS WITH TABS -->
+  <section class="section" id="panels">
+    <div class="section-head">
+      <div class="section-tag">04</div>
+      <div class="section-title"><i class="ph ph-window" style="color:var(--ok)"></i> Painel com tabs e analytics footer</div>
+      <div class="section-sub">Estrutura completa: header + tabs + body + analytics footer com KPIs.</div>
+    </div>
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title"><span class="accent"></span> Cliente &middot; TechMade Solutions</div>
+          <div class="panel-actions">
+            <span class="panel-tab">Visao</span>
+            <span class="panel-tab active">Documentos</span>
+            <span class="panel-tab">Conhecimento</span>
+            <span class="panel-tab">Config</span>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="kpi-cells">
+            <div class="kpi-cell"><div class="l">Receita</div><div class="v">R$ 12.800</div><div class="d up">+ 8%</div></div>
+            <div class="kpi-cell"><div class="l">Usuarios</div><div class="v">25</div><div class="d up">+ 3</div></div>
+            <div class="kpi-cell"><div class="l">NPS</div><div class="v">72</div><div class="d up">+ 4</div></div>
+          </div>
+          <div class="activity" style="margin-top: 14px;">
+            <div class="activity-item">
+              <div class="activity-icon"><i class="ph ph-file-text"></i></div>
+              <div class="activity-body">
+                <div class="activity-text"><strong>Contrato_2026.pdf</strong> foi assinado</div>
+                <div class="activity-time">14:30 &middot; ha 30 min</div>
+              </div>
+            </div>
+            <div class="activity-item">
+              <div class="activity-icon ok"><i class="ph ph-check"></i></div>
+              <div class="activity-body">
+                <div class="activity-text">Pagamento da fatura <strong>#2026-0247</strong> confirmado</div>
+                <div class="activity-time">12:15 &middot; ha 2h</div>
+              </div>
+            </div>
+            <div class="activity-item">
+              <div class="activity-icon"><i class="ph ph-user"></i></div>
+              <div class="activity-body">
+                <div class="activity-text">3 novos usuarios adicionados pela equipe do cliente</div>
+                <div class="activity-time">10:00 &middot; ha 4h</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="panel-foot">
+          <div class="foot-stat"><div class="k">LTV</div><div class="v">R$ 38.400</div><div class="d up">+ 12%</div></div>
+          <div class="foot-stat"><div class="k">Ultima compra</div><div class="v">15/02</div><div class="d">Renovacao</div></div>
+          <div class="foot-stat"><div class="k">Saude</div><div class="v" style="color: var(--ok);">Excelente</div><div class="d up">+ 4 pts</div></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title"><span class="accent" style="background: var(--ok);"></span> Financeiro &middot; Resumo mensal</div>
+          <div class="panel-actions">
+            <span class="panel-tab active">Objetivos</span>
+            <span class="panel-tab">Documentos</span>
+            <span class="panel-tab">Conhecimento</span>
+            <span class="panel-tab">Config</span>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div style="margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; font-size: 11.5px; margin-bottom: 5px;">
+              <span style="color: var(--mu2);">Atingir R$ 90k MRR</span>
+              <span style="color: var(--fg); font-family: var(--mono); font-weight: 600;">84.3k / 90k</span>
+            </div>
+            <div style="height: 6px; background: var(--gb); border-radius: 3px; overflow: hidden;">
+              <div style="width: 94%; height: 100%; background: var(--ok); border-radius: 3px;"></div>
+            </div>
+          </div>
+          <div style="margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; font-size: 11.5px; margin-bottom: 5px;">
+              <span style="color: var(--mu2);">Reduzir CAC para R$ 380</span>
+              <span style="color: var(--fg); font-family: var(--mono); font-weight: 600;">412 / 380</span>
+            </div>
+            <div style="height: 6px; background: var(--gb); border-radius: 3px; overflow: hidden;">
+              <div style="width: 100%; height: 100%; background: var(--urg); border-radius: 3px;"></div>
+            </div>
+          </div>
+          <div style="margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; font-size: 11.5px; margin-bottom: 5px;">
+              <span style="color: var(--mu2);">Onboarding de 15 clientes enterprise</span>
+              <span style="color: var(--fg); font-family: var(--mono); font-weight: 600;">8 / 15</span>
+            </div>
+            <div style="height: 6px; background: var(--gb); border-radius: 3px; overflow: hidden;">
+              <div style="width: 53%; height: 100%; background: var(--ac); border-radius: 3px;"></div>
+            </div>
+          </div>
+          <div class="bottom-strip" style="margin: 14px -16px -16px; padding: 12px 16px; border-top: 1px solid var(--gb); background: rgba(0,0,0,.15); display: grid; grid-template-columns: repeat(3,1fr);">
+            <div class="insight">
+              <div class="insight-icon ac"><i class="ph ph-target"></i></div>
+              <div class="insight-body">
+                <div class="insight-title">3 objetivos ativos</div>
+                <div class="insight-text">2 no prazo, 1 atrasado</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LOADING SKELETONS -->
+  <section class="section" id="skeletons">
+    <div class="section-head">
+      <div class="section-tag">05</div>
+      <div class="section-title"><i class="ph ph-circle-notch" style="color:var(--mu2)"></i> Loading skeletons</div>
+      <div class="section-sub">Placeholders animados com efeito shimmer enquanto os dados carregam.</div>
+    </div>
+    <div class="demo-grid">
+      <div>
+        <span class="variant-label">Card de KPI loading</span>
+        <div style="background: var(--glass); border: 1px solid var(--gb); border-radius: var(--rl); padding: 16px;">
+          <div class="skeleton sk-line short" style="margin-bottom: 12px;"></div>
+          <div class="skeleton sk-line" style="width: 50%; height: 22px; margin-bottom: 8px;"></div>
+          <div class="skeleton sk-line short" style="height: 14px;"></div>
+        </div>
+      </div>
+      <div>
+        <span class="variant-label">Lista de items loading</span>
+        <div style="background: var(--glass); border: 1px solid var(--gb); border-radius: var(--rl); padding: 16px;">
+          <div style="display: flex; gap: 10px; margin-bottom: 14px;">
+            <div class="skeleton sk-circle"></div>
+            <div style="flex: 1;">
+              <div class="skeleton sk-line med"></div>
+              <div class="skeleton sk-line short"></div>
+            </div>
+          </div>
+          <div style="display: flex; gap: 10px; margin-bottom: 14px;">
+            <div class="skeleton sk-circle"></div>
+            <div style="flex: 1;">
+              <div class="skeleton sk-line med"></div>
+              <div class="skeleton sk-line short"></div>
+            </div>
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <div class="skeleton sk-circle"></div>
+            <div style="flex: 1;">
+              <div class="skeleton sk-line med"></div>
+              <div class="skeleton sk-line short"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <span class="variant-label">Painel loading (com tabs)</span>
+        <div style="background: var(--glass); border: 1px solid var(--gb); border-radius: var(--rl); overflow: hidden;">
+          <div style="display: flex; gap: 6px; padding: 12px 16px; border-bottom: 1px solid var(--gb);">
+            <div class="skeleton" style="width: 60px; height: 22px; border-radius: 5px;"></div>
+            <div class="skeleton" style="width: 70px; height: 22px; border-radius: 5px;"></div>
+            <div class="skeleton" style="width: 80px; height: 22px; border-radius: 5px;"></div>
+          </div>
+          <div style="padding: 16px;">
+            <div class="skeleton sk-block" style="margin-bottom: 12px;"></div>
+            <div class="skeleton sk-line med" style="margin-bottom: 6px;"></div>
+            <div class="skeleton sk-line short"></div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <span class="variant-label">Tabela loading</span>
+        <div style="background: rgba(0,0,0,.2); border: 1px solid var(--gb); border-radius: var(--rl); padding: 14px;">
+          <div class="skeleton sk-line" style="height: 14px; margin-bottom: 12px; background: rgba(255,255,255,.08);"></div>
+          <div class="skeleton sk-line" style="margin-bottom: 8px;"></div>
+          <div class="skeleton sk-line" style="margin-bottom: 8px;"></div>
+          <div class="skeleton sk-line" style="margin-bottom: 8px;"></div>
+          <div class="skeleton sk-line" style="margin-bottom: 8px;"></div>
+          <div class="skeleton sk-line" style="margin-bottom: 8px;"></div>
+          <div class="skeleton sk-line short"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- EMPTY STATES -->
+  <section class="section" id="empty">
+    <div class="section-head">
+      <div class="section-tag">06</div>
+      <div class="section-title"><i class="ph ph-tray" style="color:var(--mu2)"></i> Empty states</div>
+      <div class="section-sub">Mensagens claras quando nao ha dados, com CTA para acao do usuario.</div>
+    </div>
+    <div class="grid-3">
+      <div class="panel">
+        <div class="panel-body">
+          <div class="empty">
+            <div class="empty-icon"><i class="ph ph-files"></i></div>
+            <div class="empty-title">Nenhum documento ainda</div>
+            <div class="empty-text">Quando os agentes gerarem documentos, eles aparecerao aqui. Comece criando um fechamento mensal.</div>
+            <button class="btn btn-bp"><i class="ph ph-plus"></i> Criar documento</button>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-body">
+          <div class="empty">
+            <div class="empty-icon" style="background: var(--odim); color: var(--ok);"><i class="ph ph-check-circle"></i></div>
+            <div class="empty-title">Tudo em dia</div>
+            <div class="empty-text">Nenhuma tarefa pendente. Quando algo precisar de atencao, voce vera aqui.</div>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-body">
+          <div class="empty">
+            <div class="empty-icon" style="background: var(--udim); color: var(--urg);"><i class="ph ph-magnifying-glass"></i></div>
+            <div class="empty-title">Nenhum resultado</div>
+            <div class="empty-text">Nao encontramos nada para "campanha marketing 2026". Tente termos mais amplos.</div>
+            <button class="btn btn-bs">Limpar busca</button>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-body">
+          <div class="empty">
+            <div class="empty-icon" style="background: var(--infodim); color: var(--info);"><i class="ph ph-plug"></i></div>
+            <div class="empty-title">Conecte sua primeira fonte</div>
+            <div class="empty-text">Importe dados do seu ERP, banco ou CRM para que os agentes comecem a trabalhar.</div>
+            <button class="btn btn-bp"><i class="ph ph-plus"></i> Adicionar integracao</button>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-body">
+          <div class="empty">
+            <div class="empty-icon"><i class="ph ph-bell-slash"></i></div>
+            <div class="empty-title">Sem notificacoes</div>
+            <div class="empty-text">Voce esta em dia. Avisaremos quando algo importante acontecer.</div>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-body">
+          <div class="empty">
+            <div class="empty-icon" style="background: var(--adm2); color: var(--att);"><i class="ph ph-cloud-x"></i></div>
+            <div class="empty-title">Sem conexao</div>
+            <div class="empty-text">Nao conseguimos carregar os dados. Verifique sua internet e tente novamente.</div>
+            <button class="btn btn-bs"><i class="ph ph-arrows-clockwise"></i> Tentar novamente</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+</body>
+</html>

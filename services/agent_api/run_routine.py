@@ -151,11 +151,21 @@ async def run_routine(routine_id: str, client_id: str) -> None:
     logger.info(f"Company    : {nome_empresa}\n")
 
     # ── 5. Build initial state ────────────────────────────────────────────────
+    # Seed config_schema defaults first (same as _execute_one in routines.py) so
+    # {{key}} templates resolve even without per-client override.
+    schema_defaults: dict[str, Any] = {}
+    for field in (routine.get("config_schema") or []):
+        key = field.get("key")
+        default = field.get("default")
+        if key and default is not None:
+            schema_defaults[key] = default
+
     state: dict[str, Any] = {
         "client_id": client_id,
         "routine_name": routine["name"],
         "exec_id": exec_id,
         "nome_empresa": nome_empresa,
+        **schema_defaults,
         **client_config,
     }
 

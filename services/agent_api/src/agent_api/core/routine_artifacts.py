@@ -16,6 +16,7 @@ Calling from the runner:
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from typing import Any, Awaitable, Callable
 
@@ -564,15 +565,31 @@ async def _save_context_document(inputs: dict, client_id: str) -> dict:
 
 _DIMENSION_TO_ROOM: dict[str, str] = {
     "finance":    "financeiro",
+    "financas":   "financeiro",
     "commercial": "clientes",
+    "comercial":  "clientes",
     "inventory":  "compras",
     "supply":     "compras",
+    "estoque":    "compras",
+    "strategy":   "estrategia",
 }
 
 
 def _map_dimension_to_room(dimension: str) -> str:
     """Map legacy dimension slugs to room slugs. Passthrough for unknown values."""
     return _DIMENSION_TO_ROOM.get(dimension, dimension)
+
+
+# client_insights.severity tem CHECK (info|warning|error); um valor fora do enum
+# abortaria o insert em lote inteiro
+_ALLOWED_SEVERITIES = {"info", "warning", "error"}
+_SEVERITY_ALIASES = {"alert": "warning", "warn": "warning", "critical": "error", "crit": "error"}
+
+
+def _normalize_severity(value: object) -> str:
+    sev = str(value or "info").strip().lower()
+    sev = _SEVERITY_ALIASES.get(sev, sev)
+    return sev if sev in _ALLOWED_SEVERITIES else "info"
 
 
 @register(
@@ -602,7 +619,13 @@ async def _save_insights(inputs: dict, client_id: str) -> dict:
 
     from blu_supabase_client import get_supabase_client
 
-    insights: list[dict] = inputs.get("insights", [])
+    insights = inputs.get("insights", [])
+    if isinstance(insights, str):
+        # Steps anteriores podem entregar a lista serializada (template inline)
+        try:
+            insights = json.loads(insights)
+        except (ValueError, TypeError):
+            insights = None
     if not isinstance(insights, list):
         logger.warning("[routine_artifact] save_insights: insights is not a list for %s", client_id)
         return {"insights_written": 0}
@@ -623,13 +646,13 @@ async def _save_insights(inputs: dict, client_id: str) -> dict:
             lambda: db.table("client_insights").insert([
                 {
                     "client_id": client_id,
-                    "room": it.get("room") or _map_dimension_to_room(it.get("dimension", "financeiro")),
+                    "room": _map_dimension_to_room(it.get("room") or it.get("dimension") or "financeiro"),
                     "kpi": it.get("kpi"),
                     "title": str(it.get("title", "Insight"))[:200],
                     "body": it.get("body") or it.get("observation"),
                     "observation": it.get("observation"),
                     "recommendation": it.get("recommendation"),
-                    "severity": it.get("severity", "info"),
+                    "severity": _normalize_severity(it.get("severity")),
                     "metric_value": it.get("metric_value"),
                     "baseline_value": it.get("baseline_value"),
                     "variance_pct": it.get("variance_pct"),

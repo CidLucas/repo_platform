@@ -2598,28 +2598,30 @@ async def _crawl_competitor_pages(inputs: dict, client_id: str) -> dict:
 )
 async def _get_sales_performance(inputs: dict, client_id: str) -> dict:
     """
-    EST-01: Read v_series_temporal, v_resumo_dashboard, v_distribuicao_regional
+    EST-01: Read mv_series_temporal, mv_resumo_dashboard, mv_distribuicao_regional
     and compute simple linear trend.
+
+    Targets the materialized views directly: the v_* wrappers filter by
+    get_my_client_id(), which is NULL under the service role — they always
+    return zero rows outside a user JWT context.
     """
     from blu_supabase_client import get_supabase_client
-    from datetime import datetime, timedelta, timezone
 
     db = get_supabase_client(use_service_role=True)
-    since_90 = (datetime.now(timezone.utc) - timedelta(days=90)).date().isoformat()
 
     serie_resp, resumo_resp, regional_resp = await asyncio.gather(
         asyncio.to_thread(
             lambda: db.schema("analytics_v2")
-            .table("v_series_temporal")
-            .select("data, receita_liquida, pedidos, ticket_medio")
+            .table("mv_series_temporal")
+            .select("periodo, data_periodo, tipo_grafico, total")
             .eq("client_id", client_id)
-            .gte("data", since_90)
-            .order("data")
+            .in_("tipo_grafico", ["receita", "pedidos"])
+            .order("data_periodo")
             .execute()
         ),
         asyncio.to_thread(
             lambda: db.schema("analytics_v2")
-            .table("v_resumo_dashboard")
+            .table("mv_resumo_dashboard")
             .select("*")
             .eq("client_id", client_id)
             .limit(1)
@@ -2627,8 +2629,8 @@ async def _get_sales_performance(inputs: dict, client_id: str) -> dict:
         ),
         asyncio.to_thread(
             lambda: db.schema("analytics_v2")
-            .table("v_distribuicao_regional")
-            .select("uf, receita_total, pedidos_total")
+            .table("mv_distribuicao_regional")
+            .select("endereco_uf, receita_total, total_pedidos")
             .eq("client_id", client_id)
             .order("receita_total", desc=True)
             .limit(3)
@@ -2636,11 +2638,24 @@ async def _get_sales_performance(inputs: dict, client_id: str) -> dict:
         ),
     )
 
-    serie: list[dict] = serie_resp.data or []
     resumo: dict = (resumo_resp.data or [{}])[0]
     regioes: list[dict] = regional_resp.data or []
 
-    # Simple linear regression on receita_liquida over index
+    # A MV é granular (várias linhas por período) — agrega receita/pedidos por mês
+    monthly: dict[str, dict] = {}
+    for row in serie_resp.data or []:
+        periodo = row.get("periodo")
+        if not periodo:
+            continue
+        bucket = monthly.setdefault(periodo, {"periodo": periodo, "receita_liquida": 0.0, "pedidos": 0.0})
+        key = "receita_liquida" if row.get("tipo_grafico") == "receita" else "pedidos"
+        bucket[key] += float(row.get("total") or 0)
+
+    serie: list[dict] = sorted(monthly.values(), key=lambda r: r["periodo"])[-12:]
+    for r in serie:
+        r["ticket_medio"] = round(r["receita_liquida"] / r["pedidos"], 2) if r["pedidos"] else None
+
+    # Simple linear regression on receita_liquida over month index
     tendencia: dict = {}
     if len(serie) >= 5:
         ys = [float(r.get("receita_liquida") or 0) for r in serie]
@@ -2656,44 +2671,32 @@ async def _get_sales_performance(inputs: dict, client_id: str) -> dict:
         r2 = 1 - ss_res / ss_tot if ss_tot else 0.0
         tendencia = {"slope": round(slope, 2), "r2": round(r2, 3)}
 
-    # Top 5 products — v_top_produtos may not exist on all tenants
-    try:
-        top_produtos_resp = await asyncio.to_thread(
-            lambda: db.schema("analytics_v2")
-            .table("v_top_produtos")
-            .select("nome_produto, receita_total, pedidos_total")
-            .eq("client_id", client_id)
-            .order("receita_total", desc=True)
-            .limit(5)
-            .execute()
-        )
-        top_produtos: list[dict] = top_produtos_resp.data or []
-    except Exception:
-        top_produtos = []
+    # Top produtos: não há MV dedicada; derivável de fact_pedidos no futuro
+    top_produtos: list[dict] = []
 
-    receita_atual = float(resumo.get("receita_liquida_mtd") or 0)
-    receita_ant = float(resumo.get("receita_liquida_mes_anterior") or 0)
+    receita_atual = float(resumo.get("receita_mes_atual") or 0)
+    receita_ant = float(serie[-2]["receita_liquida"]) if len(serie) >= 2 else 0.0
     variacao = ((receita_atual - receita_ant) / receita_ant * 100) if receita_ant else 0.0
 
     kpi_resumo = {
         "receita_atual": receita_atual,
         "receita_anterior": receita_ant,
         "variacao_pct": round(variacao, 1),
-        "pedidos_mes": resumo.get("total_pedidos_mtd"),
+        "pedidos_mes": (serie[-1]["pedidos"] if serie else None),
     }
 
     arrow = "▲" if variacao > 0 else "▼" if variacao < 0 else "→"
     summary_lines = [
-        f"**📊 Desempenho de Vendas (90 dias):**",
-        f"Receita MTD: R$ {receita_atual:,.0f} {arrow}{abs(variacao):.1f}% vs mês ant.",
+        f"**📊 Desempenho de Vendas ({len(serie)} meses):**",
+        f"Receita mês atual: R$ {receita_atual:,.0f} {arrow}{abs(variacao):.1f}% vs mês ant.",
     ]
     if tendencia:
         trend_dir = "crescente" if tendencia["slope"] > 0 else "decrescente"
-        summary_lines.append(f"Tendência {trend_dir} (slope={tendencia['slope']:+.1f}/dia, R²={tendencia['r2']:.2f})")
+        summary_lines.append(f"Tendência {trend_dir} (slope={tendencia['slope']:+.1f}/mês, R²={tendencia['r2']:.2f})")
     if top_produtos:
         summary_lines.append(f"Top produto: {top_produtos[0].get('nome_produto', 'N/A')}")
     if regioes:
-        summary_lines.append(f"Região líder: {regioes[0].get('uf', 'N/A')}")
+        summary_lines.append(f"Região líder: {regioes[0].get('endereco_uf', 'N/A')}")
 
     logger.info(
         "[routine_fn] get_sales_performance: client=%s serie=%d slope=%.2f",

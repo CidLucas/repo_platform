@@ -9,19 +9,19 @@ import RColResizeHandle from '../../components/shared/RColResizeHandle'
 // ── Static agent catalog ────────────────────────────────────────────────────
 
 const AGENT_CATALOG = [
-  { slug: 'compras',    icon: '🛒', name: 'Compras',    color: '#818cf8' },
-  { slug: 'financeiro', icon: '📊', name: 'Financeiro', color: '#34d399' },
-  { slug: 'agenda',     icon: '📅', name: 'Agenda',     color: '#fb923c' },
-  { slug: 'documentos', icon: '✍️', name: 'Documentos', color: '#f472b6' },
-  { slug: 'estrategia', icon: '🎯', name: 'Estratégia', color: '#fbbf24' },
-  { slug: 'clientes',   icon: '👥', name: 'Clientes',   color: '#2dd4bf' },
+  { slug: 'compras',    icon: '🛒', name: 'Compras',    color: 'var(--blue3)' },
+  { slug: 'financeiro', icon: '📊', name: 'Financeiro', color: 'var(--teal)' },
+  { slug: 'agenda',     icon: '📅', name: 'Agenda',     color: 'var(--orange)' },
+  { slug: 'documentos', icon: '✍️', name: 'Documentos', color: 'var(--pink)' },
+  { slug: 'estrategia', icon: '🎯', name: 'Estratégia', color: 'var(--yellow)' },
+  { slug: 'clientes',   icon: '👥', name: 'Clientes',   color: 'var(--teal)' },
 ]
 
 const KIND_COLOR: Record<string, string> = {
-  agent_session: '#818cf8',
-  ingestion:     '#34d399',
-  rfq:           '#fbbf24',
-  upload:        '#f472b6',
+  agent_session: 'var(--blue3)',
+  ingestion:     'var(--teal)',
+  rfq:           'var(--yellow)',
+  upload:        'var(--pink)',
 }
 
 const SEVERITY_BADGE: Record<string, { label: string; st: string }> = {
@@ -58,7 +58,7 @@ function urgentItems(approvals: ApprovalRequest[]): ApprovalRequest[] {
 
 function ActivityRow({ e }: { e: RecentActivityItem }) {
   const badge = SEVERITY_BADGE[e.severity] ?? { label: e.severity, st: '' }
-  const color = KIND_COLOR[e.kind] ?? '#94a3b8'
+  const color = KIND_COLOR[e.kind] ?? 'var(--mu)'
   return (
     <div style={{ display: 'flex', gap: 10, padding: '10px 13px', borderBottom: '1px solid var(--gb)', cursor: 'pointer', transition: 'background .1s' }}
       onMouseEnter={el => (el.currentTarget.style.background = 'rgba(255,255,255,.025)')}

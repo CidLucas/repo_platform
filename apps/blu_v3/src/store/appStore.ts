@@ -11,6 +11,7 @@ export type Screen =
   | 'admin'
   | 'biblioteca'
   | 'blu_ops'
+  | 'documentos'
 
 export type ToastType = 'ok' | 'no' | 'sn'
 
@@ -70,7 +71,7 @@ const SCREEN_LABELS: Record<Screen, string> = {
   home: 'Início', compras: 'Compras', financeiro: 'Financeiro',
   agenda: 'Agenda', estrategia: 'Estratégia',
   clientes: 'Clientes', atividade: 'Atividade', admin: 'Admin',
-  biblioteca: 'Biblioteca', blu_ops: 'BluOps',
+  biblioteca: 'Biblioteca', blu_ops: 'BluOps', documentos: 'Documentos',
 }
 
 const VALID_SCREENS = new Set<string>(Object.keys(SCREEN_LABELS))

@@ -65,16 +65,6 @@ function parseCronExpression(expr: string) {
   }
 }
 
-const inputStyle = {
-  background: 'rgba(0,0,0,.3)',
-  border: '1px solid var(--gb)',
-  borderRadius: 5,
-  padding: '4px 8px',
-  fontSize: 11,
-  color: 'inherit',
-  fontFamily: 'var(--mono)',
-} as const
-
 // ─── Schema field renderer ────────────────────────────────────────────────────
 
 function DictField({
@@ -123,17 +113,19 @@ function DictField({
         <div key={i} style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
           <input
             type="text"
+            className="input"
             placeholder="Nome"
             value={key}
             onChange={e => updateKey(key, e.target.value)}
-            style={{ ...inputStyle, flex: 1 }}
+            style={{ flex: 1 }}
           />
           <input
             type="text"
+            className="input"
             placeholder="https://..."
             value={val}
             onChange={e => updateValue(key, e.target.value)}
-            style={{ ...inputStyle, flex: 2 }}
+            style={{ flex: 2 }}
           />
           <button
             className="btn bs"
@@ -181,7 +173,7 @@ function SchemaField({
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: 11, color: 'var(--mu)', flex: 1 }}>{field.label}</span>
-        <select value={String(current ?? '')} onChange={e => onChange(e.target.value)} style={inputStyle}>
+        <select className="input" value={String(current ?? '')} onChange={e => onChange(e.target.value)}>
           {field.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       </div>
@@ -194,9 +186,10 @@ function SchemaField({
         <span style={{ fontSize: 11, color: 'var(--mu)', flex: 1 }}>{field.label}</span>
         <input
           type="number"
+          className="input"
           value={String(current ?? '')}
           onChange={e => onChange(Number(e.target.value))}
-          style={{ ...inputStyle, width: 70 }}
+          style={{ width: 70 }}
         />
       </div>
     )
@@ -207,9 +200,10 @@ function SchemaField({
       <span style={{ fontSize: 11, color: 'var(--mu)', flex: 1 }}>{field.label}</span>
       <input
         type="text"
+        className="input"
         value={String(current ?? '')}
         onChange={e => onChange(e.target.value)}
-        style={{ ...inputStyle, flex: 1, maxWidth: 160 }}
+        style={{ flex: 1, maxWidth: 160 }}
       />
     </div>
   )
@@ -491,7 +485,7 @@ function CustomRoutineRow({
 }) {
   const statusColor: Record<string, string> = {
     active: 'var(--ok)', inactive: 'var(--mu)',
-    pending_approval: '#fbbf24', draft: 'var(--mu)',
+    pending_approval: 'var(--yellow)', draft: 'var(--mu)',
   }
   const statusLabel: Record<string, string> = {
     active: 'Ativa', inactive: 'Inativa',
@@ -506,7 +500,7 @@ function CustomRoutineRow({
             {routine.name}
           </span>
           {routine.created_by_ai && (
-            <span style={{ fontSize: 9.5, color: '#818cf8', background: 'rgba(129,140,248,.12)', borderRadius: 4, padding: '1px 5px', flexShrink: 0 }}>✦ IA</span>
+            <span style={{ fontSize: 9.5, color: 'var(--blue3)', background: 'rgba(129,140,248,.12)', borderRadius: 4, padding: '1px 5px', flexShrink: 0 }}>✦ IA</span>
           )}
         </div>
         <div style={{ fontSize: 10.5, color: 'var(--mu)', marginTop: 2 }}>
@@ -637,10 +631,11 @@ function TriggerConfig({
             <div style={{ fontSize: 9.5, color: 'var(--mu)', marginBottom: 2, fontStyle: 'italic' }}>{field.description}</div>
             <input
               type={field.type === 'int' || field.type === 'float' ? 'number' : 'text'}
+              className="input"
               value={val}
               placeholder={String(field.default ?? '')}
               onChange={e => onChange(triggerType, { ...triggerConfig, [field.key]: e.target.value })}
-              style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }}
+              style={{ width: '100%' }}
             />
           </div>
         )
@@ -674,10 +669,11 @@ function InputsPanel({
           <div style={{ fontSize: 9.5, color: 'var(--mu)', fontStyle: 'italic', marginBottom: 2 }}>{p.description}</div>
           <input
             type="text"
+            className="input"
             value={values[p.key] ?? String(p.default ?? '')}
             placeholder={p.default != null ? String(p.default) : `{{${p.key}}}`}
             onChange={e => onChange({ ...values, [p.key]: e.target.value })}
-            style={{ ...inputStyle, width: '100%', boxSizing: 'border-box', fontSize: 10.5 }}
+            style={{ width: '100%' }}
           />
         </div>
       ))}
@@ -721,10 +717,11 @@ function StepCard({
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: 10, color: 'var(--mu)', minWidth: 18, fontFamily: 'var(--mono)' }}>{step.step}.</span>
         <input
+          className="input"
           placeholder="Rótulo (opcional)"
           value={step.label}
           onChange={e => up({ label: e.target.value })}
-          style={{ ...inputStyle, flex: 1, fontSize: 10.5 }}
+          style={{ flex: 1 }}
         />
         {canRemove && (
           <button className="btn bs" style={{ fontSize: 10, padding: '2px 7px' }} onClick={onRemove}>✕</button>
@@ -762,9 +759,9 @@ function StepCard({
       {step.type === 'function' && (
         <>
           <select
+            className="input"
             value={step.fn}
             onChange={e => up({ fn: e.target.value, inputs: {} })}
-            style={{ ...inputStyle, width: '100%' }}
           >
             <option value="">Selecione uma função…</option>
             {functions.map(f => (
@@ -797,9 +794,9 @@ function StepCard({
       {step.type === 'skill' && (
         <>
           <select
+            className="input"
             value={step.skill_slug}
             onChange={e => up({ skill_slug: e.target.value })}
-            style={{ ...inputStyle, width: '100%' }}
           >
             <option value="">Selecione um agente ou skill…</option>
             <optgroup label="Agentes">
@@ -818,19 +815,21 @@ function StepCard({
           )}
           <div style={{ fontSize: 10, color: 'var(--mu)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Tarefa</div>
           <textarea
+            className="input"
             value={step.task_template}
             onChange={e => up({ task_template: e.target.value })}
             placeholder="Descreva o que o agente deve fazer. Use {{chave}} para referenciar saídas de passos anteriores."
             rows={4}
-            style={{ ...inputStyle, width: '100%', boxSizing: 'border-box', resize: 'vertical', lineHeight: 1.5 }}
+            style={{ width: '100%', resize: 'vertical', lineHeight: 1.5 }}
           />
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 10, color: 'var(--mu)', whiteSpace: 'nowrap' }}>Salvar resultado em:</span>
             <input
+              className="input"
               value={step.output_key}
               onChange={e => up({ output_key: e.target.value })}
               placeholder="chave (ex: insights)"
-              style={{ ...inputStyle, flex: 1, fontFamily: 'var(--mono)', fontSize: 10.5 }}
+              style={{ flex: 1, fontFamily: 'var(--mono)' }}
             />
           </div>
           {step.output_key && (
@@ -848,9 +847,9 @@ function StepCard({
       {step.type === 'artifact' && (
         <>
           <select
+            className="input"
             value={step.fn}
             onChange={e => up({ fn: e.target.value, inputs: {} })}
-            style={{ ...inputStyle, width: '100%' }}
           >
             <option value="">Selecione uma ação…</option>
             {artifacts.map(a => (
@@ -977,8 +976,8 @@ function QuickBuilder({
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ fontSize: 12, fontWeight: 600 }}>Nova rotina</div>
 
-      <input placeholder="Nome *" value={name} onChange={e => setName(e.target.value)} style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
-      <input placeholder="Descrição (opcional)" value={desc} onChange={e => setDesc(e.target.value)} style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
+      <input className="input" placeholder="Nome *" value={name} onChange={e => setName(e.target.value)} />
+      <input className="input" placeholder="Descrição (opcional)" value={desc} onChange={e => setDesc(e.target.value)} />
 
       {/* Trigger */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1117,9 +1116,9 @@ function GlobalConfigPanel({ domain }: { domain: string }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 11, color: 'var(--mu)', flex: 1 }}>Canal de notificação</span>
             <select
+              className="input"
               value={String(get('notification_channel', 'email'))}
               onChange={e => update('notification_channel', e.target.value)}
-              style={inputStyle}
             >
               {NOTIFICATION_CHANNELS.map(o => (
                 <option key={o.value} value={o.value}>{o.label}</option>
@@ -1131,9 +1130,9 @@ function GlobalConfigPanel({ domain }: { domain: string }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 11, color: 'var(--mu)', flex: 1 }}>Janela de execução — início</span>
             <select
+              className="input"
               value={String(get('execution_window_start', '00'))}
               onChange={e => update('execution_window_start', e.target.value)}
-              style={inputStyle}
             >
               {HOURS_00_23.map(h => <option key={h} value={h}>{h}</option>)}
             </select>
@@ -1143,9 +1142,9 @@ function GlobalConfigPanel({ domain }: { domain: string }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 11, color: 'var(--mu)', flex: 1 }}>Janela de execução — fim</span>
             <select
+              className="input"
               value={String(get('execution_window_end', '23'))}
               onChange={e => update('execution_window_end', e.target.value)}
-              style={inputStyle}
             >
               {HOURS_00_23.map(h => <option key={h} value={h}>{h}</option>)}
             </select>
@@ -1156,10 +1155,11 @@ function GlobalConfigPanel({ domain }: { domain: string }) {
             <span style={{ fontSize: 11, color: 'var(--mu)', flex: 1 }}>Máx. rotinas paralelas</span>
             <input
               type="number"
+              className="input"
               min={1}
               value={String(get('max_parallel_routines', 3))}
               onChange={e => update('max_parallel_routines', Number(e.target.value))}
-              style={{ ...inputStyle, width: 70 }}
+              style={{ width: 70 }}
             />
           </div>
 

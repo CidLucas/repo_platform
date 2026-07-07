@@ -74,7 +74,7 @@ export default function RoutinePreviewCard({
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: 13, fontWeight: 700 }}>{name}</span>
             {createdByAi && (
-              <span style={{ fontSize: 9.5, color: '#818cf8', background: 'rgba(129,140,248,.12)', borderRadius: 4, padding: '1px 5px' }}>
+              <span style={{ fontSize: 9.5, color: 'var(--blue3)', background: 'rgba(129,140,248,.12)', borderRadius: 4, padding: '1px 5px' }}>
                 ✦ IA
               </span>
             )}

@@ -33,7 +33,6 @@ export default function AppShell() {
   const { clientId, tier } = useAuth()
   const { data: myRole } = useMyRole()
   const [editorOpen, setEditorOpen] = useState(false)
-  const [editorDoc, setEditorDoc] = useState('Proposta — Cliente Central')
   const [connectionsOpen, setConnectionsOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   // Initialize from unscoped key for instant first paint; useEffect below re-reads the scoped key
@@ -98,11 +97,6 @@ export default function AppShell() {
       } catch {}
       return next
     })
-  }
-
-  const openEditor = (docName: string) => {
-    setEditorDoc(docName)
-    setEditorOpen(true)
   }
 
   const on = (s: Screen) => screen === s ? ' on' : ''
@@ -202,7 +196,7 @@ export default function AppShell() {
 
       <EditorOverlay
         open={editorOpen}
-        docName={editorDoc}
+        docName={'Proposta — Cliente Central'}
         onClose={() => setEditorOpen(false)}
       />
       <ToastContainer />

@@ -90,10 +90,10 @@ function KpiGrid({ data }: { data: Record<string, unknown> }) {
             }}>
               {Object.entries(kpis).map(([key, val]) => (
                 <div key={key} style={{
-                  background: 'rgba(255,255,255,0.055)',
+                  background: 'color-mix(in srgb, var(--fg) 5.5%, transparent)',
                   borderRadius: 8,
                   padding: '7px 9px',
-                  border: '1px solid rgba(255,255,255,0.07)',
+                  border: '1px solid var(--gl2)',
                 }}>
                   <div style={{
                     fontSize: 9,
@@ -156,7 +156,7 @@ function DataTable({ data }: { data: Record<string, unknown>[] }) {
                 fontSize: 10,
                 textTransform: 'uppercase',
                 letterSpacing: '0.3px',
-                borderBottom: '1px solid rgba(255,255,255,0.07)',
+                borderBottom: '1px solid var(--gl2)',
                 whiteSpace: 'nowrap',
               }}>
                 {col.replace(/_/g, ' ')}
@@ -223,7 +223,7 @@ function ChartBlock({ data }: { data: Record<string, unknown> }) {
             data={chartData}
             width={260}
             height={140}
-            color="#8C5FDB"
+            color="var(--ac)"
             gradient
             showDots
             showLabels
@@ -243,10 +243,10 @@ function ChartBlock({ data }: { data: Record<string, unknown> }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '5px 0' }}>
         {numericKeys.map(([key, arr]) => (
           <div key={key} style={{
-            background: 'rgba(255,255,255,0.055)',
+            background: 'color-mix(in srgb, var(--fg) 5.5%, transparent)',
             borderRadius: 8,
             padding: '6px 10px',
-            border: '1px solid rgba(255,255,255,0.07)',
+            border: '1px solid var(--gl2)',
             display: 'flex',
             alignItems: 'center',
             gap: 10,
@@ -258,7 +258,7 @@ function ChartBlock({ data }: { data: Record<string, unknown> }) {
               data={arr as number[]}
               width={100}
               height={20}
-              color="#8C5FDB"
+              color="var(--ac)"
             />
             <div style={{ fontSize: 10, color: 'var(--mu2)', fontFamily: 'var(--mono, monospace)', marginLeft: 'auto' }}>
               {(arr as number[])[(arr as number[]).length - 1]?.toLocaleString()}
@@ -276,7 +276,7 @@ function ChartBlock({ data }: { data: Record<string, unknown> }) {
 function KeyValueCard({ data }: { data: Record<string, unknown> }) {
   return (
     <div style={{
-      background: 'rgba(255,255,255,0.055)',
+      background: 'color-mix(in srgb, var(--fg) 5.5%, transparent)',
       borderRadius: 8,
       border: '1px solid rgba(255,255,255,0.09)',
       padding: 10,
@@ -362,7 +362,7 @@ function NestedRenderer({ data }: { data: Record<string, unknown> }) {
               {allScalar ? (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 }}>
                   {Object.entries(inner).map(([k, v]) => (
-                    <div key={k} style={{ background: 'rgba(255,255,255,0.055)', borderRadius: 8, padding: '7px 9px', border: '1px solid rgba(255,255,255,0.07)' }}>
+                    <div key={k} style={{ background: 'color-mix(in srgb, var(--fg) 5.5%, transparent)', borderRadius: 8, padding: '7px 9px', border: '1px solid var(--gl2)' }}>
                       <div style={{ fontSize: 9, color: 'var(--mu)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 2 }}>
                         {k.replace(/_/g, ' ')}
                       </div>
@@ -431,7 +431,7 @@ function FormattedText({ text }: { text: string }) {
         }
         // Separator
         if (line.match(/^[-*_]{3,}$/)) {
-          return <hr key={i} style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.08)', margin: '6px 0' }} />
+          return <hr key={i} style={{ border: 'none', borderTop: '1px solid var(--gb)', margin: '6px 0' }} />
         }
         // Empty
         if (line.trim() === '') {

@@ -40,8 +40,8 @@ function formatDate(iso: string) {
 
 
 const DOT_COLORS: Record<string, string> = {
-  approval: '#fb923c',
-  calendar: '#818cf8',
+  approval: 'var(--orange)',
+  calendar: 'var(--blue3)',
 }
 
 export default function AgendaRoom() {
@@ -192,7 +192,7 @@ export default function AgendaRoom() {
                     <div key={ev.id} className={['dc', isExpanded ? 'expanded' : ''].filter(Boolean).join(' ')} id={ev.id}>
                       <div className="dc-row" onClick={() => toggleHojeDc(ev.id)}>
                         <span className="ev-time">{formatTime(ev.start_at)}</span>
-                        <div className="ev-dot" style={{ background: DOT_COLORS[ev.agenda_source] ?? '#818cf8' }} />
+                        <div className="ev-dot" style={{ background: DOT_COLORS[ev.agenda_source] ?? 'var(--blue3)' }} />
                         <span className="dc-row-summary">{ev.title}</span>
                         {ev.agenda_source === 'approval' && (
                           <span className="bdg bw">Pendente</span>
@@ -281,7 +281,7 @@ export default function AgendaRoom() {
         <div className="rcol">
           <RColResizeHandle />
 
-          <CollapsiblePanel id="agenda-calendarios" icon="📆" title="Calendários" style={{ minHeight: 180 }} action={<button className="ph-add">＋</button>}>
+          <CollapsiblePanel id="agenda-calendarios" icon="📆" title="Calendários" action={<button className="ph-add">＋</button>}>
             <div className="dr-sec">
                 <div className="dr-ttl">Hoje</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 6 }}>
@@ -291,7 +291,7 @@ export default function AgendaRoom() {
                       <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--mu)', width: 34, flexShrink: 0 }}>
                         {formatTime(ev.start_at)}
                       </span>
-                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: DOT_COLORS[ev.agenda_source] ?? '#818cf8', flexShrink: 0 }} />
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: DOT_COLORS[ev.agenda_source] ?? 'var(--blue3)', flexShrink: 0 }} />
                       <span style={{ fontSize: 11, color: 'var(--mu2)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {ev.title}
                       </span>

@@ -32,7 +32,7 @@ export default function ConnectionsModal({ open, onClose }: ConnectionsModalProp
           style={{
             width: '100%', maxWidth: 480,
             background: 'rgba(8,18,48,0.92)',
-            border: '1px solid rgba(255,255,255,0.08)',
+            border: '1px solid var(--gb)',
             borderRadius: 14,
             backdropFilter: 'blur(16px)',
             padding: '28px 28px 24px',
@@ -50,34 +50,22 @@ export default function ConnectionsModal({ open, onClose }: ConnectionsModalProp
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             {CONN_OPTIONS.map(opt => (
-              <div
+              <button
                 key={opt.id}
                 onClick={onClose}
-                className="conn-opt-item"
+                className="btn btn-ghost"
                 style={{
-                  background: 'rgba(255,255,255,0.045)',
-                  border: '1.5px solid rgba(255,255,255,0.08)',
-                  borderRadius: 8, padding: '14px 12px', textAlign: 'center',
-                  cursor: 'pointer', transition: 'all .12s',
-                  fontSize: 12.5, color: 'rgba(232,237,248,0.55)',
-                }}
-                onMouseEnter={e => {
-                  const el = e.currentTarget as HTMLDivElement
-                  el.style.borderColor = '#3B82F6'
-                  el.style.background = 'rgba(59,130,246,0.07)'
-                  el.style.color = '#E8EDF8'
-                }}
-                onMouseLeave={e => {
-                  const el = e.currentTarget as HTMLDivElement
-                  el.style.borderColor = 'rgba(255,255,255,0.08)'
-                  el.style.background = 'rgba(255,255,255,0.045)'
-                  el.style.color = 'rgba(232,237,248,0.55)'
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  padding: '14px 12px',
+                  fontSize: 12.5,
                 }}
               >
                 <span style={{ fontSize: 22, display: 'block', marginBottom: 6 }}>{opt.icon}</span>
-                <div style={{ fontWeight: 600, color: 'inherit' }}>{opt.name}</div>
-                <div style={{ fontSize: 10.5, color: 'rgba(232,237,248,0.38)', marginTop: 2 }}>{opt.sub}</div>
-              </div>
+                <span style={{ fontWeight: 600, color: 'inherit' }}>{opt.name}</span>
+                <span style={{ fontSize: 10.5, color: 'var(--mu)', marginTop: 2 }}>{opt.sub}</span>
+              </button>
             ))}
           </div>
 

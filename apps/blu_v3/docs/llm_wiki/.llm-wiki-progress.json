@@ -1,0 +1,153 @@
+{
+  "rotation_index": 62,
+  "total_ticks": 704,
+  "last_page": "FEATURE_MAP.md",
+  "last_tick_at": "2026-07-07T00:00:00Z",
+  "wiki_path": "docs/llm_wiki",
+  "files_on_disk": 41,
+  "files_in_index": 34,
+  "degraded": false,
+  "cold_start_loss": null,
+  "page_status": {
+    "entities/context-gatherer.md": {
+      "page_sha256": "143bddbe",
+      "last_tick": 663,
+      "broken_links": 0,
+      "note": "Tick 663: 3/3 source zero drift. 13/13 wikilinks + 1/1 md link OK. 7/7 tags OK."
+    },
+    "entities/crm.md": {
+      "page_sha256": "e85cf734",
+      "last_tick": 664,
+      "broken_links": 0,
+      "note": "Tick 664: 4/4 source zero drift. 16/16 wikilinks + 2/2 md links OK. 7/7 tags OK. 205 linhas (>200 borderline)."
+    },
+    "entities/doc-writer.md": {
+      "page_sha256": "061e25da",
+      "last_tick": 662,
+      "broken_links": 0,
+      "note": "Tick 662: 3/3 source zero drift. 13/13 wikilinks + 1/1 md link OK. 7/7 tags OK."
+    },
+    "entities/data-analyst.md": {
+      "page_sha256": "f6e4e8c2",
+      "last_tick": 665,
+      "broken_links": 0,
+      "note": "Tick 665: 2/2 source zero drift. 15/15 wikilinks + 1/1 md link OK. 4/4 tags OK. 157 linhas. Benign page_sha256 drift."
+    },
+    "entities/strategy.md": {
+      "page_sha256": "c8e1919a",
+      "last_tick": 666,
+      "broken_links": 0,
+      "note": "Tick 666: 4/4 source zero drift. 11/11 wikilinks + 1/1 md link OK. 6/6 tags OK. 134 linhas. Benign page_sha256 drift. 2 contradicoes conhecidas persistem."
+    },
+    "entities/fiscal-agent.md": {
+      "page_sha256": "dba1e026",
+      "last_tick": 667,
+      "broken_links": 0,
+      "note": "Tick 667: 4/4 source zero drift. 11/11 wikilinks + 1/1 md link OK. 4/4 tags OK. 106 linhas. entities 12/12 completo."
+    },
+    "entities/platform.md": {
+      "page_sha256": "c266bf35",
+      "last_tick": 651,
+      "broken_links": 15,
+      "note": "Tick 651: cold-start version. Ghost path duplicado. Aguarda re-criacao com repo completo."
+    },
+    "entities/data-entry.md": {
+      "page_sha256": "46474710",
+      "last_tick": 650,
+      "broken_links": 10,
+      "note": "Tick 650: pagina reescrita, frontmatter hardened."
+    },
+    "entities/financeiro.md": {
+      "page_sha256": "106a4c21",
+      "last_tick": 661,
+      "broken_links": 0,
+      "note": "Tick 661: re-audit. Source/hermes zero drift. 8/8 wikilinks + 1/1 md link OK."
+    },
+    "entities/agenda.md": {
+      "page_sha256": "bec93f44",
+      "last_tick": 660,
+      "broken_links": 0,
+      "note": "Tick 660: re-audit. Source 766e3dc4 zero drift. 8/8 wikilinks + 1/1 md link OK. Tags 5/5. 138 linhas. 0 contradicoes."
+    },
+    "entities/compras.md": {
+      "page_sha256": "b8fb7075",
+      "last_tick": 659,
+      "broken_links": 0,
+      "note": "Tick 659: re-audit. Source/Hermes zero drift. 14/14 wikilinks + 1/1 md link OK. Tags 7/7. 176 linhas. Clean pass."
+    },
+    "entities/frontdesk.md": {
+      "page_sha256": "7bd84ac6",
+      "last_tick": 658,
+      "broken_links": 0,
+      "note": "Tick 658: re-audit. Sources zero drift. 11/11 wikilinks + 1/1 md link OK. Tags 6/6. 109 linhas. Clean pass."
+    },
+    "TOOL_INVENTORY.md": {
+      "page_sha256": "adfcfa74",
+      "last_tick": 702,
+      "broken_links": 0,
+      "note": "Tick 702: re-audit (rot=62, main 5/10). Source 170bc9bb zero drift. 29/29 wikilinks + 1 md link OK. Tags 6/6. 328 linhas (>200, flag mantida). 0 contradicoes novas. body_sha256 0a04df08 baseline. page_sha256 drift (frontmatter update). Clean pass."
+    },
+    "ROUTINES_SYSTEM.md": {
+      "page_sha256": "63a1ee14",
+      "last_tick": 700,
+      "broken_links": 0,
+      "note": "Tick 700: re-audit (rot=62, main 3/10). Source 5e2b6d50 zero drift. HERMES eddcb9d9. 23/23 wikilinks + 1 md link OK. Tags 6/6. 677 linhas (>200, flag mantida). 0 contradicoes novas; 2 registradas persistem. page_sha256 63a1ee14 (drift benigno -- check_notes accum). body_sha256 d763b0f1 zero drift. Clean pass."
+    },
+    "FEATURE_MAP.md": {
+      "page_sha256": "e6cf99776134528eb22a9ebe993252451ae5295e97c9e73471d18ed66b117696",
+      "last_tick": 704,
+      "broken_links": 0,
+      "note": "Tick 704: re-audit (rot=62, main 7/10). Sources eb7041ad, 766e3dc4, 1222cc13 zero drift. HERMES eddcb9d9. 8/8 wikilinks + 1 md link OK. Tags 7/7. 162 linhas (<200). 1 contradicao persiste (WhatsApp nomenclatura). body SHA 7a5829bc zero drift. Clean pass."
+    },
+    "SKILLS_SYSTEM.md": {
+      "page_sha256": "dde2eaf8",
+      "last_tick": 703,
+      "broken_links": 0,
+      "note": "Tick 703: re-audit (rot=62, main 6/10). Source 1222cc13 zero drift. HERMES eddcb9d9. 25/25 wikilinks + 2/2 md links OK. Tags 5/5. 381 linhas (>200, flag mantida). 4 contradicoes S1-S4 inalteradas. page_sha256 drift (frontmatter update). Clean pass."
+    },
+    "TASK_PLAYBOOKS.md": {
+      "page_sha256": "7d760a4b",
+      "last_tick": 693,
+      "broken_links": 0,
+      "note": "Tick 693: re-audit (rot=61, main 6/10). Source 2025c797 zero drift. HERMES eddcb9d9. 48/48 wikilinks + 1 md link OK. Tags 6/6. 255 linhas (>200, flag mantida). 0 contradicoes. page_sha256 7d760a4b (frontmatter atualizado)."
+    },
+    "SHARED_MEMORY_DESIGN.md": {
+      "page_sha256": "9311caa1",
+      "last_tick": 694,
+      "broken_links": 1,
+      "note": "Tick 694: re-audit (rot=61, main 7/10). Sources zero drift. 2/3 md links OK, 1 broken (roadmap/blu-intelligent-memory.md). 988 linhas (>>200). Tags 5/5. 0 contradicoes. page_sha256 072c80d2->9311caa1 (drift benigno)."
+    },
+    "SHARED_MEMORY_GAPS.md": {
+      "page_sha256": "e3034a0a",
+      "last_tick": 695,
+      "broken_links": 0,
+      "note": "Tick 695: re-audit (rot=61, main 8/10). Source SHARED_MEMORY_DESIGN body SHA 072c80d2 zero drift. HERMES eddcb9d9. 5/5 wikilinks. Tags 5/5 na taxonomia. 250 linhas (=200, flag mantida). 0 contradicoes. page_sha256 e3034a0a (body intacto, frontmatter atualizado). Clean pass."
+    },
+    "ONBOARDING.md": {
+      "page_sha256": "629b4883",
+      "last_tick": 696,
+      "broken_links": 0,
+      "note": "Tick 696: re-audit (rot=61, main 9/10). System ref sources zero drift. 7/7 wikilinks + 1 md link OK. Tags 5/5. 199 linhas (<200). 0 contradicoes. Body SHA b67452da (zero drift desde tick 655). Clean pass."
+    },
+    "overview.md": {
+      "page_sha256": "be45ffc1",
+      "last_tick": 697,
+      "broken_links": 0,
+      "note": "Tick 697: re-audit (rot=61, main 10/10). Source AGENT_SYSTEM 766e3dc4 zero drift. HERMES eddcb9d9. 10/10 wikilinks + 4/4 md links OK. Tags 3/3. 95 linhas (<200). Body SHA 0d38e0f7. 0 contradicoes. Wrap rotation 61->62."
+    },
+    "AGENT_SYSTEM.md": {
+      "page_sha256": "931ef262058317747853e21f0aa346d21b9f73dc1927b79c8d5ec0922bc72e5e",
+      "last_tick": 698,
+      "broken_links": 0,
+      "note": "Tick 698: re-audit (rot=62, main 1/10). Source 766e3dc4 zero drift. HERMES eddcb9d9. 30/30 wikilinks + 3/3 md links OK. Tags 5/5. 276 linhas (>200, split pending). 0 contradicoes. Clean pass."
+    },
+    "index.md": {
+      "note": "Navigation hub — 34 pages indexed, 41 files on disk"
+    },
+    "log.md": {
+      "note": "Active — continuation from log-2026.md"
+    }
+  },
+  "next_page": "TASK_PLAYBOOKS.md",
+  "notes": "Tick 704: FEATURE_MAP.md re-auditado (rot=62, main 7/10). Sources eb7041ad, 766e3dc4, 1222cc13 zero drift. HERMES eddcb9d9. 8/8 wikilinks + 1 md link OK. Tags 7/7. 162 linhas (<200). 1 contradicao persiste (WhatsApp nomenclatura). body SHA 7a5829bc zero drift. Clean pass -> next_page=TASK_PLAYBOOKS.md (rotation 62, main 8/10 pending)."
+}

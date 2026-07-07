@@ -44,6 +44,17 @@
   --chart-7: #14B8A6;
   --chart-8: #8B5CF6;
 
+  /* design-system spec tokens — acento extendido */
+  --ac-hi:    #a07ae8;
+  --ac-grad:  linear-gradient(135deg,#7E5CC8,#3A80D4);
+
+  /* design-system spec tokens — paleta de agentes/salas (seção 1.3) */
+  --pink:     #f472b6;
+  --teal:     #2dd4bf;
+  --yellow:   #fbbf24;
+  --orange:   #fb923c;
+  --violet:   #a78bfa;
+
   /* shadows */
   --shadow-1: 0 2px 14px rgba(0,0,0,.28);
   --shadow-2: 0 4px 22px rgba(0,0,0,.36);
@@ -74,6 +85,10 @@ body.light {
   --surface: rgba(255,255,255,0.82);
   --muted:   rgba(17,24,39,0.42);
   --muted2:  rgba(17,24,39,0.62);
+
+  /* design-system spec tokens — acento extendido */
+  --ac-hi:    #7C3AED;
+  --ac-grad:  linear-gradient(135deg,#6D28D9,#3A80D4);
 }
 body.light::before {
   background: radial-gradient(ellipse 70% 55% at 18% -5%,rgba(109,40,217,.07) 0%,transparent 100%),

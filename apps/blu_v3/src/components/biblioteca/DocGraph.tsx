@@ -46,12 +46,12 @@ const H = 520
 
 function statusColor(status: KBDocument['status']): string {
   switch (status) {
-    case 'completed':        return '#22c55e'
-    case 'processing':       return '#f59e0b'
-    case 'pending':          return '#94a3b8'
-    case 'failed':           return '#ef4444'
-    case 'partially_failed': return '#f97316'
-    default:                 return '#94a3b8'
+    case 'completed':        return 'var(--ok)'
+    case 'processing':       return 'var(--att)'
+    case 'pending':          return 'var(--mu)'
+    case 'failed':           return 'var(--urg)'
+    case 'partially_failed': return 'var(--orange)'
+    default:                 return 'var(--mu)'
   }
 }
 
@@ -70,13 +70,13 @@ export default function DocGraph({ documents, onSelectDocument }: DocGraphProps)
     const catList = KB_CATEGORIES.filter(c => grouped.has(c.value))
     if (grouped.has(null)) {
       // Categoria "sem categoria" exibida no canto inferior direito.
-      catList.push({ value: '__sem_cat__', label: 'Sem categoria' } as typeof catList[number])
+      catList.push({ value: '__sem_cat__', label: 'Sem categoria' } as unknown as typeof catList[number])
     }
 
     const cats: CatNode[] = catList.map((c, i) => {
       const angle = (i / Math.max(1, catList.length)) * Math.PI * 2 - Math.PI / 2
       const radius = 170
-      const count = grouped.get(c.value === '__sem_cat__' ? null : c.value)?.length ?? 0
+      const count = grouped.get(String(c.value) === '__sem_cat__' ? null : c.value)?.length ?? 0
       return {
         id: `cat:${c.value}`,
         label: c.label,
@@ -88,7 +88,7 @@ export default function DocGraph({ documents, onSelectDocument }: DocGraphProps)
 
     const docs: DocNode[] = []
     catList.forEach((c, ci) => {
-      const catKey = c.value === '__sem_cat__' ? null : c.value
+      const catKey = String(c.value) === '__sem_cat__' ? null : c.value
       const list = grouped.get(catKey) ?? []
       const center = cats[ci]
       list.forEach((d, di) => {

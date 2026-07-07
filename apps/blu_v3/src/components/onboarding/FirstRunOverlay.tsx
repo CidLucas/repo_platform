@@ -142,14 +142,14 @@ export default function FirstRunOverlay({ onOpenConnections }: Props) {
         {/* Header */}
         <div style={{
           padding: '14px 18px',
-          borderBottom: '1px solid rgba(255,255,255,0.08)',
+          borderBottom: '1px solid var(--gb)',
           display: 'flex',
           alignItems: 'center',
           gap: 10,
         }}>
           <div style={{
             width: 32, height: 32, borderRadius: '50%',
-            background: 'linear-gradient(135deg, #7E5CC8, #3A80D4)',
+            background: 'linear-gradient(135deg, var(--ac), var(--blue2))',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 15,
           }}>🤖</div>
@@ -191,7 +191,7 @@ export default function FirstRunOverlay({ onOpenConnections }: Props) {
                 lineHeight: 1.45,
                 alignSelf: m.from === 'bot' ? 'flex-start' : 'flex-end',
                 background: m.from === 'bot'
-                  ? 'rgba(255,255,255,0.07)'
+                  ? 'var(--gl2)'
                   : 'rgba(140,95,219,0.22)',
                 border: m.from === 'bot'
                   ? '1px solid rgba(255,255,255,0.09)'
@@ -211,27 +211,9 @@ export default function FirstRunOverlay({ onOpenConnections }: Props) {
               {activePills.map(p => (
                 <button
                   key={p}
+                  className="btn btn-sm btn-ghost"
                   onClick={() => handlePill(p)}
-                  style={{
-                    padding: '5px 11px',
-                    borderRadius: 12,
-                    background: 'rgba(255,255,255,0.06)',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    fontSize: 12,
-                    color: 'rgba(232,237,248,0.75)',
-                    cursor: 'pointer',
-                    transition: 'all .1s',
-                  }}
-                  onMouseEnter={e => {
-                    ;(e.currentTarget as HTMLButtonElement).style.borderColor = '#8C5FDB'
-                    ;(e.currentTarget as HTMLButtonElement).style.color = '#E8EDF8'
-                    ;(e.currentTarget as HTMLButtonElement).style.background = 'rgba(140,95,219,0.15)'
-                  }}
-                  onMouseLeave={e => {
-                    ;(e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.1)'
-                    ;(e.currentTarget as HTMLButtonElement).style.color = 'rgba(232,237,248,0.75)'
-                    ;(e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)'
-                  }}
+                  style={{ borderRadius: 12 }}
                 >
                   {p}
                 </button>
@@ -241,19 +223,9 @@ export default function FirstRunOverlay({ onOpenConnections }: Props) {
 
           {done && (
             <button
+              className="btn btn-primary"
               onClick={dismiss}
-              style={{
-                marginTop: 8,
-                padding: '10px 16px',
-                borderRadius: 8,
-                background: '#7E5CC8',
-                border: 'none',
-                color: '#fff',
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: 'pointer',
-                width: '100%',
-              }}
+              style={{ width: '100%', marginTop: 8, fontSize: 13 }}
             >
               Entrar no escritório →
             </button>
@@ -264,7 +236,7 @@ export default function FirstRunOverlay({ onOpenConnections }: Props) {
         {!done && (
           <div style={{
             padding: '10px 14px 14px',
-            borderTop: '1px solid rgba(255,255,255,0.08)',
+            borderTop: '1px solid var(--gb)',
             display: 'flex',
             gap: 8,
           }}>
@@ -289,7 +261,7 @@ export default function FirstRunOverlay({ onOpenConnections }: Props) {
               onClick={handleSend}
               style={{
                 width: 32, height: 32, borderRadius: '50%',
-                background: '#7E5CC8', color: '#fff',
+                background: 'var(--ac)', color: '#fff',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 14, border: 'none', cursor: 'pointer', flexShrink: 0,
               }}

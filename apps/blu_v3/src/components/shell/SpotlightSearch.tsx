@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAppStore, type Screen } from '../../store/appStore'
 import { useAuth } from '../../hooks/useAuth'
 import { useMyRole } from '../../hooks/useAdmin'
+import { IconSearch } from '../shared/Icons'
 
 interface SpotlightItem {
   s: Screen
@@ -118,10 +119,7 @@ export default function SpotlightSearch({ open, onClose }: Props) {
           padding: '12px 16px',
           borderBottom: '1px solid var(--gb)',
         }}>
-          <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" style={{ flexShrink: 0, opacity: 0.5 }}>
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.35-4.35" />
-          </svg>
+          <IconSearch size={15} />
           <input
             ref={inputRef}
             value={query}

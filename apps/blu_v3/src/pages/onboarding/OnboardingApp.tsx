@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
+// @ts-expect-error — exceljs has no type declarations bundled nor @types/exceljs
 import ExcelJS from 'exceljs'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth, supabase } from '@blu/auth'
@@ -6,6 +7,7 @@ import { connectGoogleDrive } from '../../api/agenda'
 import { useOnboardingDraft, VERTICAL_MAP, PORTE_MAP, type OnboardingDraft } from '../../hooks/useOnboardingDraft'
 import { createCredential, createBigQueryCredentialWithDiscovery, type ConnectorPlatform, type CredentialPayload, type BigQueryCredentials } from '../../api/connectors'
 import { useAppStore } from '../../store/appStore'
+import { IconCheck } from '../../components/shared/Icons'
 
 // Google Picker API — loaded dynamically via <script>, typed here for the builder chain
 interface GooglePickerDocsView {
@@ -213,9 +215,9 @@ function parseSpreadsheetHeaders(file: File): Promise<{ headers: string[]; sheet
           await wb.xlsx.load(data)
           const MAX_ROWS = 12
           const sheetRows: { name: string; score: number; rowCount: number; rows: unknown[][] }[] =
-            wb.worksheets.map((ws) => {
+            wb.worksheets.map((ws: ExcelJS.Worksheet) => {
               const rows: unknown[][] = []
-              ws.eachRow({ includeEmpty: true }, (row, rowNumber) => {
+              ws.eachRow({ includeEmpty: true }, (row: ExcelJS.Row, rowNumber: number) => {
                 if (rowNumber > MAX_ROWS) return false
                 const values = row.values as unknown[]
                 const arr: unknown[] = []
@@ -508,24 +510,6 @@ function formatCnpj(raw: string): string {
     .replace(/(\d{4})(\d{1,2})$/, '$1-$2')
 }
 
-function deriveVerticalFromCnae(cnae: string): string {
-  if (!cnae) return 'other'
-  const code = cnae.replace(/\D/g, '').padStart(7, '0')
-  const section = code.slice(0, 2)
-  // CNAE section → vertical map
-  if (['10', '11', '12'].includes(section)) return 'food'
-  if (['45', '46', '47'].includes(section)) return 'retail'
-  if (['58', '59', '60', '61', '62', '63'].includes(section)) return 'technology'
-  if (['41', '42', '43'].includes(section)) return 'construction'
-  if (['49', '50', '51', '52', '53'].includes(section)) return 'transport'
-  if (['85'].includes(section)) return 'education'
-  if (['86'].includes(section)) return 'health'
-  if (['24', '25', '26', '27', '28', '29', '30', '31', '32', '33'].includes(section)) return 'industry'
-  if (['64', '65', '66'].includes(section)) return 'financial'
-  if (['01', '02', '03'].includes(section)) return 'agriculture'
-  return 'services'
-}
-
 function StepInfo({
   onNext, onBack, saveDraft,
   initialNome, initialEmpresa, initialWebsite, initialVertical, initialPorte,
@@ -731,11 +715,9 @@ function StepInfo({
           {cnpjEnrichData && (
             <div className="scrape-panel" style={{ margin: '0 0 4px' }}>
               <div className="scrape-h">
-                <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                  <polyline points="20 6 9 17 4 12"/>
-                </svg>
+                <IconCheck size={13} />
                 Dados da Receita Federal
-                <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--green, #16a34a)', background: 'rgba(22, 163, 74, 0.1)', padding: '1px 7px', borderRadius: 20, marginLeft: 6 }}>Confirmado pela Receita</span>
+                <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--green, #16a34a)', background: 'color-mix(in srgb, var(--ok) 10%, transparent)', padding: '1px 7px', borderRadius: 20, marginLeft: 6 }}>Confirmado pela Receita</span>
               </div>
               <div className="scrape-grid">
                 <ScrapeField label="Razão Social" value={cnpjEnrichData.razao_social} delay={0} />
@@ -751,7 +733,6 @@ function StepInfo({
               <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
                 <button
                   className="btn btn-ghost"
-                  style={{ fontSize: 12, padding: '4px 10px' }}
                   onClick={() => {
                     setCnpjEnrichData(null)
                     // Optionally clear auto-filled empresa if user didn't type it
@@ -767,14 +748,12 @@ function StepInfo({
           {siteContext && (
             <div className="scrape-panel" style={{ margin: '0 0 4px' }}>
               <div className="scrape-h">
-                <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                  <polyline points="20 6 9 17 4 12"/>
-                </svg>
+                <IconCheck size={13} />
                 Encontrei sua empresa. Já anotei.
                 {siteContext.confidence >= 0.7 ? (
-                  <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--green, #16a34a)', background: 'rgba(22, 163, 74, 0.1)', padding: '1px 7px', borderRadius: 20, marginLeft: 2 }}>Confiança alta</span>
+                  <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--green, #16a34a)', background: 'color-mix(in srgb, var(--ok) 10%, transparent)', padding: '1px 7px', borderRadius: 20, marginLeft: 2 }}>Confiança alta</span>
                 ) : siteContext.confidence >= 0.3 ? (
-                  <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--amber, #ca8a04)', background: 'rgba(202, 138, 4, 0.1)', padding: '1px 7px', borderRadius: 20, marginLeft: 2 }}>Confiança média</span>
+                  <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--amber, #ca8a04)', background: 'color-mix(in srgb, var(--att) 10%, transparent)', padding: '1px 7px', borderRadius: 20, marginLeft: 2 }}>Confiança média</span>
                 ) : null}
               </div>
 
@@ -799,9 +778,9 @@ function StepInfo({
                   <div key="cnpj" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <ScrapeField label="CNPJ" value={formatCnpj(siteContext.cnpj)} delay={250} />
                     {siteContext.confidence >= 0.7 ? (
-                      <span style={{ color: '#16a34a', background: '#dcfce7', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança alta</span>
+                      <span style={{ color: 'var(--ok)', background: '#dcfce7', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança alta</span>
                     ) : siteContext.confidence >= 0.3 ? (
-                      <span style={{ color: '#ca8a04', background: '#fef9c3', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança média</span>
+                      <span style={{ color: 'var(--att)', background: '#fef9c3', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança média</span>
                     ) : null}
                   </div>
                 )}
@@ -809,9 +788,9 @@ function StepInfo({
                   <div key="telefone" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <ScrapeField label="Telefone" value={siteContext.telefone} delay={500} />
                     {siteContext.confidence >= 0.7 ? (
-                      <span style={{ color: '#16a34a', background: '#dcfce7', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança alta</span>
+                      <span style={{ color: 'var(--ok)', background: '#dcfce7', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança alta</span>
                     ) : siteContext.confidence >= 0.3 ? (
-                      <span style={{ color: '#ca8a04', background: '#fef9c3', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança média</span>
+                      <span style={{ color: 'var(--att)', background: '#fef9c3', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança média</span>
                     ) : null}
                   </div>
                 )}
@@ -826,9 +805,9 @@ function StepInfo({
                   <div key="cnpj" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <ScrapeField label="CNPJ" value={formatCnpj(siteContext.cnpj)} delay={250} />
                     {siteContext.confidence >= 0.7 ? (
-                      <span style={{ color: '#16a34a', background: '#dcfce7', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança alta</span>
+                      <span style={{ color: 'var(--ok)', background: '#dcfce7', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança alta</span>
                     ) : siteContext.confidence >= 0.3 ? (
-                      <span style={{ color: '#ca8a04', background: '#fef9c3', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança média</span>
+                      <span style={{ color: 'var(--att)', background: '#fef9c3', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança média</span>
                     ) : null}
                   </div>
                 )}
@@ -836,9 +815,9 @@ function StepInfo({
                   <div key="telefone" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <ScrapeField label="Telefone" value={siteContext.telefone} delay={500} />
                     {siteContext.confidence >= 0.7 ? (
-                      <span style={{ color: '#16a34a', background: '#dcfce7', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança alta</span>
+                      <span style={{ color: 'var(--ok)', background: '#dcfce7', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança alta</span>
                     ) : siteContext.confidence >= 0.3 ? (
-                      <span style={{ color: '#ca8a04', background: '#fef9c3', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança média</span>
+                      <span style={{ color: 'var(--att)', background: '#fef9c3', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança média</span>
                     ) : null}
                   </div>
                 )}
@@ -867,9 +846,9 @@ function StepInfo({
             <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               Setor *
               {siteContext && siteContext.confidence >= 0.7 ? (
-                <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--green, #16a34a)', background: 'rgba(22, 163, 74, 0.1)', padding: '1px 7px', borderRadius: 20 }}>detectado automaticamente</span>
+                <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--green, #16a34a)', background: 'color-mix(in srgb, var(--ok) 10%, transparent)', padding: '1px 7px', borderRadius: 20 }}>detectado automaticamente</span>
               ) : siteContext && siteContext.confidence >= 0.3 ? (
-                <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--amber, #ca8a04)', background: 'rgba(202, 138, 4, 0.1)', padding: '1px 7px', borderRadius: 20 }}>detectado — confiança média</span>
+                <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--amber, #ca8a04)', background: 'color-mix(in srgb, var(--att) 10%, transparent)', padding: '1px 7px', borderRadius: 20 }}>detectado — confiança média</span>
               ) : null}
             </label>
             <div className="radio-pills">

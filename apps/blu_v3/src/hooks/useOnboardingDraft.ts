@@ -136,7 +136,7 @@ export function useOnboardingDraft(userEmail: string) {
       localStorage.removeItem(DRAFT_KEY(state.authMethod ? (state.email || userEmail || '') : ''))
       localStorage.removeItem(DRAFT_KEY(''))
     } catch {}
-    return data as { client_id: string; agents: number; routines: number }
+    return data as unknown as { client_id: string; agents: number; routines: number; prompts_seeded: number }
   }, [draft, userEmail])
 
   return { draft, updateDraft, saveDraft, bootstrap }

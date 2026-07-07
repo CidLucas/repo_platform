@@ -43,8 +43,8 @@ export default function Topbar({ onToggleTheme, lightMode, onOpenSearch }: Topba
         <svg className="logo-bubble-svg" width="54" height="48" viewBox="0 0 80 72" fill="none" aria-hidden="true">
           <defs>
             <linearGradient id="bluGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#7E5CC8"/>
-              <stop offset="100%" stopColor="#3A80D4"/>
+              <stop offset="0%" stopColor="var(--ac)"/>
+              <stop offset="100%" stopColor="var(--blue2)"/>
             </linearGradient>
             <clipPath id="bluClip">
               <path d="M12,0 H68 Q80,0 80,12 V48 Q80,60 68,60 H26 L12,72 L18,60 H12 Q0,60 0,48 V12 Q0,0 12,0 Z"/>
@@ -54,7 +54,7 @@ export default function Topbar({ onToggleTheme, lightMode, onOpenSearch }: Topba
           <ellipse cx="38" cy="10" rx="26" ry="6" fill="rgba(255,255,255,0.18)"/>
           <g clipPath="url(#bluClip)">
             <path d="M-2,40 Q20,32 40,40 Q60,48 82,40 L82,74 L-2,74 Z" fill="rgba(255,255,255,0.22)"/>
-            <path d="M-2,50 Q20,42 40,50 Q60,58 82,50 L82,74 L-2,74 Z" fill="rgba(255,255,255,0.13)"/>
+            <path d="M-2,50 Q20,42 40,50 Q60,58 82,50 L82,74 L-2,74 Z" fill="var(--gb2)"/>
           </g>
           <text x="40" y="38" textAnchor="middle"
             fontFamily="'Nunito',-apple-system,BlinkMacSystemFont,system-ui,sans-serif"

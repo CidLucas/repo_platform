@@ -5,6 +5,7 @@ import { useAtendenteChat } from '../../hooks/useAtendenteChat'
 import LoadingState from '../shared/LoadingState'
 import Pagination from '../shared/Pagination'
 import SmartRenderer from './SmartRenderer'
+import { IconX } from '../shared/Icons'
 
 function relTime(date: Date): string {
   const diff = (Date.now() - date.getTime()) / 1000
@@ -29,8 +30,8 @@ function BluOrb({ size = 24, working = false }: { size?: number; working?: boole
     >
       <defs>
         <linearGradient id={uid} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#9B72F5" />
-          <stop offset="100%" stopColor="#3A80D4" />
+            <stop offset="0%" stopColor="#9B72F5" />
+            <stop offset="100%" stopColor="var(--blue2)" />
         </linearGradient>
         <clipPath id={`${uid}c`}>
           <path d="M5,0 H25 Q30,0 30,5 V14 Q30,19 25,19 H9 L4,25 L7,19 H5 Q0,19 0,14 V5 Q0,0 5,0 Z" />
@@ -61,14 +62,6 @@ function StopIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="10" /><rect x="9" y="9" width="6" height="6" />
-    </svg>
-  )
-}
-
-function CloseIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M18 6L6 18M6 6l12 12" />
     </svg>
   )
 }
@@ -190,7 +183,7 @@ export default function ChatPanel() {
             flexDirection: 'column',
             background: 'radial-gradient(ellipse 100% 35% at 50% 0%, rgba(140,95,219,0.13) 0%, transparent 100%), rgba(6,10,26,0.97)',
             backdropFilter: 'blur(28px)',
-            border: '1px solid rgba(255,255,255,0.10)',
+            border: '1px solid color-mix(in srgb, var(--fg) 10%, transparent)',
             borderTop: '2px solid rgba(140,95,219,0.55)',
             borderRadius: 14,
             boxShadow: '0 24px 64px rgba(0,0,0,0.65), 0 0 0 0.5px rgba(140,95,219,0.18)',
@@ -204,7 +197,7 @@ export default function ChatPanel() {
             alignItems: 'center',
             gap: 9,
             padding: '11px 13px 10px',
-            borderBottom: '1px solid rgba(255,255,255,0.07)',
+            borderBottom: '1px solid var(--gl2)',
             flexShrink: 0,
             background: 'linear-gradient(180deg, rgba(140,95,219,0.07) 0%, transparent 100%)',
           }}>
@@ -214,12 +207,12 @@ export default function ChatPanel() {
                 Conversar com Blu
               </div>
               {isStreaming && activeToolName ? (
-                <div style={{ fontSize: 10, color: '#8C5FDB', display: 'flex', alignItems: 'center', gap: 3, marginTop: 2 }}>
+                <div style={{ fontSize: 10, color: 'var(--ac)', display: 'flex', alignItems: 'center', gap: 3, marginTop: 2 }}>
                   <WrenchIcon />
                   {activeToolName}
                 </div>
               ) : isStreaming ? (
-                <div style={{ fontSize: 10, color: '#8C5FDB', marginTop: 2, animation: 'chat-orb-pulse 1.4s ease-in-out infinite' }}>
+                <div style={{ fontSize: 10, color: 'var(--ac)', marginTop: 2, animation: 'chat-orb-pulse 1.4s ease-in-out infinite' }}>
                   Processando...
                 </div>
               ) : (
@@ -228,12 +221,10 @@ export default function ChatPanel() {
             </div>
             <button
               onClick={handleClose}
+              className="ibtn"
               aria-label="Fechar chat"
-              style={{ padding: '5px', borderRadius: 6, color: 'var(--mu)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'color .12s, background .12s' }}
-              onMouseEnter={e => { const b = e.currentTarget; b.style.color = 'var(--fg)'; b.style.background = 'var(--glass)' }}
-              onMouseLeave={e => { const b = e.currentTarget; b.style.color = 'var(--mu)';  b.style.background = 'none' }}
             >
-              <CloseIcon />
+              <IconX size={16} />
             </button>
           </div>
 
@@ -294,7 +285,7 @@ export default function ChatPanel() {
                     <div style={{
                       padding: '8px 11px',
                       borderRadius: '0 8px 8px 8px',
-                      background: 'rgba(255,255,255,0.055)',
+                      background: 'color-mix(in srgb, var(--fg) 5.5%, transparent)',
                       border: '1px solid rgba(255,255,255,0.09)',
                       fontSize: 12.5,
                       color: 'var(--mu2)',
@@ -306,7 +297,7 @@ export default function ChatPanel() {
                         display: 'inline-block',
                         width: 2,
                         height: 13,
-                        background: '#8C5FDB',
+                        background: 'var(--ac)',
                         marginLeft: 2,
                         verticalAlign: 'middle',
                         animation: 'chat-orb-pulse 1s ease-in-out infinite',
@@ -325,7 +316,7 @@ export default function ChatPanel() {
           </div>
 
           {/* Input area */}
-          <div style={{ padding: '8px 12px 12px', borderTop: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
+          <div style={{ padding: '8px 12px 12px', borderTop: '1px solid var(--gl2)', flexShrink: 0 }}>
             <div style={{
               display: 'flex',
               alignItems: 'flex-end',
@@ -371,7 +362,7 @@ export default function ChatPanel() {
                     style={{
                       padding: 6,
                       borderRadius: 6,
-                      color: input.trim() ? '#8C5FDB' : 'var(--mu)',
+                      color: input.trim() ? 'var(--ac)' : 'var(--mu)',
                       display: 'flex',
                       opacity: input.trim() ? 1 : 0.4,
                       transition: 'color .12s, opacity .12s',
@@ -428,7 +419,7 @@ function MessageBubble({ role, content, createdAt }: { role: string; content: st
           display: 'inline-block',
           padding: '8px 11px',
           borderRadius: '0 8px 8px 8px',
-          background: 'rgba(255,255,255,0.055)',
+          background: 'color-mix(in srgb, var(--fg) 5.5%, transparent)',
           border: '1px solid rgba(255,255,255,0.09)',
           fontSize: 12.5,
           color: 'var(--mu2)',
@@ -467,7 +458,7 @@ function EmptyState({ onSuggest }: { onSuggest: (q: string) => void }) {
         <defs>
           <linearGradient id="es-g" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#9B72F5" />
-            <stop offset="100%" stopColor="#3A80D4" />
+            <stop offset="100%" stopColor="var(--blue2)" />
           </linearGradient>
           <clipPath id="es-c">
             <path d="M5,0 H25 Q30,0 30,5 V14 Q30,19 25,19 H9 L4,25 L7,19 H5 Q0,19 0,14 V5 Q0,0 5,0 Z" />

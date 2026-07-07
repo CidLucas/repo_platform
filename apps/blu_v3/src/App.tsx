@@ -26,7 +26,7 @@ function ComingSoon({ title }: { title: string }) {
       <div style={{ fontSize: 32, fontWeight: 800 }}>blu</div>
       <div style={{ fontSize: 18, fontWeight: 600 }}>{title}</div>
       <div style={{ color: 'var(--mu, #888)' }}>Página em construção</div>
-      <Link to="/" style={{ marginTop: 8, color: '#7E5CC8', textDecoration: 'none', fontSize: 14 }}>← Voltar</Link>
+      <Link to="/" style={{ marginTop: 8, color: 'var(--ac)', textDecoration: 'none', fontSize: 14 }}>← Voltar</Link>
     </div>
   )
 }

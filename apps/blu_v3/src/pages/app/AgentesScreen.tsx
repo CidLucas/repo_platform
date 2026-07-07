@@ -11,38 +11,38 @@ import type { ClientEnabledAgent, AgentReadiness } from '../../api/agents'
 const AGENT_META: Record<string, { icon: string; color: string; description: string }> = {
   financeiro: {
     icon: '📊',
-    color: '#34d399',
+    color: 'var(--teal)',
     description: 'Monitora fluxo de caixa, conciliações bancárias e alertas financeiros. Conectado ao seu ERP e contas bancárias.',
   },
   compras: {
     icon: '🛒',
-    color: '#818cf8',
+    color: 'var(--blue3)',
     description: 'Gerencia pedidos de compra, aprovações de fornecedores e controle de estoque mínimo.',
   },
   clientes: {
     icon: '👥',
-    color: '#2dd4bf',
+    color: 'var(--teal)',
     description: 'Analisa base de clientes, churn risk, oportunidades de upsell e NPS.',
   },
   estrategia: {
     icon: '🎯',
-    color: '#fbbf24',
+    color: 'var(--yellow)',
     description: 'Consolida KPIs estratégicos, tendências de mercado e análises comparativas (YoY, MoM).',
   },
   documentos: {
     icon: '✍️',
-    color: '#f472b6',
+    color: 'var(--pink)',
     description: 'Cria, revisa e organiza documentos: propostas, contratos, relatórios e comunicações.',
   },
   agenda: {
     icon: '📅',
-    color: '#fb923c',
+    color: 'var(--orange)',
     description: 'Gerencia compromissos, prepara briefings de reunião e acompanha follow-ups.',
   },
 }
 
 function getMeta(slug: string) {
-  return AGENT_META[slug] ?? { icon: '🤖', color: '#94a3b8', description: 'Agente configurável para sua operação.' }
+  return AGENT_META[slug] ?? { icon: '🤖', color: 'var(--mu)', description: 'Agente configurável para sua operação.' }
 }
 
 // ── Readiness badge ───────────────────────────────────────────────────────────

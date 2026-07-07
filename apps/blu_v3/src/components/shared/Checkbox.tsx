@@ -7,6 +7,7 @@ interface CheckboxProps {
   disabled?: boolean
   indeterminate?: boolean
   id?: string
+  className?: string
 }
 
 export default function Checkbox({
@@ -16,6 +17,7 @@ export default function Checkbox({
   disabled,
   indeterminate,
   id,
+  className,
 }: CheckboxProps): React.JSX.Element {
   const uid = id ?? `cb-${Math.random().toString(36).slice(2, 9)}`
   const inputRef = useRef<HTMLInputElement>(null)
@@ -29,7 +31,7 @@ export default function Checkbox({
   return (
     <label
       htmlFor={uid}
-      className={`checkbox${disabled ? ' disabled' : ''}`}
+      className={`checkbox${disabled ? ' disabled' : ''}${className ? ' ' + className : ''}`}
     >
       <input
         ref={inputRef}

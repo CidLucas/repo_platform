@@ -43,7 +43,7 @@ function getNextWorkDays(count = 5): Date[] {
 }
 
 function agentColor(slug: string) {
-  return AGENT_COLORS[slug] ?? '#94a3b8'
+  return AGENT_COLORS[slug] ?? 'var(--mu)'
 }
 
 function formatTime(iso: string) {
@@ -52,8 +52,8 @@ function formatTime(iso: string) {
 
 function routineStatusColor(status: ClientRoutine['status']): string {
   switch (status) {
-    case 'active': return '#34d399'
-    case 'pending_approval': return '#fbbf24'
+    case 'active': return 'var(--teal)'
+    case 'pending_approval': return 'var(--yellow)'
     default: return '#475569'
   }
 }
@@ -111,7 +111,7 @@ function InsightPopover({ ins, anchorRect, onClose, onPrompt }: InsightPopoverPr
         background: 'rgba(8,13,32,0.97)',
         border: '1px solid rgba(140,95,219,0.35)',
         borderRadius: 10,
-        boxShadow: 'var(--shadow-3), 0 0 0 0.5px rgba(140,95,219,0.15)',
+        boxShadow: 'var(--shadow-3), 0 0 0 0.5px var(--adim)',
         backdropFilter: 'blur(24px)',
         padding: '10px 10px 8px',
         animation: 'fi .12s ease-out',

@@ -20,6 +20,8 @@ import { createCredential } from '../../api/connectors'
 import { supabase } from '@blu/auth'
 import type { Integration, AuditEntry } from '../../api/admin'
 import Toggle from '../../components/shared/Toggle'
+import Modal from '../../components/shared/Modal'
+import { IconCheck, IconSearch } from '../../components/shared/Icons'
 
 // Polp institution IDs (from GET /api/v1/institutions — Polp sequential IDs, not bank codes)
 const POLP_INSTITUTIONS = [
@@ -180,8 +182,8 @@ function formatTs(iso: string) {
 }
 
 function agentColor(slug: string | null): string {
-  const MAP: Record<string, string> = { compras: '#818cf8', financeiro: '#34d399', agenda: '#fb923c', documentos: '#f472b6', estrategia: '#fbbf24', clientes: '#2dd4bf' }
-  return (slug && MAP[slug]) ? MAP[slug] : '#94a3b8'
+  const MAP: Record<string, string> = { compras: 'var(--blue3)', financeiro: 'var(--teal)', agenda: 'var(--orange)', documentos: 'var(--pink)', estrategia: 'var(--yellow)', clientes: 'var(--teal)' }
+  return (slug && MAP[slug]) ? MAP[slug] : 'var(--mu)'
 }
 
 
@@ -605,72 +607,56 @@ export default function AdminScreen() {
         })}
 
         {/* Invite modal */}
-        {showInviteModal && (
-          <div
-            style={{ position: 'fixed', inset: 0, background: '#0008', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            onClick={() => setShowInviteModal(false)}
-          >
-            <div
-              style={{ background: 'var(--bg)', borderRadius: 14, padding: 24, width: 320, boxShadow: '0 8px 32px #0004' }}
-              onClick={e => e.stopPropagation()}
-            >
-              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>Adicionar usuário</div>
-
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 11, color: 'var(--mu)', marginBottom: 4 }}>Nome</div>
-                <input
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: 8, border: '1px solid var(--gb)', background: 'var(--sb)', color: 'var(--tx)', fontSize: 12 }}
-                  placeholder="Nome completo"
-                  value={inviteForm.name}
-                  onChange={e => setInviteForm(f => ({ ...f, name: e.target.value }))}
-                />
-              </div>
-
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 11, color: 'var(--mu)', marginBottom: 4 }}>E-mail</div>
-                <input
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: 8, border: '1px solid var(--gb)', background: 'var(--sb)', color: 'var(--tx)', fontSize: 12 }}
-                  placeholder="email@empresa.com"
-                  type="email"
-                  value={inviteForm.email}
-                  onChange={e => setInviteForm(f => ({ ...f, email: e.target.value }))}
-                />
-              </div>
-
-              <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 11, color: 'var(--mu)', marginBottom: 4 }}>Papel</div>
-                <select
-                  style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1px solid var(--gb)', background: 'var(--sb)', color: 'var(--tx)', fontSize: 12 }}
-                  value={inviteForm.role}
-                  onChange={e => setInviteForm(f => ({ ...f, role: e.target.value }))}
-                >
-                  <option value="admin">Admin</option>
-                  <option value="manager">Gerente</option>
-                  <option value="member">Membro</option>
-                </select>
-              </div>
-
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                <button
-                  style={{ padding: '6px 14px', borderRadius: 8, border: '1px solid var(--gb)', background: 'transparent', color: 'var(--mu)', fontSize: 12, cursor: 'pointer' }}
-                  onClick={() => setShowInviteModal(false)}
-                >
-                  Cancelar
-                </button>
-                <button
-                  style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: 'var(--ac)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', opacity: inviteUser.isPending ? 0.6 : 1 }}
-                  disabled={!inviteForm.email || inviteUser.isPending}
-                  onClick={async () => {
-                    await inviteUser.mutateAsync({ email: inviteForm.email, name: inviteForm.name || null, role: inviteForm.role })
-                    setShowInviteModal(false)
-                  }}
-                >
-                  {inviteUser.isPending ? 'Adicionando…' : 'Adicionar'}
-                </button>
-              </div>
-            </div>
+        <Modal open={showInviteModal} onClose={() => setShowInviteModal(false)} title="Adicionar usuário" width="320px">
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 11, color: 'var(--mu)', marginBottom: 4 }}>Nome</div>
+            <input
+              style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: 8, border: '1px solid var(--gb)', background: 'var(--sb)', color: 'var(--tx)', fontSize: 12 }}
+              placeholder="Nome completo"
+              value={inviteForm.name}
+              onChange={e => setInviteForm(f => ({ ...f, name: e.target.value }))}
+            />
           </div>
-        )}
+
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 11, color: 'var(--mu)', marginBottom: 4 }}>E-mail</div>
+            <input
+              style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: 8, border: '1px solid var(--gb)', background: 'var(--sb)', color: 'var(--tx)', fontSize: 12 }}
+              placeholder="email@empresa.com"
+              type="email"
+              value={inviteForm.email}
+              onChange={e => setInviteForm(f => ({ ...f, email: e.target.value }))}
+            />
+          </div>
+
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 11, color: 'var(--mu)', marginBottom: 4 }}>Papel</div>
+            <select
+              style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1px solid var(--gb)', background: 'var(--sb)', color: 'var(--tx)', fontSize: 12 }}
+              value={inviteForm.role}
+              onChange={e => setInviteForm(f => ({ ...f, role: e.target.value }))}
+            >
+              <option value="admin">Admin</option>
+              <option value="manager">Gerente</option>
+              <option value="member">Membro</option>
+            </select>
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button className="btn bs" onClick={() => setShowInviteModal(false)}>Cancelar</button>
+            <button
+              className="btn bp"
+              style={{ opacity: inviteUser.isPending ? 0.6 : 1 }}
+              disabled={!inviteForm.email || inviteUser.isPending}
+              onClick={async () => {
+                await inviteUser.mutateAsync({ email: inviteForm.email, name: inviteForm.name || null, role: inviteForm.role })
+                setShowInviteModal(false)
+              }}
+            >
+              {inviteUser.isPending ? 'Adicionando…' : 'Adicionar'}
+            </button>
+          </div>
+        </Modal>
       </div>
 
       {/* AUDITORIA */}
@@ -682,7 +668,7 @@ export default function AdminScreen() {
           <div className="kpi-cell"><div className="kpi-lbl">Anomalias</div><div className="kpi-val" style={{ color: anomaliasCount > 0 ? 'var(--urg)' : 'var(--ok)' }}>{anomaliasCount}</div><div className="kpi-d" style={{ color: 'var(--mu)' }}>insights com erro</div></div>
         </div>
         <div className="aud-search">
-          <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
+          <IconSearch size={13} />
           <input placeholder="Buscar nos logs…" value={logSearch} onChange={e => setLogSearch(e.target.value)} />
         </div>
         {auditEntries.length === 0 ? (
@@ -762,31 +748,15 @@ export default function AdminScreen() {
           </div>
 
           {confirmDelete && (
-            <div
-              role="presentation"
-              style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              onClick={() => setConfirmDelete(false)}
-            >
-              <div
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="del-title"
-                tabIndex={-1}
-                autoFocus
-                style={{ background: 'var(--bg)', border: '1px solid var(--gb)', borderRadius: 'var(--rl)', padding: 24, maxWidth: 360, width: '90%' }}
-                onClick={(e) => e.stopPropagation()}
-                onKeyDown={(e) => { if (e.key === 'Escape') setConfirmDelete(false) }}
-              >
-                <div id="del-title" style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Excluir conta permanentemente?</div>
-                <div style={{ fontSize: 12, color: 'var(--mu)', marginBottom: 20 }}>Esta ação não pode ser desfeita. Todos os dados serão removidos.</div>
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                  <button className="btn bs" onClick={() => setConfirmDelete(false)}>Cancelar</button>
-                  <button className="btn brd" style={{ display: 'flex', alignItems: 'center', gap: 5 }} onClick={() => { setConfirmDelete(false); deleteData.mutate() }}>
-                    <Warning size={12} />Excluir
-                  </button>
-                </div>
+            <Modal open={confirmDelete} onClose={() => setConfirmDelete(false)} title="Excluir conta permanentemente?" width="360px">
+              <div style={{ fontSize: 12, color: 'var(--mu)', marginBottom: 20 }}>Esta ação não pode ser desfeita. Todos os dados serão removidos.</div>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button className="btn bs" onClick={() => setConfirmDelete(false)}>Cancelar</button>
+                <button className="btn brd" style={{ display: 'flex', alignItems: 'center', gap: 5 }} onClick={() => { setConfirmDelete(false); deleteData.mutate() }}>
+                  <Warning size={12} />Excluir
+                </button>
               </div>
-            </div>
+            </Modal>
           )}
           <div className="lgpd-sec">
             <div className="lgpd-ttl">Retenção de dados</div>
@@ -810,7 +780,7 @@ export default function AdminScreen() {
                 </defs>
                 <circle cx="270" cy="190" r="120" fill="url(#cg)" />
                 {[[270,190,270,60],[270,190,400,130],[270,190,370,300],[270,190,140,300],[270,190,130,130]].map(([x1,y1,x2,y2],i) => (
-                  <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="rgba(255,255,255,0.08)" strokeWidth="1.5" />
+                  <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="var(--gb)" strokeWidth="1.5" />
                 ))}
                 <circle cx="270" cy="190" r="32" fill="rgba(140,95,219,0.2)" stroke="rgba(140,95,219,0.5)" strokeWidth="1.5" />
                 <text x="270" y="185" textAnchor="middle" fill="white" fontSize="13" fontWeight="700">{ctxScore}%</text>
@@ -969,7 +939,7 @@ export default function AdminScreen() {
         <div style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--mu)', marginBottom: 8 }}>Todos os planos</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginBottom: 14 }}>
           {([
-            { tier: 'Free',       price: 'R$ 0/mês',      color: '#4A90D9', features: ['1 agente', '20 aprovações/mês', 'Histórico 7 dias'] },
+            { tier: 'Free',       price: 'R$ 0/mês',      color: 'var(--blue2)', features: ['1 agente', '20 aprovações/mês', 'Histórico 7 dias'] },
             { tier: 'Starter',    price: 'R$ 197/mês',    color: '#5FB8A3', features: ['3 agentes', 'Aprovações ilimitadas', 'Histórico 90 dias'], current: true },
             { tier: 'Growth',     price: 'R$ 397/mês',    color: '#D4A843', features: ['6 agentes', 'Automações ilimitadas', 'Multi-usuário (5)'] },
             { tier: 'Enterprise', price: 'Sob consulta',  color: '#E07A5F', features: ['Tudo do Growth', 'Usuários ilimitados', 'SLA garantido'] },
@@ -988,7 +958,7 @@ export default function AdminScreen() {
               <div style={{ fontSize: 13, fontWeight: 800, fontFamily: 'var(--mono)', marginBottom: 8 }}>{p.price}</div>
               {p.features.map(f => (
                 <div key={f} style={{ fontSize: 10.5, color: 'var(--mu2)', display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}>
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={p.color} strokeWidth="3" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  <IconCheck size={10} weight="bold" color={p.color} />
                   {f}
                 </div>
               ))}

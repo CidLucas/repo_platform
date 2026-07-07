@@ -25,14 +25,14 @@ const ENTITY_TYPE_OPTIONS = [
 ]
 
 const ENTITY_TYPE_COLORS: Record<string, string> = {
-  snapshot: '#8C5FDB',
-  routine: '#10B981',
-  skill: '#3B82F6',
-  client: '#F59E0B',
+  snapshot: 'var(--ac)',
+  routine: 'var(--ok)',
+  skill: 'var(--blue2)',
+  client: 'var(--att)',
   contact: '#EC4899',
   supplier: '#6366F1',
   user: '#14B8A6',
-  agent_result: '#F97316',
+  agent_result: 'var(--orange)',
   agent_metadata: '#A855F7',
 }
 

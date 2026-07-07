@@ -8,6 +8,8 @@ interface FieldProps {
   hint?: string
   children: React.ReactNode
   required?: boolean
+  className?: string
+  style?: React.CSSProperties
 }
 
 export default function Field({
@@ -18,6 +20,8 @@ export default function Field({
   hint,
   children,
   required,
+  className,
+  style,
 }: FieldProps): React.JSX.Element {
   const valState = error ? 'error' : warning ? 'warning' : success ? 'success' : ''
   const child = React.Children.only(children) as React.ReactElement
@@ -27,7 +31,7 @@ export default function Field({
   })
 
   return (
-    <div className="field">
+    <div className={`field${className ? ' ' + className : ''}`} style={style}>
       <label>
         {label}
         {required && <span style={{ color: 'var(--urg)', marginLeft: 3 }}>*</span>}

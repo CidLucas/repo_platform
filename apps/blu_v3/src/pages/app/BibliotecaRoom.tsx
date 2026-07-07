@@ -29,14 +29,14 @@ function fileTypeIcon(fileName: string): string {
 
 function fileTypeColor(fileName: string): string {
   const ext = fileName.split('.').pop()?.toLowerCase() ?? ''
-  if (ext === 'pdf') return '#ef4444'
-  if (['doc', 'docx'].includes(ext)) return '#3b82f6'
-  if (['xls', 'xlsx'].includes(ext)) return '#22c55e'
-  if (['ppt', 'pptx'].includes(ext)) return '#f97316'
-  if (ext === 'csv') return '#10b981'
-  if (['txt', 'md'].includes(ext)) return '#8b5cf6'
-  if (ext === 'json') return '#f59e0b'
-  return '#6b7280'
+  if (ext === 'pdf') return 'var(--urg)'
+  if (['doc', 'docx'].includes(ext)) return 'var(--blue2)'
+  if (['xls', 'xlsx'].includes(ext)) return 'var(--ok)'
+  if (['ppt', 'pptx'].includes(ext)) return 'var(--orange)'
+  if (ext === 'csv') return 'var(--ok)'
+  if (['txt', 'md'].includes(ext)) return 'var(--violet)'
+  if (ext === 'json') return 'var(--att)'
+  return 'var(--mu)'
 }
 
 function kbStatusBadge(status: KBDocument['status']): { label: string; color: string } {
@@ -478,25 +478,6 @@ export default function BibliotecaRoom() {
 
   function handleGraphSelect(_docId: string) {
     // BKL-032: no-op por enquanto — futuro: abrir preview do doc selecionado no grafo.
-  }
-
-  async function handlePreview(doc: KBDocument) {
-    if (!doc.storage_path) return
-    const url = await kb.getDownloadUrl(doc)
-    const ext = doc.file_name.split('.').pop()?.toLowerCase() ?? ''
-    if (ext === 'pdf') {
-      window.open(url, '_blank')
-      return
-    }
-    if (ext === 'txt' || ext === 'md') {
-      try {
-        const res = await fetch(url)
-        const text = await res.text()
-        setPreviewContent({ title: doc.file_name, text })
-      } catch {
-        setPreviewContent({ title: doc.file_name, text: 'Falha ao carregar preview.' })
-      }
-    }
   }
 
   return (

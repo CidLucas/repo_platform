@@ -4,11 +4,12 @@ import type { ApprovalRequest } from '../../api/approvals'
 import { AGENT_COLORS } from '../../utils/constants'
 import Checkbox from './Checkbox'
 import SmartRenderer from '../chat/SmartRenderer'
+import { IconCheck, IconClock, IconX } from './Icons'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function agentColor(slug: string) {
-  return AGENT_COLORS[slug] ?? '#94a3b8'
+  return AGENT_COLORS[slug] ?? 'var(--mu)'
 }
 
 function agentLabel(slug: string) {
@@ -61,10 +62,10 @@ function RoutineActivationCard({
     <div className={`dc warn${expanded ? ' expanded' : ''}`}>
       <div className="dc-row" onClick={() => setExpanded(!expanded)}>
         <div className="ag">
-          <div className="agd" style={{ background: '#818cf8' }} />
+          <div className="agd" style={{ background: 'var(--blue3)' }} />
           <span>Rotina</span>
         </div>
-        <span className="bdg bw" style={{ fontSize: 9, background: 'rgba(129,140,248,.12)', color: '#818cf8' }}>✦ IA</span>
+        <span className="bdg bw" style={{ fontSize: 9, background: 'rgba(129,140,248,.12)', color: 'var(--blue3)' }}>✦ IA</span>
         <span className="dc-row-summary">{routineName}</span>
         <span className="dt">{new Date(approval.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
         <span className="dc-chev">{expanded ? '▼' : '▶'}</span>
@@ -93,8 +94,8 @@ function RoutineActivationCard({
           </div>
         )}
         <div className="dc-act">
-          <button className="btn bp" onClick={(e) => { e.stopPropagation(); onApprove() }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Ativar</button>
-          <button className="btn bs" onClick={(e) => { e.stopPropagation(); onReject() }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Rejeitar</button>
+          <button className="btn bp" onClick={(e) => { e.stopPropagation(); onApprove() }}><IconCheck /> Ativar</button>
+          <button className="btn bs" onClick={(e) => { e.stopPropagation(); onReject() }}><IconX /> Rejeitar</button>
         </div>
       </div>
     </div>
@@ -196,9 +197,9 @@ export default function DecisionCard({
           </a>
         )}
         <div className="dc-act">
-          <button className="btn bp" onClick={(e) => { e.stopPropagation(); handleApprove() }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Aprovar</button>
-          <button className="btn bg" onClick={(e) => { e.stopPropagation(); handleSnooze() }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 2 16 8 22 8"/><line x1="4" y1="18" x2="4" y2="22"/><line x1="8" y1="18" x2="8" y2="22"/><polyline points="9 22 5 12 19 12 15 22"/></svg> Depois</button>
-          <button className="btn bs" onClick={(e) => { e.stopPropagation(); handleReject() }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Rejeitar</button>
+          <button className="btn bp" onClick={(e) => { e.stopPropagation(); handleApprove() }}><IconCheck /> Aprovar</button>
+          <button className="btn bg" onClick={(e) => { e.stopPropagation(); handleSnooze() }}><IconClock /> Depois</button>
+          <button className="btn bs" onClick={(e) => { e.stopPropagation(); handleReject() }}><IconX /> Rejeitar</button>
         </div>
       </div>
     </div>

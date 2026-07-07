@@ -89,12 +89,12 @@ function extractEntities(doc: KBDocument, max = 3): string[] {
 
 function statusColor(status: KBDocument['status']): string {
   switch (status) {
-    case 'completed':        return '#22c55e'
-    case 'processing':       return '#f59e0b'
-    case 'pending':          return '#94a3b8'
-    case 'failed':           return '#ef4444'
-    case 'partially_failed': return '#f97316'
-    default:                 return '#94a3b8'
+    case 'completed':        return 'var(--ok)'
+    case 'processing':       return 'var(--att)'
+    case 'pending':          return 'var(--mu)'
+    case 'failed':           return 'var(--urg)'
+    case 'partially_failed': return 'var(--orange)'
+    default:                 return 'var(--mu)'
   }
 }
 
@@ -216,9 +216,9 @@ export default function GraphView({ documents, onSelectDocument }: GraphViewProp
         <span>•</span>
         <span>{usedCategories.length} categoria{usedCategories.length !== 1 ? 's' : ''}</span>
         <span style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'center' }}>
-          <Legend swatch="#3b82f6" label="Documento" />
+          <Legend swatch="var(--blue2)" label="Documento" />
           <Legend swatch="#FF5701" label="Categoria" />
-          <Legend swatch="#8b5cf6" label="Entidade" />
+          <Legend swatch="var(--violet)" label="Entidade" />
         </span>
       </div>
 
@@ -247,7 +247,7 @@ export default function GraphView({ documents, onSelectDocument }: GraphViewProp
               <line
                 key={`e-${i}`}
                 x1={a.x} y1={a.y} x2={b.x} y2={b.y}
-                stroke="rgba(255,255,255,0.10)"
+                stroke="color-mix(in srgb, var(--fg) 10%, transparent)"
                 strokeWidth={1}
               />
             )
@@ -281,7 +281,7 @@ export default function GraphView({ documents, onSelectDocument }: GraphViewProp
             if (node.kind === 'entity') {
               return (
                 <g key={node.id} transform={`translate(${node.x},${node.y})`}>
-                  <circle r={4} fill="#8b5cf6" stroke="rgba(255,255,255,0.2)" strokeWidth={0.5} />
+                  <circle r={4} fill="var(--violet)" stroke="rgba(255,255,255,0.2)" strokeWidth={0.5} />
                   <text
                     x={6} y={3}
                     fontSize={8.5}

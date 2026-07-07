@@ -1,7 +1,7 @@
 {
-  "rotation_index": 47,
-  "last_source": "concepts/shared-memory",
-  "next_page": "concepts/shared-memory-handoff",
+  "rotation_index": 61,
+  "last_source": "ONBOARDING.md",
+  "next_page": "overview.md",
   "processed_sources": [
     "AGENT_SYSTEM.md",
     "TOOL_INVENTORY.md",
@@ -10,6 +10,7 @@
     "SKILLS_SYSTEM.md",
     "TASK_PLAYBOOKS.md",
     "SHARED_MEMORY_DESIGN.md",
+    "SHARED_MEMORY_GAPS.md",
     "ONBOARDING.md"
   ],
   "stats": {
@@ -19,10 +20,10 @@
     "pages_archived": 0,
     "wikilinks_total": 380,
     "open_questions": 23,
-    "last_run": "2026-07-04",
-    "total_ticks": 606
+    "last_run": "2026-07-08",
+    "total_ticks": 696
   },
   "notes": {
-    "2026-07-04 (Tick 606)": "606º ciclo: concepts/shared-memory (rotation_index=46). Clean pass — zero source drift (AGENT_SYSTEM 766e3dc4, TOOL_INVENTORY 170bc9bb, SKILLS_SYSTEM 1222cc13, HERMES eddcb9d9). 16/16 wikilinks validos. 7/7 tags na taxonomia. 1 markdown link valido. Pagina 202 linhas (borderline >200, flag mantida). 0 contradicoes. Sem enriquecimento (fontes inalteradas). Proximo: concepts/shared-memory-handoff (rotation_index=47)."
+    "2026-07-08 (Tick 696)": "696º ciclo: ONBOARDING.md (rotation_index=61). Clean pass — system_reference sources zero drift (AGENT_SYSTEM 766e3dc4, SKILLS_SYSTEM 1222cc13, ROUTINES_SYSTEM 5e2b6d50, FEATURE_MAP eb7041ad). onboarding_trace e83d5ab1, HERMES eddcb9d9. 7/7 wikilinks validos. 1/1 markdown link. 5/5 tags na taxonomia. Pagina 198 linhas (<200, border mantida). 0 contradicoes. Wiki source pages drifted benignamente (frontmatter check_notes). Sem enriquecimento (fontes inalteradas). Proximo: overview.md (rotation_index=61)."
   }
 }

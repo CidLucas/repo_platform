@@ -248,8 +248,8 @@ export default function ClientesRoom() {
                       <div
                         className="cli-av"
                         style={{
-                          background: c.cluster === 'Alto' ? '#818cf822' : c.cluster === 'Médio' ? '#fbbf2422' : '#6b728022',
-                          color: c.cluster === 'Alto' ? '#818cf8' : c.cluster === 'Médio' ? '#fbbf24' : '#6b7280',
+                          background: c.cluster === 'Alto' ? 'var(--blue3)22' : c.cluster === 'Médio' ? 'var(--yellow)22' : 'var(--mu)22',
+                          color: c.cluster === 'Alto' ? 'var(--blue3)' : c.cluster === 'Médio' ? 'var(--yellow)' : 'var(--mu)',
                         }}
                       >
                         {c.name.slice(0, 2).toUpperCase()}
@@ -418,7 +418,7 @@ export default function ClientesRoom() {
                 ) : (
                   segments.map((seg, idx) => {
                     const pct = totalCustomers > 0 ? Math.round((seg.count / totalCustomers) * 100) : 0
-                    const color = seg.cluster === 'Alto' ? '#818cf8' : seg.cluster === 'Médio' ? 'var(--ac)' : 'var(--mu)'
+                    const color = seg.cluster === 'Alto' ? 'var(--blue3)' : seg.cluster === 'Médio' ? 'var(--ac)' : 'var(--mu)'
                     return (
                       <div key={`panel-${seg.cluster}-${idx}`} style={{ marginBottom: 10 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--mu2)', marginBottom: 3 }}>
@@ -527,7 +527,7 @@ function ApprovalCard({
 }) {
   const [expanded, setExpanded] = useState(false)
   const isUrgent = ap.priority === 'urgent' || ap.priority === 'high'
-  const priorityColor = ap.priority === 'urgent' ? '#f87171' : ap.priority === 'high' ? '#818cf8' : '#2dd4bf'
+  const priorityColor = ap.priority === 'urgent' ? '#f87171' : ap.priority === 'high' ? 'var(--blue3)' : 'var(--teal)'
   const badgeLabel = ap.priority === 'urgent' ? 'Risco' : ap.priority === 'high' ? 'Oportunidade' : 'Alerta'
 
   return (

@@ -301,7 +301,7 @@ function CustomRoutineRow({
   const statusColor: Record<string, string> = {
     active: 'var(--ok)',
     inactive: 'var(--mu)',
-    pending_approval: '#fbbf24',
+    pending_approval: 'var(--yellow)',
     draft: 'var(--mu)',
   }
   const statusLabel: Record<string, string> = {
@@ -339,7 +339,7 @@ function CustomRoutineRow({
           {statusLabel[routine.status] ?? routine.status}
         </span>
         {routine.created_by_ai && (
-          <span style={{ fontSize: 10, color: '#818cf8', background: 'rgba(129,140,248,.12)', borderRadius: 4, padding: '2px 6px' }}>
+          <span style={{ fontSize: 10, color: 'var(--blue3)', background: 'rgba(129,140,248,.12)', borderRadius: 4, padding: '2px 6px' }}>
             ✦ IA
           </span>
         )}

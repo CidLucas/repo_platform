@@ -41,11 +41,11 @@ function formatCompactBRL(v: number) {
 
 // ── Document type metadata (color + label) ─────────────────────────────────
 const DOC_TYPE_META: Record<string, { type: string; typeColor: string; folder: string }> = {
-  md:   { type: 'MD',  typeColor: '#8b5cf6', folder: 'estrategia' },
-  doc:  { type: 'DOC', typeColor: '#3b82f6', folder: 'juridico' },
-  pdf:  { type: 'PDF', typeColor: '#ef4444', folder: 'pesquisa' },
-  xlsx: { type: 'XLS', typeColor: '#10b981', folder: 'relatorios' },
-  csv:  { type: 'CSV', typeColor: '#10b981', folder: 'relatorios' },
+  md:   { type: 'MD',  typeColor: 'var(--violet)', folder: 'estrategia' },
+  doc:  { type: 'DOC', typeColor: 'var(--blue2)', folder: 'juridico' },
+  pdf:  { type: 'PDF', typeColor: 'var(--urg)', folder: 'pesquisa' },
+  xlsx: { type: 'XLS', typeColor: 'var(--ok)', folder: 'relatorios' },
+  csv:  { type: 'CSV', typeColor: 'var(--ok)', folder: 'relatorios' },
 }
 
 // ── Design-system document templates (inline markdown) ───────────────────
@@ -398,7 +398,7 @@ export default function EstrategiaRoom() {
   const strategyDocs: StrategyDoc[] = [
     ...recentDocuments.map((d): StrategyDoc => {
       const ext = d.title?.split('.').pop()?.toLowerCase() ?? 'md'
-      const meta = DOC_TYPE_META[ext] ?? { type: 'DOC', typeColor: '#6b7280', folder: 'documentos' }
+      const meta = DOC_TYPE_META[ext] ?? { type: 'DOC', typeColor: 'var(--mu)', folder: 'documentos' }
       const contentRaw = d.editor_content
       const content = typeof contentRaw === 'string' ? contentRaw
         : contentRaw && typeof contentRaw === 'object' && 'text' in (contentRaw as Record<string, unknown>)
@@ -560,7 +560,7 @@ export default function EstrategiaRoom() {
       id: `report-${report.id}`,
       name: report.title,
       type: 'MD',
-      typeColor: '#8b5cf6',
+      typeColor: 'var(--violet)',
       date: new Date(report.created_at).toLocaleDateString('pt-BR'),
       folder: 'relatorios',
       content: `# ${report.title}\n\nRelatório gerado em ${new Date(report.created_at).toLocaleDateString('pt-BR')}.`,
@@ -1258,7 +1258,7 @@ function ApprovalCard({
   onSnooze: () => void
 }) {
   const [expanded, setExpanded] = useState(false)
-  const priorityColor = ap.priority === 'urgent' ? '#f87171' : ap.priority === 'high' ? '#fb923c' : '#fbbf24'
+  const priorityColor = ap.priority === 'urgent' ? '#f87171' : ap.priority === 'high' ? 'var(--orange)' : 'var(--yellow)'
 
   return (
     <div className={`dc warn${expanded ? ' expanded' : ''}`}>
@@ -1292,7 +1292,7 @@ function ApprovalCard({
 
 function ApprovalCardDocs({ ap, onSign, onSnooze }: { ap: ApprovalRequest; onSign: () => void; onSnooze: () => void }) {
   const [expanded, setExpanded] = useState(false)
-  const priorityColor = ap.priority === 'urgent' ? '#f87171' : ap.priority === 'high' ? '#fb923c' : '#fbbf24'
+  const priorityColor = ap.priority === 'urgent' ? '#f87171' : ap.priority === 'high' ? 'var(--orange)' : 'var(--yellow)'
   return (
     <div className={`dc warn${expanded ? ' expanded' : ''}`}>
       <div className="dc-row" onClick={() => setExpanded(!expanded)}>

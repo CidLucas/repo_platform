@@ -56,18 +56,18 @@ const ZOOM_LABELS: Record<ZoomMode, string> = {
 }
 
 const ROUTINE_COLORS: Record<string, string> = {
-  Financeiro:  '#8b5cf6',
-  Compras:     '#8b5cf6',
-  Clientes:    '#8b5cf6',
-  Agenda:      '#8b5cf6',
-  Documentos:  '#8b5cf6',
-  'Estratégia':'#8b5cf6',
-  Geral:       '#8b5cf6',
+  Financeiro:  'var(--violet)',
+  Compras:     'var(--violet)',
+  Clientes:    'var(--violet)',
+  Agenda:      'var(--violet)',
+  Documentos:  'var(--violet)',
+  'Estratégia':'var(--violet)',
+  Geral:       'var(--violet)',
 }
 
 const SOURCE_COLORS: Record<string, string> = {
-  monday: '#3b82f6',
-  notion: '#3b82f6',
+  monday: 'var(--blue2)',
+  notion: 'var(--blue2)',
   asana:  '#F06A6A',
   linear: '#5E6AD2',
   google: '#4285F4',

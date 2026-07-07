@@ -32,89 +32,6 @@ import { snoozeUntil } from '../../utils/time'
 
 type Tab = 'objetivos' | 'documentos' | 'conhecimento' | 'config'
 
-// ── Lightweight markdown renderer (no external dependency) ─────────────────────────────────
-function renderMarkdownLine(line: string, key: number): React.ReactNode {
-  // Apply inline bold: **text**
-  const parts = line.split(/(\*\*[^*]+\*\*)/g)
-  const rendered = parts.map((p, i) =>
-    p.startsWith('**') && p.endsWith('**')
-      ? <strong key={i}>{p.slice(2, -2)}</strong>
-      : p
-  )
-  return <span key={key}>{rendered}</span>
-}
-
-function MarkdownReport({ content }: { content: string }) {
-  const lines = content.split('\n')
-  const nodes: React.ReactNode[] = []
-  let tableRows: string[][] = []
-  let inTable = false
-
-  const flushTable = () => {
-    if (tableRows.length < 2) { tableRows = []; inTable = false; return }
-    const headers = tableRows[0]
-    const body = tableRows.slice(2) // skip separator row
-    nodes.push(
-      <div key={nodes.length} style={{ overflowX: 'auto', marginBottom: 12 }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5 }}>
-          <thead>
-            <tr>
-              {headers.map((h, i) => (
-                <th key={i} style={{ textAlign: 'left', padding: '4px 8px', borderBottom: '1px solid var(--gb)', color: 'var(--mu)', fontWeight: 500, whiteSpace: 'nowrap' }}>
-                  {h.trim()}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {body.map((row, ri) => (
-              <tr key={ri}>
-                {row.map((cell, ci) => (
-                  <td key={ci} style={{ padding: '3px 8px', borderBottom: '1px solid var(--gb)', color: 'var(--mu2)', fontSize: 11 }}>
-                    {renderMarkdownLine(cell.trim(), ci)}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    )
-    tableRows = []; inTable = false
-  }
-
-  lines.forEach((line, i) => {
-    if (line.startsWith('|')) {
-      inTable = true
-      tableRows.push(line.split('|').slice(1, -1))
-      return
-    }
-    if (inTable) flushTable()
-
-    if (line.startsWith('# ')) {
-      nodes.push(<div key={i} style={{ fontSize: 13, fontWeight: 600, color: 'var(--mu2)', marginBottom: 6, marginTop: 4 }}>{line.slice(2)}</div>)
-    } else if (line.startsWith('## ')) {
-      nodes.push(<div key={i} style={{ fontSize: 12, fontWeight: 600, color: 'var(--ac)', marginTop: 14, marginBottom: 4 }}>{line.slice(3)}</div>)
-    } else if (line.startsWith('---')) {
-      nodes.push(<hr key={i} style={{ border: 'none', borderTop: '1px solid var(--gb)', margin: '8px 0' }} />)
-    } else if (line.startsWith('- ')) {
-      nodes.push(
-        <div key={i} style={{ display: 'flex', gap: 6, fontSize: 11.5, color: 'var(--mu2)', marginBottom: 4, lineHeight: 1.5 }}>
-          <span style={{ color: 'var(--mu)', flexShrink: 0 }}>·</span>
-          <span>{renderMarkdownLine(line.slice(2), i)}</span>
-        </div>
-      )
-    } else if (line.startsWith('*') && line.endsWith('*') && line.length > 2) {
-      nodes.push(<div key={i} style={{ fontSize: 10.5, color: 'var(--mu)', fontStyle: 'italic', marginBottom: 4 }}>{line.slice(1, -1)}</div>)
-    } else if (line.trim()) {
-      nodes.push(<div key={i} style={{ fontSize: 11.5, color: 'var(--mu2)', marginBottom: 3 }}>{renderMarkdownLine(line, i)}</div>)
-    }
-  })
-  if (inTable) flushTable()
-
-  return <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>{nodes}</div>
-}
-
 function formatCompactBRL(v: number) {
   if (v >= 1_000_000) return `R$ ${(v / 1_000_000).toFixed(1)}M`
   if (v >= 1_000) return `R$ ${(v / 1_000).toFixed(1)}k`
@@ -208,6 +125,71 @@ function escapeHtml(s: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
+}
+
+// ── Markdown ↔ HTML for contentEditable preview ───────────────────────────
+function renderMarkdownToHtml(md: string): string {
+  if (!md) return '<p style="color:var(--mu);font-size:12px">Comece a escrever…</p>'
+  const lines = md.split('\n')
+  let html = ''
+  let inList = false
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    if (inList && !line.startsWith('- ') && !line.startsWith('* ')) {
+      if (line.startsWith('#') || line.trim() === '' || i === lines.length - 1) {
+        html += '</ul>'; inList = false
+      }
+    }
+    if (line.startsWith('# ')) {
+      if (inList) { html += '</ul>'; inList = false }
+      html += `<h1 style="font-size:18px;font-weight:700;color:var(--fg);margin:8px 0 6px;letter-spacing:-0.4px">${escapeHtml(line.slice(2))}</h1>`
+    } else if (line.startsWith('## ')) {
+      if (inList) { html += '</ul>'; inList = false }
+      html += `<h2 style="font-size:11px;font-weight:700;color:var(--ac);margin:16px 0 6px;text-transform:uppercase;letter-spacing:.08em">${escapeHtml(line.slice(3))}</h2>`
+    } else if (line.startsWith('- ') || line.startsWith('* ')) {
+      if (!inList) { html += '<ul style="margin:4px 0 8px;padding-left:16px;list-style:none">'; inList = true }
+      const content = line.slice(2).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      html += `<li style="font-size:12.5px;color:var(--mu2);line-height:1.6;margin-bottom:2px">${content}</li>`
+    } else if (line.startsWith('---')) {
+      if (inList) { html += '</ul>'; inList = false }
+      html += '<hr style="border:none;border-top:1px solid var(--gb);margin:12px 0" />'
+    } else if (line.trim()) {
+      if (inList) { html += '</ul>'; inList = false }
+      const content = line.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      html += `<p style="font-size:12.5px;color:var(--mu2);line-height:1.65;margin:2px 0">${content}</p>`
+    }
+  }
+  if (inList) html += '</ul>'
+  return html
+}
+
+function htmlToMarkdown(html: string): string {
+  // Parse contentEditable HTML back to markdown
+  let md = html
+    .replace(/<h1[^>]*>/gi, '# ')
+    .replace(/<\/h1>/gi, '\n')
+    .replace(/<h2[^>]*>/gi, '## ')
+    .replace(/<\/h2>/gi, '\n')
+    .replace(/<strong>/gi, '**')
+    .replace(/<\/strong>/gi, '**')
+    .replace(/<ul[^>]*>/gi, '')
+    .replace(/<\/ul>/gi, '')
+    .replace(/<li[^>]*>/gi, '- ')
+    .replace(/<\/li>/gi, '\n')
+    .replace(/<p[^>]*>/gi, '')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<hr[^>]*>/gi, '---\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<div[^>]*>/gi, '')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+  return md
 }
 
 export default function EstrategiaRoom() {
@@ -693,39 +675,22 @@ export default function EstrategiaRoom() {
                     </div>
 
                     <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRight: '1px solid var(--gb)' }}>
-                        <div style={{ padding: '5px 12px', fontSize: 9, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--mu)', borderBottom: '1px solid var(--gb)', flexShrink: 0 }}>
-                          ✏️ Edição
-                        </div>
-                        <textarea
-                          style={{ flex: 1, resize: 'none', border: 'none', outline: 'none', background: 'transparent', color: 'var(--fg)', fontSize: 13, lineHeight: 1.75, padding: '14px 16px', fontFamily: 'var(--mono)', overflowY: 'auto' }}
-                          spellCheck={false}
-                          value={editorContent}
-                          onChange={(e) => setEditorContent(e.target.value)}
-                        />
-                      </div>
                       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                        <div style={{ padding: '5px 12px', fontSize: 9, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--mu)', borderBottom: '1px solid var(--gb)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <span>👁 Preview</span>
-                          <span
-                            style={{
-                              fontSize: 9.5,
-                              fontWeight: 600,
-                              padding: '2px 7px',
-                              borderRadius: 3,
-                              background: diff.count > 0 ? 'var(--adim)' : 'rgba(255,255,255,.06)',
-                              color: diff.count > 0 ? 'var(--ac)' : 'var(--mu)',
-                            }}
-                          >
-                            {diff.count} {diff.count === 1 ? 'alteração' : 'alterações'}
-                          </span>
-                        </div>
                         <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }}>
-                          {isDirty ? (
-                            <div dangerouslySetInnerHTML={{ __html: diff.html }} />
-                          ) : (
-                            <MarkdownReport content={editorContent} />
-                          )}
+                          <div
+                            contentEditable
+                            suppressContentEditableWarning
+                            style={{ outline: 'none', minHeight: '100%' }}
+                            dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(editorContent) }}
+                            onInput={(e) => {
+                              const html = (e.target as HTMLElement).innerHTML
+                              setEditorContent(htmlToMarkdown(html))
+                            }}
+                            onBlur={(e) => {
+                              const html = (e.target as HTMLElement).innerHTML
+                              setEditorContent(htmlToMarkdown(html))
+                            }}
+                          />
                         </div>
                       </div>
                     </div>

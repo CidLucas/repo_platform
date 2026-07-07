@@ -203,7 +203,7 @@ function htmlToMarkdown(html: string): string {
 }
 
 export default function EstrategiaRoom() {
-  const { go, addToast, openChatWith } = useAppStore()
+  const { go, addToast, openChatWith, pendingDocId, initialTab, setPendingDocId, clearInitialTab } = useAppStore()
   const { clientId } = useAuth()
   const qc = useQueryClient()
   const [tab, setTab] = useState<Tab>('conhecimento')
@@ -492,6 +492,22 @@ export default function EstrategiaRoom() {
         setReportLoading(false)
       })
   }, [selectedDocId])
+
+  // ── Consume pendingDocId + initialTab from store (set by DecisionCard) ────
+  useEffect(() => {
+    if (pendingDocId && strategyDocs.length > 0) {
+      const doc = strategyDocs.find((d) => d.id === pendingDocId)
+      if (doc) {
+        handleSelectDoc(doc)
+        setTab('documentos')
+      }
+      setPendingDocId(null)
+    }
+    if (initialTab) {
+      setTab(initialTab as Tab)
+      clearInitialTab()
+    }
+  }, [pendingDocId, initialTab, strategyDocs.length])
 
   // ── Handlers ─────────────────────────────────────────────────────────────
   const handleSelectDoc = (doc: StrategyDoc) => {

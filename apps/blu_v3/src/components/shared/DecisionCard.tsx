@@ -126,7 +126,7 @@ export default function DecisionCard({
   onReject,
   onSnooze,
 }: DecisionCardProps) {
-  const { toggleDc, expandedId, addToast, go, openChatWith, setPendingDocId } = useAppStore()
+  const { toggleDc, expandedId, addToast, goWithTab, openChatWith, setPendingDocId } = useAppStore()
 
   if (approval.action_type === 'routine_activation') {
     return (
@@ -154,7 +154,7 @@ export default function DecisionCard({
     onReject()
     if (artifactType === 'document' && artifactId) {
       setPendingDocId(artifactId)
-      go('documentos', 'Documentos')
+      goWithTab('estrategia', 'Estratégia', 'documentos')
       addToast('no', 'Rejeitado', 'Abrindo documento para edição.')
     } else {
       const ctx = [approval.title, approval.body].filter(Boolean).join('\n')
@@ -185,7 +185,7 @@ export default function DecisionCard({
           <button
             className="btn bg"
             style={{ marginBottom: 8, fontSize: 11 }}
-            onClick={(e) => { e.stopPropagation(); setPendingDocId(artifactId); go('documentos', 'Documentos') }}
+            onClick={(e) => { e.stopPropagation(); setPendingDocId(artifactId); goWithTab('estrategia', 'Estratégia', 'documentos') }}
           >
             Ver documento →
           </button>

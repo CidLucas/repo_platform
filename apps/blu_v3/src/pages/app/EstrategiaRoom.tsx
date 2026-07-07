@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQueries, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAppStore } from '../../store/appStore'
 import { useAuth } from '../../hooks/useAuth'
@@ -129,7 +129,7 @@ function escapeHtml(s: string): string {
 
 // ── Markdown ↔ HTML for contentEditable preview ───────────────────────────
 function renderMarkdownToHtml(md: string): string {
-  if (!md) return '<p style="color:var(--mu);font-size:12px">Comece a escrever…</p>'
+  if (!md) return '<p>Comece a escrever…</p>'
   const lines = md.split('\n')
   let html = ''
   let inList = false
@@ -142,21 +142,21 @@ function renderMarkdownToHtml(md: string): string {
     }
     if (line.startsWith('# ')) {
       if (inList) { html += '</ul>'; inList = false }
-      html += `<h1 style="font-size:18px;font-weight:700;color:var(--fg);margin:8px 0 6px;letter-spacing:-0.4px">${escapeHtml(line.slice(2))}</h1>`
+      html += `<h1>${escapeHtml(line.slice(2))}</h1>`
     } else if (line.startsWith('## ')) {
       if (inList) { html += '</ul>'; inList = false }
-      html += `<h2 style="font-size:11px;font-weight:700;color:var(--ac);margin:16px 0 6px;text-transform:uppercase;letter-spacing:.08em">${escapeHtml(line.slice(3))}</h2>`
+      html += `<h2>${escapeHtml(line.slice(3))}</h2>`
     } else if (line.startsWith('- ') || line.startsWith('* ')) {
-      if (!inList) { html += '<ul style="margin:4px 0 8px;padding-left:16px;list-style:none">'; inList = true }
+      if (!inList) { html += '<ul>'; inList = true }
       const content = line.slice(2).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-      html += `<li style="font-size:12.5px;color:var(--mu2);line-height:1.6;margin-bottom:2px">${content}</li>`
+      html += `<li>${content}</li>`
     } else if (line.startsWith('---')) {
       if (inList) { html += '</ul>'; inList = false }
-      html += '<hr style="border:none;border-top:1px solid var(--gb);margin:12px 0" />'
+      html += '<hr />'
     } else if (line.trim()) {
       if (inList) { html += '</ul>'; inList = false }
       const content = line.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-      html += `<p style="font-size:12.5px;color:var(--mu2);line-height:1.65;margin:2px 0">${content}</p>`
+      html += `<p>${content}</p>`
     }
   }
   if (inList) html += '</ul>'
@@ -164,8 +164,12 @@ function renderMarkdownToHtml(md: string): string {
 }
 
 function htmlToMarkdown(html: string): string {
-  // Parse contentEditable HTML back to markdown
   let md = html
+    .replace(/<span[^>]*>/gi, '')
+    .replace(/<\/span>/gi, '')
+    .replace(/<div[^>]*>/gi, '')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/ style="[^"]*"/gi, '')
     .replace(/<h1[^>]*>/gi, '# ')
     .replace(/<\/h1>/gi, '\n')
     .replace(/<h2[^>]*>/gi, '## ')
@@ -180,13 +184,13 @@ function htmlToMarkdown(html: string): string {
     .replace(/<\/p>/gi, '\n')
     .replace(/<hr[^>]*>/gi, '---\n')
     .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<div[^>]*>/gi, '')
-    .replace(/<\/div>/gi, '\n')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&nbsp;/g, ' ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/^\s+$/gm, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
   return md
@@ -407,23 +411,8 @@ export default function EstrategiaRoom() {
   useEffect(() => {
     if (!editorRef.current || !selectedDocId) return
     if (selectedDocId.startsWith('report-') && reportLoading) return
-    // Se tem diff, mostra o HTML do diff (~~tachado~~ + colorido)
-    // Se limpo, mostra markdown formatado
-    editorRef.current.innerHTML = isDirty
-      ? diff.html
-      : renderMarkdownToHtml(editorContent)
+    editorRef.current.innerHTML = renderMarkdownToHtml(editorContent)
   }, [selectedDocId, reportLoading])
-
-  // ── Refresh diff visual on blur (quando usuario termina de editar) ─────────
-  const refreshEditorDiff = useCallback(() => {
-    if (!editorRef.current) return
-    const fresh = computeDiff(originalContent, editorContent)
-    if (fresh.count > 0) {
-      editorRef.current.innerHTML = fresh.html
-    } else {
-      editorRef.current.innerHTML = renderMarkdownToHtml(editorContent)
-    }
-  }, [originalContent, editorContent])
 
   useEffect(() => {
     if (!selectedDocId || !selectedDocId.startsWith('report-')) return
@@ -709,7 +698,6 @@ export default function EstrategiaRoom() {
                               const html = (e.target as HTMLElement).innerHTML
                               setEditorContent(htmlToMarkdown(html))
                             }}
-                            onBlur={() => refreshEditorDiff()}
                           />
                         </div>
                       </div>

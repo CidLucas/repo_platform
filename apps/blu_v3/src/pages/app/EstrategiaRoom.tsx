@@ -148,14 +148,18 @@ function renderMarkdownToHtml(md: string): string {
       html += `<h2>${escapeHtml(line.slice(3))}</h2>`
     } else if (line.startsWith('- ') || line.startsWith('* ')) {
       if (!inList) { html += '<ul>'; inList = true }
-      const content = line.slice(2).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      const content = line.slice(2)
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/~~([^~]+)~~/g, '<del>$1</del>')
       html += `<li>${content}</li>`
     } else if (line.startsWith('---')) {
       if (inList) { html += '</ul>'; inList = false }
       html += '<hr />'
     } else if (line.trim()) {
       if (inList) { html += '</ul>'; inList = false }
-      const content = line.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      const content = line
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/~~([^~]+)~~/g, '<del>$1</del>')
       html += `<p>${content}</p>`
     }
   }
@@ -176,6 +180,8 @@ function htmlToMarkdown(html: string): string {
     .replace(/<\/h2>/gi, '\n')
     .replace(/<strong>/gi, '**')
     .replace(/<\/strong>/gi, '**')
+    .replace(/<del[^>]*>/gi, '~~')
+    .replace(/<\/del>/gi, '~~')
     .replace(/<ul[^>]*>/gi, '')
     .replace(/<\/ul>/gi, '')
     .replace(/<li[^>]*>/gi, '- ')
@@ -413,6 +419,53 @@ export default function EstrategiaRoom() {
     if (selectedDocId.startsWith('report-') && reportLoading) return
     editorRef.current.innerHTML = renderMarkdownToHtml(editorContent)
   }, [selectedDocId, reportLoading])
+
+  // ── Track changes: Backspace/Delete → wrap in <del> (strikethrough) ──────
+  useEffect(() => {
+    const el = editorRef.current
+    if (!el) return
+
+    const handler = (e: InputEvent) => {
+      if (e.inputType !== 'deleteContentBackward' && e.inputType !== 'deleteContentForward') return
+      e.preventDefault()
+
+      const sel = window.getSelection()
+      if (!sel || !sel.rangeCount) return
+      const range = sel.getRangeAt(0)
+
+      if (range.collapsed) {
+        if (e.inputType === 'deleteContentBackward' && range.startOffset > 0) {
+          range.setStart(range.startContainer, range.startOffset - 1)
+        } else if (e.inputType === 'deleteContentForward') {
+          const len = range.startContainer.textContent?.length ?? 0
+          if (range.startOffset < len) {
+            range.setEnd(range.startContainer, range.startOffset + 1)
+          } else {
+            return
+          }
+        } else {
+          return
+        }
+      }
+
+      const fragment = range.extractContents()
+      if (!fragment.textContent) return
+
+      const del = document.createElement('del')
+      del.appendChild(fragment)
+      range.insertNode(del)
+
+      range.setStartAfter(del)
+      range.collapse(true)
+      sel.removeAllRanges()
+      sel.addRange(range)
+
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+
+    el.addEventListener('beforeinput', handler as EventListener)
+    return () => el.removeEventListener('beforeinput', handler as EventListener)
+  }, [editorRef.current])
 
   useEffect(() => {
     if (!selectedDocId || !selectedDocId.startsWith('report-')) return
@@ -689,6 +742,14 @@ export default function EstrategiaRoom() {
                     <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
                       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                         <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }}>
+                          <style>{`
+                            [contenteditable] del {
+                              text-decoration: line-through;
+                              color: rgba(239,68,68,.7);
+                              background: rgba(239,68,68,.08);
+                              border-radius: 2px;
+                            }
+                          `}</style>
                           <div
                             ref={editorRef}
                             contentEditable

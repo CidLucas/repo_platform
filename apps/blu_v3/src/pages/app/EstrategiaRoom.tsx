@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQueries, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAppStore } from '../../store/appStore'
 import { useAuth } from '../../hooks/useAuth'
@@ -15,7 +15,7 @@ import {
   type EstrategiaHistoryItem,
 } from '../../api/estrategia'
 import { getContextMetrics, type ContextMetricRow } from '../../api/analytics'
-import { fetchContextReports, type ContextReport } from '../../api/contextReport'
+import { fetchContextReports, downloadContextReport, type ContextReport } from '../../api/contextReport'
 import {
   fetchDocTemplates,
   fetchRecentDocuments,
@@ -383,7 +383,7 @@ export default function EstrategiaRoom() {
       const content = typeof contentRaw === 'string' ? contentRaw
         : contentRaw && typeof contentRaw === 'object' && 'text' in (contentRaw as Record<string, unknown>)
         ? (contentRaw as Record<string, unknown>).text as string
-        : `# ${d.title}\n\nCarregando conteúdo...`
+        : `# ${d.title}`
       return {
         id: d.id,
         name: d.title,
@@ -403,8 +403,8 @@ export default function EstrategiaRoom() {
         type: meta.type,
         typeColor: meta.typeColor,
         date: new Date(r.created_at).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' }),
-        folder: meta.folder,
-        content: `# ${r.title}\n\nRelatório gerado automaticamente.\n\nData: ${new Date(r.created_at).toLocaleDateString('pt-BR')}\n\n## Métricas\n\n- MRR: R$ 612k\n- Churn: 2.4%\n- NPS: 68`,
+        content: '',
+        folder: 'relatorios',
       }
     }),
   ]
@@ -417,6 +417,28 @@ export default function EstrategiaRoom() {
   // Diff tracking
   const diff = computeDiff(originalContent, editorContent)
   const isDirty = diff.count > 0
+
+  // ── Report content loader ────────────────────────────────────────────────
+  const [reportLoading, setReportLoading] = useState(false)
+
+  useEffect(() => {
+    if (!selectedDocId || !selectedDocId.startsWith('report-')) return
+    const report = contextReports.find((r) => `report-${r.id}` === selectedDocId)
+    if (!report) return
+
+    setReportLoading(true)
+    downloadContextReport(report.storage_path)
+      .then((md) => {
+        setEditorContent(md)
+        setOriginalContent(md)
+        setReportLoading(false)
+      })
+      .catch(() => {
+        setEditorContent(`# ${report.title}\n\nErro ao carregar relatório.`)
+        setOriginalContent(`# ${report.title}\n\nErro ao carregar relatório.`)
+        setReportLoading(false)
+      })
+  }, [selectedDocId])
 
   // ── Handlers ─────────────────────────────────────────────────────────────
   const handleSelectDoc = (doc: StrategyDoc) => {
@@ -629,16 +651,21 @@ export default function EstrategiaRoom() {
               </div>
 
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
-                {!selectedDoc ? (
+                {!selectedDoc && !selectedDocId?.startsWith('report-') ? (
                   <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, opacity: 0.4 }}>
                     <span style={{ fontSize: 32 }}>📄</span>
                     <span style={{ fontSize: 12, color: 'var(--mu)' }}>Selecione um documento para visualizar e editar</span>
+                  </div>
+                ) : reportLoading ? (
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, opacity: 0.6 }}>
+                    <span style={{ fontSize: 28 }}>⏳</span>
+                    <span style={{ fontSize: 12, color: 'var(--mu)' }}>Carregando relatório…</span>
                   </div>
                 ) : (
                   <>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderBottom: '1px solid var(--gb)', background: 'rgba(0,0,0,.15)', flexShrink: 0 }}>
                       <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {selectedDoc.name}
+                        {selectedDoc?.name ?? ''}
                       </span>
                       <div style={{ display: 'flex', gap: 2 }}>
                         <button

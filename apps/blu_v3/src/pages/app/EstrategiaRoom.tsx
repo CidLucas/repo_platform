@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQueries, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAppStore } from '../../store/appStore'
 import { useAuth } from '../../hooks/useAuth'
@@ -203,6 +203,7 @@ export default function EstrategiaRoom() {
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null)
   const [editorContent, setEditorContent] = useState('')
   const [originalContent, setOriginalContent] = useState('')
+  const editorRef = useRef<HTMLDivElement>(null)
 
   // Conhecimento (knowledge) tab state
   const [selectedFolder, setSelectedFolder] = useState('all')
@@ -401,6 +402,28 @@ export default function EstrategiaRoom() {
 
   // ── Report content loader ────────────────────────────────────────────────
   const [reportLoading, setReportLoading] = useState(false)
+
+  // ── Set contentEditable innerHTML only on doc switch (avoids cursor jump) ──
+  useEffect(() => {
+    if (!editorRef.current || !selectedDocId) return
+    if (selectedDocId.startsWith('report-') && reportLoading) return
+    // Se tem diff, mostra o HTML do diff (~~tachado~~ + colorido)
+    // Se limpo, mostra markdown formatado
+    editorRef.current.innerHTML = isDirty
+      ? diff.html
+      : renderMarkdownToHtml(editorContent)
+  }, [selectedDocId, reportLoading])
+
+  // ── Refresh diff visual on blur (quando usuario termina de editar) ─────────
+  const refreshEditorDiff = useCallback(() => {
+    if (!editorRef.current) return
+    const fresh = computeDiff(originalContent, editorContent)
+    if (fresh.count > 0) {
+      editorRef.current.innerHTML = fresh.html
+    } else {
+      editorRef.current.innerHTML = renderMarkdownToHtml(editorContent)
+    }
+  }, [originalContent, editorContent])
 
   useEffect(() => {
     if (!selectedDocId || !selectedDocId.startsWith('report-')) return
@@ -678,18 +701,15 @@ export default function EstrategiaRoom() {
                       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                         <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }}>
                           <div
+                            ref={editorRef}
                             contentEditable
                             suppressContentEditableWarning
-                            style={{ outline: 'none', minHeight: '100%' }}
-                            dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(editorContent) }}
+                            style={{ outline: 'none', minHeight: '100%', lineHeight: 1.75, fontSize: 13 }}
                             onInput={(e) => {
                               const html = (e.target as HTMLElement).innerHTML
                               setEditorContent(htmlToMarkdown(html))
                             }}
-                            onBlur={(e) => {
-                              const html = (e.target as HTMLElement).innerHTML
-                              setEditorContent(htmlToMarkdown(html))
-                            }}
+                            onBlur={() => refreshEditorDiff()}
                           />
                         </div>
                       </div>

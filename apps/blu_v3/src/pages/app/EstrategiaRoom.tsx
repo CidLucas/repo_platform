@@ -292,13 +292,15 @@ export default function EstrategiaRoom() {
 
   const saveDocMut = useMutation({
     mutationFn: (text: string) => {
-      if (!docBeingCreated) return Promise.resolve()
-      const payload = { text, source: 'editor', templateId: selectedTemplate?.id ?? null }
-      return saveDocument(docBeingCreated.id, clientId!, payload)
+      const docId = docBeingCreated?.id ?? (selectedDocId && !selectedDocId.startsWith('report-') ? selectedDocId : null)
+      if (!docId || !clientId) return Promise.resolve()
+      const payload = { text, source: 'editor' as const, templateId: selectedTemplate?.id ?? null }
+      return saveDocument(docId, clientId, payload)
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['documents', clientId] })
-      addToast('ok', 'Salvo', 'Documento salvo como ativo.')
+      qc.invalidateQueries({ queryKey: ['recentDocuments', clientId] })
+      addToast('ok', 'Salvo', 'Documento salvo.')
     },
     onError: (e: Error) => {
       addToast('no', 'Erro ao salvar', e.message)
@@ -494,10 +496,12 @@ export default function EstrategiaRoom() {
   }
 
   const handleSaveDoc = () => {
-    setOriginalContent(editorContent)
-    if (docBeingCreated) {
-      saveDocMut.mutate(editorContent)
+    if (selectedDocId?.startsWith('report-')) {
+      addToast('sn', 'Somente leitura', 'Relatórios gerados não podem ser editados.')
+      return
     }
+    setOriginalContent(editorContent)
+    saveDocMut.mutate(editorContent)
   }
 
   const handleNewDoc = () => {

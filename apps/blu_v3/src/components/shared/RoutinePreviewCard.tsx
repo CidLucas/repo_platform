@@ -1,4 +1,5 @@
 import type { RoutineStep, CatalogStep } from '../../api/routines'
+import Checkbox from './Checkbox'
 
 interface Props {
   name: string
@@ -96,17 +97,14 @@ export default function RoutinePreviewCard({
           {steps.length} passo{steps.length !== 1 ? 's' : ''}
         </div>
         {steps.map((step, i) => (
-          <div key={i} style={{ display: 'flex', gap: 0, alignItems: 'stretch' }}>
+          <div key={i} style={{ display: 'flex', gap: 0, alignItems: 'flex-start' }}>
             {/* Timeline */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginRight: 10 }}>
-              <div style={{
-                width: 22, height: 22, borderRadius: 11, flexShrink: 0,
-                background: 'var(--accent, #6366f1)', color: '#fff',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 10, fontWeight: 700,
-              }}>
-                {i + 1}
-              </div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginRight: 10, paddingTop: 2 }}>
+              <Checkbox
+                checked={Boolean((step as { done?: boolean }).done)}
+                disabled
+                onChange={() => {}}
+              />
               {i < steps.length - 1 && (
                 <div style={{ width: 1, flex: 1, minHeight: 14, background: 'var(--gb)', margin: '2px 0' }} />
               )}

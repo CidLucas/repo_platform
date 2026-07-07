@@ -1,4 +1,5 @@
 import type { RoutineExecution } from '../../api/routines'
+import Checkbox from './Checkbox'
 
 interface Props {
   execution: RoutineExecution
@@ -84,15 +85,27 @@ export default function RoutineResultModal({ execution, routineName, onClose }: 
                     border: '1px solid var(--gb)',
                     borderRadius: 6,
                     padding: '8px 11px',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 8,
                   }}
                 >
-                  {label && (
-                    <div style={{ fontSize: 10, color: 'var(--mu)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>
-                      {i + 1}. {label}
+                  <div style={{ paddingTop: 1, flexShrink: 0 }}>
+                    <Checkbox
+                      checked={!failed}
+                      disabled
+                      onChange={() => {}}
+                    />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    {label && (
+                      <div style={{ fontSize: 10, color: 'var(--mu)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>
+                        {i + 1}. {label}
+                      </div>
+                    )}
+                    <div style={{ fontSize: 12, lineHeight: 1.5, color: text ? 'inherit' : 'var(--mu)', fontStyle: text ? 'normal' : 'italic' }}>
+                      {text || 'ok'}
                     </div>
-                  )}
-                  <div style={{ fontSize: 12, lineHeight: 1.5, color: text ? 'inherit' : 'var(--mu)', fontStyle: text ? 'normal' : 'italic' }}>
-                    {text || 'ok'}
                   </div>
                 </div>
               )

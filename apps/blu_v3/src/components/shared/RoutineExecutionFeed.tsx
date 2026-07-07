@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../../hooks/useAuth'
 import { fetchExecutionHistory, type RoutineExecution } from '../../api/routines'
 import RoutineResultModal from './RoutineResultModal'
+import Checkbox from './Checkbox'
 
 function formatDateTime(iso: string) {
   return new Date(iso).toLocaleString('pt-BR', {
@@ -17,13 +18,6 @@ function formatDuration(start: string, end: string | null) {
   return `${Math.round(ms / 60_000)}min`
 }
 
-function statusIcon(status: RoutineExecution['status']) {
-  if (status === 'completed') return { icon: '✅', color: 'var(--ok)' }
-  if (status === 'failed') return { icon: '✗', color: 'var(--urg)' }
-  if (status === 'executing') return { icon: '⟳', color: '#fbbf24' }
-  return { icon: '·', color: 'var(--mu)' }
-}
-
 function ExecutionRow({
   exec, routineName,
 }: {
@@ -31,7 +25,6 @@ function ExecutionRow({
   routineName: string
 }) {
   const [showModal, setShowModal] = useState(false)
-  const { icon, color } = statusIcon(exec.status)
   const duration = formatDuration(exec.created_at, exec.completed_at)
   const firstLine = exec.result_text?.split('\n').find(l => l.trim()) ?? null
 
@@ -46,7 +39,13 @@ function ExecutionRow({
           borderBottom: '1px solid var(--gb)',
         }}
       >
-        <span style={{ fontSize: 14, lineHeight: 1.2, flexShrink: 0, marginTop: 1, color }}>{icon}</span>
+        <span style={{ fontSize: 14, lineHeight: 1.2, flexShrink: 0, marginTop: 1 }}>
+          <Checkbox
+            checked={exec.status === 'completed'}
+            disabled
+            onChange={() => {}}
+          />
+        </span>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 12.5, fontWeight: 500 }}>{routineName}</div>
           {firstLine && (

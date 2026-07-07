@@ -1,13 +1,15 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../hooks/useAuth'
 import {
   fetchActiveRoutines,
   fetchLastExecution,
+  toggleRoutine,
   type ClientRoutine,
   type RoutineExecution,
 } from '../../api/routines'
 import RoutineResultModal from './RoutineResultModal'
+import Toggle from './Toggle'
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
@@ -19,7 +21,13 @@ function timeAgo(iso: string): string {
   return `há ${days}d`
 }
 
-function RoutineRow({ routine, clientId }: { routine: ClientRoutine; clientId: string }) {
+function RoutineRow({
+  routine, clientId, onToggle,
+}: {
+  routine: ClientRoutine
+  clientId: string
+  onToggle: (id: string, enabled: boolean) => void
+}) {
   const [modalExec, setModalExec] = useState<RoutineExecution | null>(null)
 
   const { data: lastExec } = useQuery({
@@ -68,6 +76,10 @@ function RoutineRow({ routine, clientId }: { routine: ClientRoutine; clientId: s
             Ver →
           </button>
         )}
+        <Toggle
+          checked={routine.active}
+          onChange={v => onToggle(routine.id, v)}
+        />
       </div>
 
       {modalExec && (
@@ -83,12 +95,19 @@ function RoutineRow({ routine, clientId }: { routine: ClientRoutine; clientId: s
 
 export default function RoutineStatusWidget({ domain }: { domain: string }) {
   const { clientId } = useAuth()
+  const qc = useQueryClient()
 
   const { data: routines = [], isLoading } = useQuery({
     queryKey: ['active-routines', clientId ?? '', domain],
     queryFn: () => fetchActiveRoutines(clientId!, domain),
     enabled: !!clientId,
     staleTime: 60_000,
+  })
+
+  const toggleMut = useMutation({
+    mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
+      toggleRoutine(id, clientId!, enabled),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['active-routines', clientId ?? '', domain] }),
   })
 
   if (isLoading) {
@@ -106,7 +125,12 @@ export default function RoutineStatusWidget({ domain }: { domain: string }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
       {routines.map(r => (
-        <RoutineRow key={r.id} routine={r} clientId={clientId!} />
+        <RoutineRow
+          key={r.id}
+          routine={r}
+          clientId={clientId!}
+          onToggle={(id, enabled) => toggleMut.mutate({ id, enabled })}
+        />
       ))}
     </div>
   )

@@ -94,19 +94,14 @@ function RoutineActivationCard({
               const stepDone = Boolean((step as { done?: boolean }).done)
               const stepLabel = step.label ?? step.skill_slug ?? step.function ?? step.action ?? 'Passo'
               return (
-                <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 6 }}>
-                  <div style={{ width: 18, height: 18, borderRadius: 9, background: '#6366f1', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, flexShrink: 0, marginTop: 1 }}>
-                    {i + 1}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <Checkbox
-                      checked={stepDone}
-                      disabled
-                      onChange={() => {}}
-                      label={stepLabel}
-                    />
-                    {step.type && <div style={{ fontSize: 10, color: 'var(--mu)', marginTop: 1, marginLeft: 28 }}>{step.type}</div>}
-                  </div>
+                <div key={i} style={{ marginBottom: 6 }}>
+                  <Checkbox
+                    checked={stepDone}
+                    disabled
+                    onChange={() => {}}
+                    label={stepLabel}
+                  />
+                  {step.type && <div style={{ fontSize: 10, color: 'var(--mu)', marginTop: 1, marginLeft: 28 }}>{step.type}</div>}
                 </div>
               )
             })}

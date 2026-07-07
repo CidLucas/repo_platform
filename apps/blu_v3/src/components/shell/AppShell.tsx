@@ -84,7 +84,9 @@ export default function AppShell() {
     try {
       const scoped = localStorage.getItem(`blu-theme:${clientId}`)
       if (scoped !== null) setLightMode(scoped === 'light')
-    } catch {}
+    } catch {
+      // localStorage may be unavailable; default theme applies
+    }
     initFirstRun(clientId)
   }, [clientId]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -94,7 +96,9 @@ export default function AppShell() {
       try {
         if (clientId) localStorage.setItem(`blu-theme:${clientId}`, next ? 'light' : 'dark')
         else localStorage.setItem('blu-theme', next ? 'light' : 'dark')
-      } catch {}
+      } catch {
+        // localStorage may be unavailable; theme toggle is still reflected in state
+      }
       return next
     })
   }

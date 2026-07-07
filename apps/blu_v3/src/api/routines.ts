@@ -154,7 +154,7 @@ export async function fetchRoutines(
   domain?: string
 ): Promise<ClientRoutine[]> {
   // NOTE: filter on `room` (not `trigger_domain`) — room is the canonical field
-  let query = supabase
+  const query = supabase
     .from('client_routines')
     .select('*, cross_agent_routines(name, room, trigger_type, trigger_config, config_schema, steps)')
     .eq('client_id', clientId)

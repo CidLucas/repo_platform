@@ -193,7 +193,7 @@ function renderMarkdownToHtml(md: string): string {
 }
 
 function htmlToMarkdown(html: string): string {
-  let md = html
+  const md = html
     .replace(/<span[^>]*>/gi, '')
     .replace(/<\/span>/gi, '')
     .replace(/<div[^>]*>/gi, '')

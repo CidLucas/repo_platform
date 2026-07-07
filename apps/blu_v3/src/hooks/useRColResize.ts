@@ -16,7 +16,9 @@ function readStored(key: string): number {
       const n = parseInt(raw, 10)
       if (!isNaN(n)) return clamp(n, MIN_W, MAX_W)
     }
-  } catch {}
+  } catch {
+    // localStorage may be unavailable; fall back to DEFAULT_W
+  }
   return DEFAULT_W
 }
 
@@ -57,7 +59,9 @@ export function useRColResize() {
         10
       )
       const key = storageKeyRef.current
-      try { if (key) localStorage.setItem(key, String(finalW)) } catch {}
+      try { if (key) localStorage.setItem(key, String(finalW)) } catch {
+        // localStorage may be unavailable; width is still applied via CSS var
+      }
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
     }

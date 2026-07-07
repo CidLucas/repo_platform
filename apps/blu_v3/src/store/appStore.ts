@@ -240,7 +240,9 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     dismissFirstRun(clientId: string) {
-      try { localStorage.setItem(`blu_first_run_done:${clientId}`, '1') } catch {}
+      try { localStorage.setItem(`blu_first_run_done:${clientId}`, '1') } catch {
+        // localStorage may be unavailable; firstRun is also dismissed in store state
+      }
       set({ firstRun: false })
     },
   }

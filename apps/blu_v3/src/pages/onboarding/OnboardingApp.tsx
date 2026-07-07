@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-// @ts-expect-error — exceljs has no type declarations bundled nor @types/exceljs
 import ExcelJS from 'exceljs'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth, supabase } from '@blu/auth'
@@ -2322,7 +2321,9 @@ export default function OnboardingApp() {
       csvEntries={csvEntries}
       driveFileId={driveFileId}
       onDone={(bqMapping, credentialId, clientId, uploadedCsvSourceId) => {
-        try { localStorage.removeItem('blu_first_run_done') } catch {}
+        try { localStorage.removeItem('blu_first_run_done') } catch {
+          // localStorage may be unavailable; firstRun flag is set in store regardless
+        }
         useAppStore.setState({ firstRun: true })
         setBqCredentialId(credentialId)
         setBqClientId(clientId)

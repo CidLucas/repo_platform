@@ -70,7 +70,9 @@ export function useOnboardingDraft(userEmail: string) {
     try {
       const raw = localStorage.getItem(DRAFT_KEY(userEmail))
       if (raw) return { ...initialDraft(userEmail), ...JSON.parse(raw) }
-    } catch {}
+    } catch {
+      // corrupt draft or localStorage unavailable; fall back to initialDraft
+    }
     return initialDraft(userEmail)
   })
 
@@ -103,7 +105,9 @@ export function useOnboardingDraft(userEmail: string) {
       try {
         const key = DRAFT_KEY(next.email || prev.email || userEmail || '')
         localStorage.setItem(key, JSON.stringify(next))
-      } catch {}
+      } catch {
+        // localStorage may be unavailable; in-memory draft is still updated
+      }
       return next
     })
   }, [userEmail])
@@ -135,7 +139,9 @@ export function useOnboardingDraft(userEmail: string) {
       localStorage.removeItem(key)
       localStorage.removeItem(DRAFT_KEY(state.authMethod ? (state.email || userEmail || '') : ''))
       localStorage.removeItem(DRAFT_KEY(''))
-    } catch {}
+    } catch {
+      // localStorage may be unavailable; bootstrap still proceeds
+    }
     return data as unknown as { client_id: string; agents: number; routines: number; prompts_seeded: number }
   }, [draft, userEmail])
 

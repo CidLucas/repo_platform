@@ -24,7 +24,9 @@ export default function CollapsiblePanel({
     try {
       const v = localStorage.getItem(`panel:${clientId}:${id}`)
       if (v !== null) setOpen(v === 'true')
-    } catch {}
+    } catch {
+      // localStorage may be unavailable (private mode, quota); fall back to default
+    }
   }, [clientId, id])
 
   const toggle = useCallback(() => {
@@ -32,7 +34,9 @@ export default function CollapsiblePanel({
       const next = !o
       try {
         if (clientId) localStorage.setItem(`panel:${clientId}:${id}`, String(next))
-      } catch {}
+      } catch {
+        // localStorage may be unavailable; toggle is still reflected in state
+      }
       return next
     })
   }, [clientId, id])

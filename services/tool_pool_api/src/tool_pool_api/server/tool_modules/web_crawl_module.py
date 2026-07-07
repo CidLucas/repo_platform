@@ -16,7 +16,7 @@ from tool_pool_api.server.tool_modules import register_module
 
 logger = logging.getLogger(__name__)
 
-_CRAWL_TIMEOUT = 60  # seconds per crawl session
+_CRAWL_TIMEOUT = 150  # seconds per crawl session (deep crawl of ~30 pages takes 40-90s)
 _BROWSER_ARGS = ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
 
 
@@ -25,6 +25,28 @@ def _normalize_url(url: str) -> str:
     if not url.startswith(("http://", "https://")):
         url = f"https://{url}"
     return url
+
+
+async def _reset_crawl4ai_playwright() -> None:
+    """Clear crawl4ai's process-wide playwright singleton.
+
+    crawl4ai's BrowserManager caches the playwright driver connection at class
+    level (`_playwright_instance`). If a crawl is cancelled mid-flight (our
+    wait_for timeout) or the driver dies, the cached connection is left broken
+    and every subsequent chromium.launch in this process fails with
+    TargetClosedError until the singleton is discarded.
+    """
+    try:
+        from crawl4ai.browser_manager import BrowserManager
+    except ImportError:
+        return
+    inst = getattr(BrowserManager, "_playwright_instance", None)
+    if inst is not None:
+        try:
+            await inst.stop()
+        except Exception:
+            pass
+        BrowserManager._playwright_instance = None
 
 
 async def _run_crawl(url: str, max_depth: int, max_pages: int) -> list[dict[str, Any]]:
@@ -37,6 +59,7 @@ async def _run_crawl(url: str, max_depth: int, max_pages: int) -> list[dict[str,
             "crawl4ai is not available in this environment. "
             "Ensure the tool_pool_api image has been rebuilt with crawl4ai installed."
         ) from e
+    from playwright._impl._errors import TargetClosedError
 
     browser_cfg = BrowserConfig(headless=True, extra_args=_BROWSER_ARGS)
     crawl_cfg = CrawlerRunConfig(
@@ -50,32 +73,46 @@ async def _run_crawl(url: str, max_depth: int, max_pages: int) -> list[dict[str,
         page_timeout=30000,        # 30s per page
     )
 
-    results = []
-    async with AsyncWebCrawler(config=browser_cfg) as crawler:
-        crawl_results = await asyncio.wait_for(
-            crawler.arun(url=url, config=crawl_cfg),
-            timeout=_CRAWL_TIMEOUT,
-        )
-        # arun with deep crawl returns a list
-        if not isinstance(crawl_results, list):
-            crawl_results = [crawl_results]
-
-        for r in crawl_results:
-            if not r.success:
-                logger.debug("Page failed: %s — %s", getattr(r, "url", "?"), getattr(r, "error_message", ""))
-                continue
-            md = (r.markdown or "").strip()
-            if not md:
-                continue
-            results.append(
-                {
-                    "url": r.url,
-                    "title": (r.metadata or {}).get("title", ""),
-                    "markdown": md,
-                }
+    async def _attempt() -> list[dict[str, Any]]:
+        results: list[dict[str, Any]] = []
+        async with AsyncWebCrawler(config=browser_cfg) as crawler:
+            crawl_results = await asyncio.wait_for(
+                crawler.arun(url=url, config=crawl_cfg),
+                timeout=_CRAWL_TIMEOUT,
             )
+            # arun with deep crawl returns a list
+            if not isinstance(crawl_results, list):
+                crawl_results = [crawl_results]
 
-    return results
+            for r in crawl_results:
+                if not r.success:
+                    logger.debug("Page failed: %s — %s", getattr(r, "url", "?"), getattr(r, "error_message", ""))
+                    continue
+                md = (r.markdown or "").strip()
+                if not md:
+                    continue
+                results.append(
+                    {
+                        "url": r.url,
+                        "title": (r.metadata or {}).get("title", ""),
+                        "markdown": md,
+                    }
+                )
+        return results
+
+    try:
+        return await _attempt()
+    except TargetClosedError:
+        # Poisoned playwright singleton from an earlier cancelled crawl —
+        # reset and retry once with a fresh driver connection.
+        logger.warning("[web_crawl] TargetClosedError — resetting crawl4ai playwright and retrying")
+        await _reset_crawl4ai_playwright()
+        return await _attempt()
+    except (TimeoutError, asyncio.CancelledError):
+        # The cancelled crawl may have left the shared driver broken;
+        # reset so the NEXT call in this process starts clean.
+        await _reset_crawl4ai_playwright()
+        raise
 
 
 @register_module

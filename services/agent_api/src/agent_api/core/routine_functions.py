@@ -217,6 +217,7 @@ async def _gather_client_context(inputs: dict, client_id: str) -> dict:
     inputs=[],
     outputs=[
         {"key": "context_report_summary", "type": "str", "description": "Resumo legível do relatório gerado"},
+        {"key": "context_report_markdown", "type": "str", "description": "Conteúdo markdown completo do relatório"},
         {"key": "report_upserted", "type": "bool", "description": "True se o relatório foi indexado no RAG"},
     ],
 )
@@ -226,8 +227,9 @@ async def _generate_context_report(inputs: dict, client_id: str) -> dict:
     trends, top lists, upload to Storage + embed in RAG).
 
     outputs:
-        context_report_summary — human-readable summary string
-        report_upserted        — bool, True if uploaded to vector DB
+        context_report_summary  — human-readable summary string
+        context_report_markdown — the actual rendered report content
+        report_upserted         — bool, True if uploaded to vector DB
     """
     from blu_agent_framework.routines.context_report import run_for_client
 
@@ -238,7 +240,11 @@ async def _generate_context_report(inputs: dict, client_id: str) -> dict:
             "[routine_fn] generate_context_report failed for %s: %s",
             client_id, result.error,
         )
-        return {"context_report_summary": f"Falhou: {result.error}", "report_upserted": False}
+        return {
+            "context_report_summary": f"Falhou: {result.error}",
+            "context_report_markdown": "",
+            "report_upserted": False,
+        }
 
     summary = (
         f"Context report gerado: {result.report_chars} chars, "
@@ -246,7 +252,11 @@ async def _generate_context_report(inputs: dict, client_id: str) -> dict:
         f"{'indexado no RAG' if result.upserted else 'não indexado'}."
     )
     logger.info("[routine_fn] generate_context_report: %s", summary)
-    return {"context_report_summary": summary, "report_upserted": result.upserted}
+    return {
+        "context_report_summary": summary,
+        "context_report_markdown": result.payload.get("report_markdown") or "",
+        "report_upserted": result.upserted,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -423,34 +433,17 @@ async def _get_masterprompt(inputs: dict, client_id: str) -> dict:
 # Routine-wrapper fallbacks / masterprompt helper
 # ---------------------------------------------------------------------------
 
-@register(
-    "knowledge.fill_masterprompt",
-    description="Preenche o Business Context Map a partir do template e retorna o documento final.",
-    inputs=[
-        {"key": "masterprompt", "type": "str", "description": "Template/versão anterior do Business Context Map"},
-        {"key": "nome_empresa", "type": "str", "description": "Nome da empresa"},
-        {"key": "website_content", "type": "dict", "description": "Conteúdo extraído do site", "required": False},
-        {"key": "context_report_summary", "type": "str", "description": "Resumo do relatório de contexto", "required": False},
-    ],
-    outputs=[
-        {"key": "filled_masterprompt", "type": "str", "description": "Conteúdo final do Business Context Map"},
-    ],
-)
-async def _fill_masterprompt(inputs: dict, client_id: str) -> dict:
-    """Preenche o Business Context Map unindo template, website e relatório de contexto."""
+_FILL_MP_WEBSITE_MAX_CHARS = 60_000
+_FILL_MP_REPORT_MAX_CHARS = 30_000
+_FILL_MP_BASE_MAX_CHARS = 20_000
+
+
+def _fill_masterprompt_fallback(
+    base_md: str, nome_empresa: str, context_report: str, website_md: str
+) -> str:
+    """Deterministic merge used when the LLM synthesis is unavailable:
+    injects the raw context under '## Contexto Compilado' without rewriting sections."""
     import textwrap
-
-    masterprompt = inputs.get("masterprompt") or _MASTERPROMPT_TEMPLATE
-    website_content = (inputs.get("website_content") or {}).get("raw_text") or ""
-    context_report_summary = inputs.get("context_report_summary") or ""
-    nome_empresa = (inputs.get("nome_empresa") or "").strip()
-
-    if not isinstance(masterprompt, str):
-        masterprompt = json.dumps(masterprompt, ensure_ascii=False)
-
-    base_md = masterprompt.strip()
-    if base_md.startswith("```"):
-        base_md = re.sub(r"^```[a-zA-Z]*\s*", "", base_md).removesuffix("```").strip()
 
     seen: set[str] = set()
     base_lines: list[str] = []
@@ -461,7 +454,7 @@ async def _fill_masterprompt(inputs: dict, client_id: str) -> dict:
 
     context_block = "\n\n".join(
         part.strip()
-        for part in [context_report_summary, website_content]
+        for part in [context_report, website_md[:5_000]]
         if isinstance(part, str) and part.strip()
     )
     context_lines = [line for line in context_block.splitlines() if line.strip()]
@@ -488,7 +481,119 @@ async def _fill_masterprompt(inputs: dict, client_id: str) -> dict:
     if lines and lines[0].startswith("# Business Context Map"):
         lines[0] = f"# Business Context Map — {nome_empresa}" if nome_empresa else "# Business Context Map"
 
-    filled_md = "\n".join(lines)
+    return "\n".join(lines)
+
+
+@register(
+    "knowledge.fill_masterprompt",
+    description="Sintetiza o Business Context Map via LLM a partir do template, site e relatório de contexto.",
+    inputs=[
+        {"key": "masterprompt", "type": "str", "description": "Template/versão anterior do Business Context Map"},
+        {"key": "nome_empresa", "type": "str", "description": "Nome da empresa"},
+        {"key": "website_content", "type": "dict", "description": "Conteúdo extraído do site", "required": False},
+        {"key": "context_report_markdown", "type": "str", "description": "Conteúdo do relatório de contexto", "required": False},
+        {"key": "context_report_summary", "type": "str", "description": "Resumo do relatório de contexto", "required": False},
+    ],
+    outputs=[
+        {"key": "filled_masterprompt", "type": "str", "description": "Conteúdo final do Business Context Map"},
+    ],
+)
+async def _fill_masterprompt(inputs: dict, client_id: str) -> dict:
+    """Fill the Business Context Map sections via LLM synthesis.
+
+    Sources: crawled website markdown, context report (full markdown when
+    available, else the one-line summary) and the previous version of the map.
+    Falls back to a deterministic merge if the LLM fails or there is no
+    source material to synthesize from.
+    """
+    masterprompt = inputs.get("masterprompt") or _MASTERPROMPT_TEMPLATE
+    nome_empresa = str(inputs.get("nome_empresa") or inputs.get("client_name") or "").strip()
+    context_report = str(
+        inputs.get("context_report_markdown") or inputs.get("context_report_summary") or ""
+    ).strip()
+
+    website = inputs.get("website_content") or {}
+    if not isinstance(website, dict):
+        website = {"raw_text": str(website)}
+    # extract_company_context returns {"markdown": ...}; "raw_text" is the
+    # fallback shape when the tool response was not JSON (e.g. error strings).
+    website_md = str(website.get("markdown") or website.get("raw_text") or "").strip()
+    if website_md.startswith("Crawl failed") or website_md.startswith("Crawl timed out"):
+        website_md = ""
+
+    if not isinstance(masterprompt, str):
+        masterprompt = json.dumps(masterprompt, ensure_ascii=False)
+    base_md = masterprompt.strip()
+    if base_md.startswith("```"):
+        base_md = re.sub(r"^```[a-zA-Z]*\s*", "", base_md).removesuffix("```").strip()
+
+    if not context_report and not website_md:
+        logger.warning(
+            "[routine_fn] fill_masterprompt: no source content for %s — deterministic fallback",
+            client_id,
+        )
+        return {
+            "filled_masterprompt": _fill_masterprompt_fallback(
+                base_md, nome_empresa, context_report, website_md
+            )
+        }
+
+    from blu_llm_service import ModelTier, get_model
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    system_prompt = (
+        "Você mantém o Business Context Map de um cliente — o documento de contexto de negócio "
+        "usado pelos agentes da plataforma Blu.\n\n"
+        "Sua tarefa: preencher TODAS as seções do documento com base nas fontes fornecidas "
+        "(conteúdo do site da empresa, relatório de dados/KPIs e a versão anterior do documento).\n\n"
+        "Regras:\n"
+        "- Mantenha exatamente os títulos de seção (##) do template.\n"
+        "- Substitua os comentários <!-- ... --> por conteúdo real e específico, em PT-BR.\n"
+        "- Seja factual: use apenas informações presentes nas fontes. Não invente números.\n"
+        "- Se uma seção não tiver informação disponível, escreva uma linha objetiva "
+        "(ex.: 'Sem informação disponível até o momento.').\n"
+        "- Preserve conteúdo útil da versão anterior quando as fontes não o contradisserem.\n"
+        "- Responda SOMENTE com o markdown completo do documento, começando por "
+        "'# Business Context Map'. Sem cercas de código, sem comentários extras."
+    )
+    user_msg = (
+        f"Empresa: {nome_empresa or '(nome não informado)'}\n\n"
+        f"=== VERSÃO ATUAL DO DOCUMENTO ===\n{base_md[:_FILL_MP_BASE_MAX_CHARS]}\n\n"
+        f"=== RELATÓRIO DE CONTEXTO (dados/KPIs) ===\n"
+        f"{context_report[:_FILL_MP_REPORT_MAX_CHARS] or '(sem dados)'}\n\n"
+        f"=== CONTEÚDO DO SITE ===\n"
+        f"{website_md[:_FILL_MP_WEBSITE_MAX_CHARS] or '(site não disponível)'}"
+    )
+
+    filled_md = ""
+    try:
+        llm = get_model(tier=ModelTier.DEFAULT)
+        response = await llm.ainvoke([
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=user_msg),
+        ])
+        filled_md = (response.content if hasattr(response, "content") else str(response)).strip()
+        if filled_md.startswith("```"):
+            filled_md = re.sub(r"^```[a-zA-Z]*\s*", "", filled_md).removesuffix("```").strip()
+    except Exception as exc:
+        logger.warning("[routine_fn] fill_masterprompt: LLM call failed for %s: %s", client_id, exc)
+
+    # Sanity check: a real synthesis has the doc title and several sections.
+    if len(filled_md) < 300 or filled_md.count("## ") < 3 or not filled_md.startswith("# "):
+        logger.warning(
+            "[routine_fn] fill_masterprompt: LLM output invalid (%d chars) for %s — deterministic fallback",
+            len(filled_md), client_id,
+        )
+        filled_md = _fill_masterprompt_fallback(base_md, nome_empresa, context_report, website_md)
+    else:
+        if nome_empresa and filled_md.startswith("# Business Context Map") and nome_empresa not in filled_md.splitlines()[0]:
+            first_nl = filled_md.index("\n") if "\n" in filled_md else len(filled_md)
+            filled_md = f"# Business Context Map — {nome_empresa}" + filled_md[first_nl:]
+        logger.info(
+            "[routine_fn] fill_masterprompt: LLM synthesis ok (%d chars) for %s",
+            len(filled_md), client_id,
+        )
+
     return {"filled_masterprompt": filled_md}
 
 

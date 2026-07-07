@@ -122,6 +122,7 @@ COLUMN_ALIASES: dict[str, list[str]] = {
         "chave_acesso", "numero",
         "número nf", "numero nf", "num nf", "nr nf", "nf", "nota fiscal",
         "número nota", "numero nota", "nf numero", "nf número",
+        "nf_id", "id_nf", "nfe_id", "id_nota",
     ],
     "data_competencia_id": [
         "emittedat_operatorinvoice", "createdat_operatorinvoice", "data_emissao",

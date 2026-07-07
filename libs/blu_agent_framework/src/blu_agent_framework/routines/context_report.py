@@ -182,6 +182,7 @@ async def run_for_client(
         )
         result.report_chars = len(markdown)
         result.payload["report_chars"] = result.report_chars
+        result.payload["report_markdown"] = markdown
 
         if not dry_run:
             result.upserted = _upsert_to_vector_db(

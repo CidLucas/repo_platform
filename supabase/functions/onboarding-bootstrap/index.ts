@@ -194,34 +194,13 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // ── 7. Fire onboarding_complete routine (best-effort) ────────────────────
-    // The routine is event-triggered and requires an explicit dispatch call —
-    // check_and_enqueue_triggers() only polls cron/numeric triggers.
-    // We call dispatch_routine_event() via service role so it can bypass RLS
-    // to insert the execution row.  waitUntil keeps the response fast.
-    if (SUPABASE_SERVICE_ROLE_KEY && result.routines > 0) {
-      const svcForEvent = createServiceClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-      EdgeRuntime.waitUntil(
-        (async () => {
-          try {
-            const { data, error } = await svcForEvent.rpc("dispatch_routine_event", {
-              p_routine_id: "onboarding_complete",
-              p_client_id: result.client_id,
-              p_trigger_data: { event_type: "onboarding_completed" },
-            });
-            if (error) {
-              console.warn("[onboarding-bootstrap] dispatch_routine_event failed:", error.message);
-            } else if (data) {
-              console.log(`[onboarding-bootstrap] onboarding_complete routine dispatched: exec=${data}`);
-            } else {
-              console.log("[onboarding-bootstrap] dispatch_routine_event returned null (guard blocked or no subscription)");
-            }
-          } catch (err) {
-            console.warn("[onboarding-bootstrap] dispatch_routine_event error:", err);
-          }
-        })(),
-      );
-    }
+    // ── 7. onboarding_complete routine dispatch ──────────────────────────────
+    // O dispatch da rotina onboarding_complete NÃO acontece mais aqui. Desde o
+    // refactor P12 (migration 20260525_p12_split_onboarding_completion) o
+    // frontend chama a RPC public.finalize_onboarding() ao final do onboarding,
+    // que marca onboarding_completed_at E dispara a rotina de forma síncrona
+    // (o waitUntil daqui era abortado quando o frontend timeoutava no seed
+    // Langfuse). Não reintroduzir dispatch aqui — causaria double-dispatch.
 
     return json({
       client_id: result.client_id,

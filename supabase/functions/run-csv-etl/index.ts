@@ -1,8 +1,5 @@
 /**
- * run-csv-etl — CSV/XLSX ingest with inline ETL
- *
- * Despite the name, this function does the FULL ETL pipeline inline —
- * it is not just an orchestrator. The flow is:
+ * run-csv-etl — CSV/XLSX ingest orchestrator
  *
  *  1. Auth + ownership check (per-client_id)
  *  2. Fetch and validate the data source (must be storage_type='csv_file')
@@ -14,20 +11,16 @@
  *     detection) or XLSX (sheet scoring + header-row detection)
  *  6. Stage the parsed rows in `csv_import_staging` (JSONB, one row per
  *     source row)
- *  7. **Inline ETL**: read the staged rows back, project to
- *     `analytics_v2.dim_clientes` (upsert by `cpf_cnpj`) and
- *     `analytics_v2.fato_transacoes` (insert one fact per row), then
- *     delete the staging rows. This replaces the legacy pg_cron +
- *     `sincronizar_csv_cliente` RPC path — the function IS the source
- *     of truth for the ETL, not a queue dispatcher.
- *  8. Create a `reg_jobs` row of type `csv_sync` for audit / observability.
- *     The job is mostly a record of work that already happened; the
- *     dispatcher in `analytics_v2.process_pending_jobs` is a no-op
- *     for jobs whose ETL completed inline.
+ *  7. Create a `reg_jobs` row of type `csv_sync` and run the ETL by
+ *     calling `public.sincronizar_csv_cliente(job_id)`. The RPC applies
+ *     the confirmed column_mapping, upserts dim_clientes /
+ *     dim_fornecedores / dim_inventory / dim_datas, classifies
+ *     tipo_transacao, inserts fato_transacoes, deletes the staging
+ *     batch and finalizes the job (completed/failed + error_message).
+ *  8. Refresh dashboard MVs (`refresh_client_dashboards`) on success.
  *
- * If you need the function to behave as a pure orchestrator (queue a
- * job and let the dispatcher do the ETL), look at `run-sync-etl` for
- * the BQ equivalent.
+ * ETL failures are surfaced: the job is marked failed and the HTTP
+ * response is a 500 with the RPC error, so callers can show it.
  */
 
 import {
@@ -111,7 +104,7 @@ Deno.serve(async (req: Request) => {
     // ── 3. Fetch and validate data source ─────────────────────────────────────
     const { data: dataSource, error: dsErr } = await svc
       .from("client_data_sources")
-      .select("id, storage_location, storage_type, auto_column_mapping, sync_status, schema_type")
+      .select("id, storage_location, storage_type, auto_column_mapping, sync_status")
       .eq("id", source_id)
       .eq("client_id", client_id)
       .maybeSingle();
@@ -278,97 +271,12 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Failed to stage CSV rows for processing" }, 500);
     }
 
-    // ── 8. Inline ETL: stage → dim/fact sync ─────────────────────────────────
-    // Read the just-staged rows back and project them into dim_clientes and
-    // fato_transacoes. This replaces the previous pg_cron + sincronizar_csv_cliente
-    // path so that the handler is the single source of truth for ETL.
-    const { data: staged, error: stageReadErr } = await svc
-      .from("csv_import_staging")
-      .select("rows")
-      .eq("client_id", client_id)
-      .eq("source_id", source_id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (stageReadErr) {
-      console.error(`[run-csv-etl] ${requestId} Staging read failed:`, stageReadErr);
-    }
-
-    const stagedRows = (staged?.rows ?? []) as Record<string, string>[];
-
-    // dim_clientes upsert — extract client dimension fields from Brazilian
-    // invoice column names (cpf_cnpj / cnpj / cpf, nome / cliente, telefone, etc.)
-    const dimClientesRows = stagedRows
-      .filter((r) => r.cpf_cnpj || r.cnpj || r.cpf)
-      .map((r) => ({
-        client_id,
-        cpf_cnpj: String(r.cpf_cnpj ?? r.cnpj ?? r.cpf ?? "").trim() || null,
-        nome: String(r.nome ?? r.cliente ?? r.razao_social ?? "").trim() || null,
-        telefone: String(r.telefone ?? r.celular ?? r.fone ?? "").trim() || null,
-        endereco_cidade: String(r.cidade ?? r.municipio ?? r.endereco_cidade ?? "").trim() || null,
-        endereco_uf: String(r.uf ?? r.estado ?? r.endereco_uf ?? "").trim() || null,
-      }));
-
-    if (dimClientesRows.length > 0) {
-      const { error: dimErr } = await svc
-        .from("dim_clientes")
-        .upsert(dimClientesRows, { onConflict: "client_id,cpf_cnpj", ignoreDuplicates: false });
-      if (dimErr) {
-        console.error(`[run-csv-etl] ${requestId} dim_clientes upsert failed:`, dimErr);
-      }
-    }
-
-    // fato_transacoes insert — one fact row per staged invoice/transaction.
-    const fatoRows = stagedRows.map((r, idx) => ({
-      transacao_id: String(
-        r.transacao_id ?? r.documento ?? r.numero_nota ?? `${source_id}-${idx}-${Date.now()}`,
-      ),
-      client_id,
-      documento: String(r.documento ?? r.numero_nota ?? r.nota_fiscal ?? "").trim() || null,
-      quantidade: Number(r.quantidade ?? r.qty ?? 1) || 1,
-      valor_unitario: Number(r.valor_unitario ?? r.preco_unitario ?? 0) || 0,
-      valor: Number(r.valor ?? r.valor_total ?? r.total ?? 0) || 0,
-      status: String(r.status ?? r.situacao ?? "processed").trim() || "processed",
-      created_at: now,
-    }));
-
-    if (fatoRows.length > 0) {
-      const { error: fatoErr } = await svc
-        .schema("analytics_v2")
-        .from("fato_transacoes")
-        .insert(fatoRows);
-      if (fatoErr) {
-        console.error(`[run-csv-etl] ${requestId} fato_transacoes insert failed:`, fatoErr);
-      }
-    }
-
-    // ── Refresh MVs ────────────────────────────────────────────────────────────
-    // sincronizar_csv_cliente runs after staging cleanup but reads from
-    // csv_import_staging (already deleted by the cleanup) and silently skips
-    // the REFRESH MATERIALIZED VIEW block. Enqueue the refresh here so the
-    // dispatcher (analytics_v2.process_pending_jobs) updates the dashboards
-    // regardless of the legacy path. Non-fatal: the ETL succeeded even if
-    // the refresh fails — the dispatcher will retry on the next tick.
-    try {
-      await svc.rpc("refresh_client_dashboards", { p_client_id: client_id });
-      console.log(`[run-csv-etl] ${requestId} MVs refreshed for client=${client_id}`);
-    } catch (refreshErr) {
-      console.warn(`[run-csv-etl] ${requestId} MV refresh failed (non-fatal):`, refreshErr);
-    }
-
-    // Staging cleanup — drop the batch now that dim/fact have been populated.
-    const { error: cleanupErr } = await svc
-      .from("csv_import_staging")
-      .delete()
-      .eq("client_id", client_id)
-      .eq("source_id", source_id);
-
-    if (cleanupErr) {
-      console.error(`[run-csv-etl] ${requestId} Staging cleanup failed:`, cleanupErr);
-    }
-
-    // ── 9. Create sync job — pg_cron no longer drives ETL ────────────────────
+    // ── 8. Create sync job and run the ETL via RPC ────────────────────────────
+    // sincronizar_csv_cliente applies the confirmed column_mapping to the
+    // staged rows, upserts the dimensions (dim_clientes, dim_fornecedores,
+    // dim_inventory, dim_datas), classifies tipo_transacao/entry_type,
+    // upserts fato_transacoes, deletes the staging batch and finalizes the
+    // job row (completed/failed + rows_inserted + error_message).
     const { data: job, error: jobErr } = await svc
       .schema("analytics_v2")
       .from("reg_jobs")
@@ -387,33 +295,57 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Failed to create sync job" }, 500);
     }
 
-    try {
-      const { error: rpcErr } = await svc.rpc("sincronizar_csv_cliente", {
-        p_job_id: job.job_id,
-      });
+    const { data: etlResult, error: rpcErr } = await svc.rpc("sincronizar_csv_cliente", {
+      p_job_id: job.job_id,
+    });
+
+    const etl = (etlResult ?? {}) as { success?: boolean; rows_inserted?: number; error?: string };
+
+    if (rpcErr || !etl.success) {
+      const etlError = rpcErr?.message ?? etl.error ?? "ETL failed";
+      console.error(`[run-csv-etl] ${requestId} ETL failed for job=${job.job_id}:`, etlError);
+
+      // Transport-level RPC errors never reach the RPC's own EXCEPTION
+      // handler, so finalize the job here. When the RPC ran and failed it
+      // already marked the job — this update is then a no-op on status.
       if (rpcErr) {
-        console.error(`[run-csv-etl] ${requestId} RPC sincronizar_csv_cliente failed:`, rpcErr);
+        await svc
+          .schema("analytics_v2")
+          .from("reg_jobs")
+          .update({ status: "failed", error_message: etlError, updated_at: new Date().toISOString() })
+          .eq("job_id", job.job_id)
+          .eq("status", "pending");
       }
+
+      // Drop the staged batch — a retry re-stages from the file in Storage.
       await svc
-        .schema("analytics_v2")
-        .from("reg_jobs")
-        .update({ status: "completed", progress_pct: 100 })
-        .eq("job_id", job.job_id);
-    } catch (rpcCatchErr) {
-      console.error(`[run-csv-etl] ${requestId} Inline RPC exception (pg_cron fallback):`, rpcCatchErr);
+        .from("csv_import_staging")
+        .delete()
+        .eq("client_id", client_id)
+        .eq("source_id", source_id);
+
       return json({
-        success: true,
-        rows_inserted: 0,
-        period: new Date().toISOString().slice(0, 7),
+        success: false,
+        error: etlError,
         job_id: job.job_id,
-      }, 200, {
-        "X-Request-Id": requestId,
+        request_id: requestId,
+      }, 500, { "X-Request-Id": requestId });
+    }
+
+    // ── 9. Refresh dashboard MVs (non-fatal: dispatcher retries on next tick) ─
+    try {
+      const { error: refreshErr } = await svc.rpc("refresh_client_dashboards", {
+        p_client_id: client_id,
       });
+      if (refreshErr) throw refreshErr;
+      console.log(`[run-csv-etl] ${requestId} MVs refreshed for client=${client_id}`);
+    } catch (refreshErr) {
+      console.warn(`[run-csv-etl] ${requestId} MV refresh failed (non-fatal):`, refreshErr);
     }
 
     const initDuration = Date.now() - startTime;
     console.log(
-      `[run-csv-etl] ${requestId} Queued job=${job.job_id} rows=${rows.length} in ${initDuration}ms`,
+      `[run-csv-etl] ${requestId} job=${job.job_id} rows=${rows.length} inserted=${etl.rows_inserted ?? 0} in ${initDuration}ms`,
     );
 
     return json({
@@ -421,6 +353,7 @@ Deno.serve(async (req: Request) => {
       job_id: job.job_id,
       request_id: requestId,
       row_count: rows.length,
+      rows_inserted: etl.rows_inserted ?? 0,
     }, 200, {
       "X-Request-Id": requestId,
       "X-Duration-Ms": String(initDuration),

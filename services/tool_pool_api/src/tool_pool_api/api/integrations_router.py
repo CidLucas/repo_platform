@@ -4,7 +4,7 @@ import secrets
 from datetime import datetime, timedelta
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
@@ -427,6 +427,7 @@ class ExportPoToSheetsRequest(BaseModel):
 @router.post("/tools/export_po_to_sheets")
 @limiter.limit("5/minute")
 async def export_po_to_sheets(
+    request: Request,
     payload: ExportPoToSheetsRequest,
     auth: AuthResult = Depends(_get_auth_result),
 ):
@@ -551,6 +552,7 @@ async def draft_inbox_reply(
 @router.post("/inbox/threads/send")
 @limiter.limit("20/minute")
 async def send_inbox_reply(
+    request: Request,
     payload: SendReplyRequest,
     auth: AuthResult = Depends(_get_auth_result),
 ):

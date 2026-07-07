@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth, supabase } from '@blu/auth'
 import { connectGoogleDrive } from '../../api/agenda'
@@ -58,11 +58,25 @@ interface PendingCredential {
 
 type Step = 'auth' | 'info' | 'data' | 'mapping' | 'launch'
 
-type CsvClassification = {
-  confirmed: boolean
+// One uploaded spreadsheet flowing through the onboarding pipeline.
+// Each file carries its own schema classification, match result and
+// user-confirmed mapping — files with different layouts (e.g. compras
+// vs vendas) must not share a single mapping.
+export type CsvEntry = {
+  file: File
+  headers: string[]
+  sheetName: string
   schemaType: string
-  canceled: boolean
+  mappingResult?: ColumnMappingResult | null
+  confirmedMapping?: Record<string, string> | null
 }
+
+const CSV_SCHEMA_TYPES: { value: string; label: string; hint: string }[] = [
+  { value: 'invoices', label: 'Notas Fiscais / Faturamento', hint: 'NF-e, NFC-e, recibos de venda ou compra' },
+  { value: 'fato_transacoes', label: 'Transações Financeiras', hint: 'lançamentos, receitas, despesas' },
+  { value: 'dim_clientes', label: 'Clientes', hint: 'cadastro de clientes' },
+  { value: 'dim_inventory', label: 'Estoque / Produtos', hint: 'SKU, produtos, catálogo' },
+]
 
 const STEP_ORDER: Step[] = ['auth', 'info', 'data', 'mapping', 'launch']
 const STEP_LABELS = ['Conta', 'Empresa', 'Dados', 'Mapeamento']
@@ -148,7 +162,9 @@ async function callMatchColumns(sourceColumns: string[], schemaType?: string): P
   try {
     // match-columns moved from a Deno EF to a Python service in Phase 3.2.
     // The endpoint is mounted at /v1/match-columns in tool_pool_api.
-    const toolPoolUrl = import.meta.env.VITE_TOOL_POOL_API_URL || 'http://localhost:8000'
+    // In dev, Vite proxies /api/tool-pool → http://localhost:8006 (see vite.config.ts).
+    // In prod (Vercel), set VITE_TOOL_POOL_API_URL=/_/tool_pool_api to hit the rewrite.
+    const toolPoolUrl = import.meta.env.VITE_TOOL_POOL_API_URL || '/api/tool-pool'
     const { data: { session } } = await supabase.auth.getSession()
     const resp = await fetch(`${toolPoolUrl}/v1/match-columns`, {
       method: 'POST',
@@ -190,23 +206,29 @@ function parseSpreadsheetHeaders(file: File): Promise<{ headers: string[]; sheet
   if (isXlsx) {
     return new Promise((resolve) => {
       const reader = new FileReader()
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         try {
           const data = new Uint8Array(e.target?.result as ArrayBuffer)
-          // DEP-01 mitigation: sanitize xlsx output via JSON roundtrip
-          // to strip potential Prototype Pollution (GHSA-4r6h-8v6p-xvw6).
-          // xlsx has no fix available — migration to exceljs planned.
-          const wb = XLSX.read(data, { type: 'array', sheetRows: 12 })
-          // Score each sheet: name-keyword match wins; row count breaks ties.
-          // sheetRows: 12 caps all large sheets at 12, so name score must be primary.
-          const sheetScores = wb.SheetNames.map(name => {
-            const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[name], { header: 1, defval: '' })
-            return { name, score: scoreSheetName(name), rowCount: rows.length }
-          })
-          sheetScores.sort((a, b) => b.score - a.score || b.rowCount - a.rowCount)
-          const bestSheet = sheetScores[0]?.name ?? wb.SheetNames[0]
-          const ws = wb.Sheets[bestSheet]
-          const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+          const wb = new ExcelJS.Workbook()
+          await wb.xlsx.load(data)
+          const MAX_ROWS = 12
+          const sheetRows: { name: string; score: number; rowCount: number; rows: unknown[][] }[] =
+            wb.worksheets.map((ws) => {
+              const rows: unknown[][] = []
+              ws.eachRow({ includeEmpty: true }, (row, rowNumber) => {
+                if (rowNumber > MAX_ROWS) return false
+                const values = row.values as unknown[]
+                const arr: unknown[] = []
+                for (let i = 1; i < values.length; i++) {
+                  arr.push(values[i] ?? '')
+                }
+                rows.push(arr)
+              })
+              return { name: ws.name, score: scoreSheetName(ws.name), rowCount: rows.length, rows }
+            })
+          sheetRows.sort((a, b) => b.score - a.score || b.rowCount - a.rowCount)
+          const bestSheet = sheetRows[0]?.name ?? wb.worksheets[0]?.name ?? ''
+          const rows = sheetRows[0]?.rows ?? []
           // Find the row with the most non-empty cells in the first 10 rows
           const searchRows = rows.slice(0, 10)
           const headerIdx = searchRows.reduce((bestIdx, row, i) => {
@@ -1128,30 +1150,23 @@ function CredentialForm({
 // ─── StepData ─────────────────────────────────────────────────────────────────
 
 function StepData({
-  onNext, onBack, onSkip, saveDraft, onMappingReady, onCredentialCollected, onCsvFileReady, onDriveFileReady,
+  onNext, onBack, onSkip, saveDraft, onCredentialCollected, onCsvEntriesReady, onDriveFileReady,
 }: {
-  onNext: (mappingResult?: ColumnMappingResult | null) => void
+  onNext: (hasMapping: boolean) => void
   onBack: () => void
   onSkip: () => void
   saveDraft: (patch: Partial<OnboardingDraft>) => Promise<void>
-  onMappingReady: (result: ColumnMappingResult | null) => void
   onCredentialCollected: (platform: ConnectorPlatform, nomServico: string, credentials: CredentialPayload) => void
-  onCsvFileReady: (file: File | null, sheetName?: string, schemaType?: string) => void
+  onCsvEntriesReady: (entries: CsvEntry[]) => void
   onDriveFileReady: (fileId: string) => void
 }) {
   const [connected, setConnected] = useState<Record<string, boolean>>({})
   const [interested, setInterested] = useState<Record<string, boolean>>({})
   const [openForm, setOpenForm] = useState<string | null>(null)
-  interface CsvFileEntry {
-    file: File
-    headers: string[]
-    sheetName: string
-  }
-  const [csvFiles, setCsvFiles] = useState<CsvFileEntry[]>([])
+  const [csvFiles, setCsvFiles] = useState<CsvEntry[]>([])
   const [csvUploaded, setCsvUploaded] = useState(false)
-  const [csvClassification, setCsvClassification] = useState<CsvClassification | null>(null)
   const [showClassificationModal, setShowClassificationModal] = useState(false)
-  const [showSchemaTypeRadios, setShowSchemaTypeRadios] = useState(true)
+  const [matching, setMatching] = useState(false)
   const csvRef = useRef<HTMLInputElement>(null)
   const [driveOpen, setDriveOpen] = useState(false)
   const [driveUrl, setDriveUrl] = useState('')
@@ -1267,12 +1282,12 @@ function StepData({
   async function handleCsvChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files
     if (!files || files.length === 0) return
-    const entries: CsvFileEntry[] = []
+    const entries: CsvEntry[] = []
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
       try {
         const { headers, sheetName } = await parseSpreadsheetHeaders(file)
-        entries.push({ file, headers, sheetName })
+        entries.push({ file, headers, sheetName, schemaType: 'invoices' })
       } catch (err) {
         console.warn(`[onboarding] failed to parse ${file.name}:`, err)
       }
@@ -1287,13 +1302,21 @@ function StepData({
       ...Object.keys(connected).filter(k => connected[k]),
       ...Object.keys(interested).filter(k => interested[k]),
     ]
-    await saveDraft({ systems, csvUploaded })
-    // Match CSV columns if uploaded; BQ columns are discovered in StepLaunch
-    const schemaType = csvClassification?.schemaType || 'invoices'
-    const firstEntry = csvFiles[0]
-    const mappingResult = firstEntry ? await callMatchColumns(firstEntry.headers, schemaType) : null
-    onMappingReady(mappingResult)
-    onNext(mappingResult)
+    setMatching(true)
+    try {
+      await saveDraft({ systems, csvUploaded })
+      // Match CSV columns per file — each spreadsheet has its own layout and
+      // schema type; BQ columns are discovered in StepLaunch.
+      const entries: CsvEntry[] = []
+      for (const entry of csvFiles) {
+        const mappingResult = await callMatchColumns(entry.headers, entry.schemaType)
+        entries.push({ ...entry, mappingResult })
+      }
+      onCsvEntriesReady(entries)
+      onNext(entries.some(e => e.mappingResult))
+    } finally {
+      setMatching(false)
+    }
   }
 
   const selectedSystem = SYSTEMS.find(s => s.id === openForm)
@@ -1411,76 +1434,45 @@ function StepData({
           {csvFiles.length > 0 && showClassificationModal && (
             <div style={{ marginTop: 16, padding: 16, background: 'var(--surface)', border: '1px solid var(--gb)', borderRadius: 'var(--rl)' }}>
               <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>
-                Qual o tipo de dados desta planilha?
+                Qual o tipo de dados de cada planilha?
               </div>
               <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
-                Detectamos {csvFiles.reduce((sum, e) => sum + e.headers.length, 0)} colunas ao todo. Selecione o tipo que melhor descreve esta planilha.
+                Cada planilha é mapeada e importada separadamente. Selecione o tipo que melhor descreve cada uma.
               </div>
-              {(showSchemaTypeRadios || !csvClassification?.schemaType) && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
-                  <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer', fontSize: 13 }}>
-                    <input type="radio" name="csvSchemaType" value="invoices" checked={(csvClassification?.schemaType ?? 'invoices') === 'invoices'} onChange={() => setCsvClassification({ confirmed: false, schemaType: 'invoices', canceled: false })} />
-                    <span><strong>Notas Fiscais / Faturamento</strong> — invoices, NF-e, NFC-e, recibos de venda.</span>
-                  </label>
-                  <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer', fontSize: 13 }}>
-                    <input type="radio" name="csvSchemaType" value="fato_transacoes" checked={csvClassification?.schemaType === 'fato_transacoes'} onChange={() => setCsvClassification({ confirmed: false, schemaType: 'fato_transacoes', canceled: false })} />
-                    <span><strong>Transacoes Financeiras</strong> — fato_transacoes, lancamentos, receitas, despesas.</span>
-                  </label>
-                  <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer', fontSize: 13 }}>
-                    <input type="radio" name="csvSchemaType" value="dim_clientes" checked={csvClassification?.schemaType === 'dim_clientes'} onChange={() => setCsvClassification({ confirmed: false, schemaType: 'dim_clientes', canceled: false })} />
-                    <span><strong>Clientes</strong> — dim_clientes, cadastro de clientes.</span>
-                  </label>
-                  <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer', fontSize: 13 }}>
-                    <input type="radio" name="csvSchemaType" value="dim_inventory" checked={csvClassification?.schemaType === 'dim_inventory'} onChange={() => setCsvClassification({ confirmed: false, schemaType: 'dim_inventory', canceled: false })} />
-                    <span><strong>Estoque / Produtos</strong> — dim_inventory, SKU, produtos, catalogo.</span>
-                  </label>
-                </div>
-              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                {csvFiles.map((entry, i) => (
+                  <div key={`${entry.file.name}-${i}`} style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 13 }}>
+                    <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={entry.file.name}>
+                      📄 {entry.file.name} <span style={{ color: 'var(--muted)' }}>· {entry.headers.length} colunas</span>
+                    </span>
+                    <select
+                      className="map-select"
+                      style={{ maxWidth: 240 }}
+                      value={entry.schemaType}
+                      onChange={e => {
+                        const schemaType = e.target.value
+                        setCsvFiles(prev => prev.map((p, j) => j === i ? { ...p, schemaType } : p))
+                      }}
+                    >
+                      {CSV_SCHEMA_TYPES.map(t => (
+                        <option key={t.value} value={t.value}>{t.label} — {t.hint}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button className="btn btn-primary" onClick={() => {
-                  const schemaType = csvClassification?.schemaType || 'invoices'
                   setCsvUploaded(true)
-                  setCsvClassification({ confirmed: true, schemaType, canceled: false })
                   setShowClassificationModal(false)
-                  setShowSchemaTypeRadios(false)
-                  for (const entry of csvFiles) {
-                    onCsvFileReady(entry.file, entry.sheetName, schemaType)
-                  }
                 }}>Confirmar</button>
-                {!showSchemaTypeRadios && (
-                  <button className="btn btn-ghost" onClick={() => setShowSchemaTypeRadios(true)}>Alterar tipo</button>
-                )}
                 <button className="btn btn-ghost" onClick={() => {
                   setCsvFiles([])
                   setCsvUploaded(false)
-                  setCsvClassification(null)
                   setShowClassificationModal(false)
-                  onCsvFileReady(null)
+                  onCsvEntriesReady([])
                 }}>Cancelar</button>
               </div>
-              {csvClassification && !csvClassification.confirmed && (
-                <div className="field">
-                  <label>schemaType:</label>
-                  <select value={csvClassification.schemaType} onChange={e => {
-                    setCsvClassification(prev => prev ? { ...prev, schemaType: e.target.value } : { confirmed: false, schemaType: e.target.value, canceled: false })
-                    if (e.target.value !== '') {
-                      setCsvUploaded(true)
-                      setCsvClassification({ confirmed: true, schemaType: e.target.value, canceled: false })
-                      setShowClassificationModal(false)
-                      for (const entry of csvFiles) {
-                        onCsvFileReady(entry.file, entry.sheetName, e.target.value)
-                      }
-                    }
-                  }}>
-                    <option value="">Selecione…</option>
-                    <option value="invoices">invoices</option>
-                    <option value="receipts">receipts</option>
-                    <option value="bank_statements">bank_statements</option>
-                    <option value="outros">outros</option>
-                    <option value="Nao sei">Nao sei (sugere via LLM)</option>
-                  </select>
-                </div>
-              )}
             </div>
           )}
           <input
@@ -1494,7 +1486,9 @@ function StepData({
 
           <div style={{ display: 'flex', gap: 8, marginTop: 22 }}>
             <button className="btn btn-ghost" onClick={onBack}>← Voltar</button>
-            <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleNext}>Continuar → Mapear colunas</button>
+            <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleNext} disabled={matching}>
+              {matching ? 'Analisando colunas…' : 'Continuar → Mapear colunas'}
+            </button>
           </div>
           <div style={{ textAlign: 'center', marginTop: 12, fontSize: 12, color: 'var(--muted)' }}>
             Prefere começar sem dados? <span style={{ color: 'var(--blue3)', cursor: 'pointer' }} onClick={onSkip}>Pular por agora →</span>
@@ -1507,59 +1501,39 @@ function StepData({
 
 // ─── StepMapping ──────────────────────────────────────────────────────────────
 
+type MappingEntry = { label: string; mappingResult: ColumnMappingResult | null }
+
 function StepMapping({
-  onNext, onBack, saveDraft, mappingResult, credentialId, clientId, csvSourceId, onConfirmedMapping,
+  onNext, onBack, saveDraft, entries, credentialId, clientId, csvSourceId, onConfirmedMappings,
 }: {
   onNext: () => void
   onBack?: () => void
   saveDraft: (patch: Partial<OnboardingDraft>) => Promise<void>
-  mappingResult: ColumnMappingResult | null
+  entries: MappingEntry[]
   credentialId: number | null
   clientId: string | null
   csvSourceId: string | null
-  onConfirmedMapping?: (mapping: Record<string, string>) => void
+  onConfirmedMappings?: (mappings: Record<string, Record<string, string>>) => void
 }) {
-  const [openGroup, setOpenGroup] = useState<'auto' | 'warn' | 'unknown' | null>(() => {
-    if ((mappingResult?.needs_review?.length ?? 0) > 0) return 'warn'
-    if (Object.keys(mappingResult?.matched ?? {}).length > 0) return 'auto'
-    return null
-  })
-  // Pre-populate warn selections with each row's top candidate so they're included
-  // even if the user never opens the warn group.
-  const [warnSelections, setWarnSelections] = useState<Record<string, string>>(() =>
-    Object.fromEntries((mappingResult?.needs_review ?? []).map(r => [r.source, r.candidates[0]?.canonical ?? '']))
-  )
-  const [unknownSelections, setUnknownSelections] = useState<Record<string, string>>({})
+  const [idx, setIdx] = useState(0)
+  const [collected, setCollected] = useState<Record<string, Record<string, string>>>({})
   const [confirming, setConfirming] = useState(false)
+  const entry = entries[idx] ?? null
 
-  async function handleConfirm() {
+  async function finalize(all: Record<string, Record<string, string>>) {
     setConfirming(true)
     try {
       await saveDraft({ mapping_confirmed: true })
 
-      // Fire ETL job — non-blocking, navigate immediately
-      // Backend expects { source_column: canonical_field } — same as match-columns output
-      // run_etl_job does: SELECT source_col AS canonical FROM fdw.table
-      const autoMatched: Record<string, string> = { ...mappingResult?.matched ?? {} }
-      // warnSelections state: { source_col: canonical } — already correct
-      const warnMapped: Record<string, string> = {}
-      for (const [src, canonical] of Object.entries(warnSelections)) {
-        if (canonical && canonical !== 'ignorar') warnMapped[src] = canonical
-      }
-      // unknownSelections state: { source_col: canonical } — already correct
-      const manualMapped = Object.fromEntries(
-        Object.entries(unknownSelections)
-          .filter(([, v]) => v && v !== 'ignorar')
-      )
-      const column_mapping = { ...autoMatched, ...warnMapped, ...manualMapped }
-
-      // Post-launch (BQ/Drive): clientId is available → run ETL now.
-      // Pre-launch (CSV): clientId is null → pass mapping upstream for StepLaunch to use.
+      // Post-launch (BQ/Drive): clientId is available → run ETL now with the
+      // single entry's mapping. Pre-launch (CSV): clientId is null → pass all
+      // per-file mappings upstream for StepLaunch to use.
+      const firstMapping = entries[0] ? all[entries[0].label] ?? {} : {}
       if (clientId) {
         if (csvSourceId) {
           supabase.functions
             .invoke('run-csv-etl', {
-              body: { client_id: clientId, source_id: csvSourceId, column_mapping },
+              body: { client_id: clientId, source_id: csvSourceId, column_mapping: firstMapping },
             })
             .then(({ error }) => {
               if (error) {
@@ -1574,7 +1548,7 @@ function StepMapping({
         } else if (credentialId) {
           supabase.functions
             .invoke('run-sync-etl', {
-              body: { client_id: clientId, credential_id: credentialId, column_mapping },
+              body: { client_id: clientId, credential_id: credentialId, column_mapping: firstMapping },
             })
             .then(({ error }) => {
               if (error) {
@@ -1588,7 +1562,7 @@ function StepMapping({
             })
         }
       } else {
-        onConfirmedMapping?.(column_mapping)
+        onConfirmedMappings?.(all)
       }
 
       onNext()
@@ -1597,7 +1571,74 @@ function StepMapping({
     }
   }
 
+  function handleConfirmFile(mapping: Record<string, string>) {
+    if (!entry) { void finalize(collected); return }
+    const next = { ...collected, [entry.label]: mapping }
+    setCollected(next)
+    if (idx < entries.length - 1) {
+      setIdx(idx + 1)
+    } else {
+      void finalize(next)
+    }
+  }
+
+  return (
+    <FileMapping
+      key={idx}
+      fileLabel={entries.length > 1 ? entry?.label ?? null : null}
+      fileIndex={idx}
+      fileCount={entries.length}
+      mappingResult={entry?.mappingResult ?? null}
+      confirming={confirming}
+      onConfirm={handleConfirmFile}
+      // Back inside the file sequence returns to the previous file; on the
+      // first file it falls through to the step-level back (if any).
+      onBack={idx > 0 ? () => setIdx(idx - 1) : onBack}
+    />
+  )
+}
+
+function FileMapping({
+  fileLabel, fileIndex, fileCount, mappingResult, confirming, onConfirm, onBack,
+}: {
+  fileLabel: string | null
+  fileIndex: number
+  fileCount: number
+  mappingResult: ColumnMappingResult | null
+  confirming: boolean
+  onConfirm: (mapping: Record<string, string>) => void
+  onBack?: () => void
+}) {
+  const [openGroup, setOpenGroup] = useState<'auto' | 'warn' | 'unknown' | null>(() => {
+    if ((mappingResult?.needs_review?.length ?? 0) > 0) return 'warn'
+    if (Object.keys(mappingResult?.matched ?? {}).length > 0) return 'auto'
+    return null
+  })
+  // Pre-populate warn selections with each row's top candidate so they're included
+  // even if the user never opens the warn group.
+  const [warnSelections, setWarnSelections] = useState<Record<string, string>>(() =>
+    Object.fromEntries((mappingResult?.needs_review ?? []).map(r => [r.source, r.candidates[0]?.canonical ?? '']))
+  )
+  const [unknownSelections, setUnknownSelections] = useState<Record<string, string>>({})
+
+  function handleConfirm() {
+    // Backend expects { source_column: canonical_field } — same as match-columns output
+    const autoMatched: Record<string, string> = { ...mappingResult?.matched ?? {} }
+    // warnSelections state: { source_col: canonical } — already correct
+    const warnMapped: Record<string, string> = {}
+    for (const [src, canonical] of Object.entries(warnSelections)) {
+      if (canonical && canonical !== 'ignorar') warnMapped[src] = canonical
+    }
+    // unknownSelections state: { source_col: canonical } — already correct
+    const manualMapped = Object.fromEntries(
+      Object.entries(unknownSelections)
+        .filter(([, v]) => v && v !== 'ignorar')
+    )
+    onConfirm({ ...autoMatched, ...warnMapped, ...manualMapped })
+  }
+
   const toggle = (g: 'auto' | 'warn' | 'unknown') => setOpenGroup(prev => prev === g ? null : g)
+  const isLast = fileIndex >= fileCount - 1
 
   // Derive rows from real mapping result, or fall back to empty state
   const autoRows = Object.entries(mappingResult?.matched ?? {}).map(([source, canonical]) => ({
@@ -1615,8 +1656,11 @@ function StepMapping({
     <div className="flow-page map-page on">
       <FlowTop step="mapping" onBack={onBack} />
       <div className="map-body">
-        <div className="map-step">PASSO 4 DE 4</div>
+        <div className="map-step">PASSO 4 DE 4{fileCount > 1 ? ` · ARQUIVO ${fileIndex + 1} DE ${fileCount}` : ''}</div>
         <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-.03em', marginBottom: 7 }}>Confirmar mapeamento de colunas</div>
+        {fileLabel && (
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>📄 {fileLabel}</div>
+        )}
         <div style={{ fontSize: 14, color: 'var(--muted2)', marginBottom: 20 }}>
           {hasData
             ? 'Verificamos sua base e mapeamos automaticamente a maioria dos campos. Revise os que precisam de atenção.'
@@ -1775,7 +1819,7 @@ function StepMapping({
           <div style={{ display: 'flex', gap: 8 }}>
             {onBack && <button className="btn btn-ghost" onClick={onBack}>← Voltar</button>}
             <button className="btn btn-primary" onClick={handleConfirm} disabled={confirming}>
-              {confirming ? 'Confirmando…' : 'Confirmar mapeamento →'}
+              {confirming ? 'Confirmando…' : isLast ? 'Confirmar mapeamento →' : 'Próximo arquivo →'}
             </button>
           </div>
         </div>
@@ -1786,15 +1830,13 @@ function StepMapping({
 
 // ─── StepLaunch ───────────────────────────────────────────────────────────────
 
-function StepLaunch({ bootstrap, pendingCredentials, onDone, website, csvFiles, csvSchemaType, driveFileId, confirmedColumnMapping }: {
+function StepLaunch({ bootstrap, pendingCredentials, onDone, website, csvEntries, driveFileId }: {
   bootstrap: () => Promise<{ client_id: string; agents: number; routines: number; prompts_seeded: number }>
   pendingCredentials: PendingCredential[]
   onDone: (mappingResult: ColumnMappingResult | null, credentialId: number | null, clientId: string, csvSourceId: string | null) => void
   website?: string
-  csvFiles?: File[]
-  csvSchemaType?: string
+  csvEntries?: CsvEntry[]
   driveFileId?: string | null
-  confirmedColumnMapping?: Record<string, string>
 }) {
   const [attempt, setAttempt] = useState(0)
   const [progress, setProgress] = useState(0)
@@ -1902,18 +1944,22 @@ function StepLaunch({ bootstrap, pendingCredentials, onDone, website, csvFiles, 
           }
         }
 
-        // Upload CSV files if any were selected
+        // Upload CSV files if any were selected. Each file is uploaded and
+        // ETL'd sequentially with its own schema_type and confirmed mapping —
+        // every uploaded spreadsheet gets its own data source + sync job.
         let uploadedSourceId: string | null = null
-        if (csvFiles && csvFiles.length > 0 && result.client_id) {
+        if (csvEntries && csvEntries.length > 0 && result.client_id) {
           const { data: { session } } = await supabase.auth.getSession()
           const accessToken = session?.access_token ?? ''
-          for (const file of csvFiles) {
-            setLogs(prev => [...prev, `▸ Enviando ${file.name}…`])
+          for (const entry of csvEntries) {
+            const fileName = entry.file.name
+            setLogs(prev => [...prev, `▸ Enviando ${fileName}…`])
             try {
               const form = new FormData()
-              form.append('file', file)
+              form.append('file', entry.file)
               form.append('client_id', result.client_id)
-              form.append('schema_type', csvSchemaType || 'invoices')
+              form.append('schema_type', entry.schemaType || 'invoices')
+              if (entry.sheetName) form.append('sheet_name', entry.sheetName)
               // upload-csv-source expects multipart/form-data, not JSON.
               // Use raw fetch instead of supabase.functions.invoke.
               const uploadRes = await fetch(
@@ -1927,30 +1973,45 @@ function StepLaunch({ bootstrap, pendingCredentials, onDone, website, csvFiles, 
                   body: form,
                 },
               )
-              if (uploadRes.ok) {
-                const uploadData = await uploadRes.json()
-                if (uploadData?.source_id) {
-                  if (!cancelledRef.current) {
-                    uploadedSourceId = uploadData.source_id
-                    setCsvSourceId(uploadData.source_id)
-                    setLogs(prev => [...prev, `▸ ${file.name} carregada — ${uploadData.columns?.length ?? 0} colunas.`])
-                    // Fire ETL with the mapping confirmed in StepMapping (non-blocking)
-                    if (confirmedColumnMapping && Object.keys(confirmedColumnMapping).length > 0) {
-                      supabase.functions.invoke('run-csv-etl', {
-                        body: { client_id: result.client_id, source_id: uploadData.source_id, column_mapping: confirmedColumnMapping },
-                      }).catch((e: unknown) => console.warn('[onboarding] run-csv-etl:', e))
-                    }
-                  }
-                } else {
-                  if (!cancelledRef.current) setLogs(prev => [...prev, `⚠ Resposta inesperada ao enviar ${file.name}.`])
-                }
-              } else {
+              if (!uploadRes.ok) {
                 const errText = await uploadRes.text().catch(() => '')
                 console.warn(`[onboarding] upload-csv-source ${uploadRes.status}: ${errText}`)
-                if (!cancelledRef.current) setLogs(prev => [...prev, `⚠ Falha ao enviar ${file.name}. Você pode reconectar depois.`])
+                if (!cancelledRef.current) setLogs(prev => [...prev, `⚠ Falha ao enviar ${fileName}. Você pode reconectar depois.`])
+                continue
+              }
+              const uploadData = await uploadRes.json()
+              if (!uploadData?.source_id) {
+                if (!cancelledRef.current) setLogs(prev => [...prev, `⚠ Resposta inesperada ao enviar ${fileName}.`])
+                continue
+              }
+              if (cancelledRef.current) continue
+              uploadedSourceId = uploadData.source_id
+              setCsvSourceId(uploadData.source_id)
+              setLogs(prev => [...prev, `▸ ${fileName} carregada — ${uploadData.columns?.length ?? 0} colunas.`])
+
+              // Run the ETL with this file's confirmed mapping; fall back to the
+              // auto-match from the upload when the user skipped the mapping step.
+              const column_mapping = (entry.confirmedMapping && Object.keys(entry.confirmedMapping).length > 0)
+                ? entry.confirmedMapping
+                : (uploadData.matched ?? {}) as Record<string, string>
+              if (Object.keys(column_mapping).length === 0) {
+                setLogs(prev => [...prev, `⚠ ${fileName}: nenhuma coluna mapeada — importação ignorada.`])
+                continue
+              }
+              setLogs(prev => [...prev, `▸ Importando dados de ${fileName}…`])
+              const { data: etlData, error: etlError } = await supabase.functions.invoke('run-csv-etl', {
+                body: { client_id: result.client_id, source_id: uploadData.source_id, column_mapping },
+              })
+              if (cancelledRef.current) continue
+              if (etlError) {
+                console.error('[onboarding] run-csv-etl:', etlError)
+                setLogs(prev => [...prev, `⚠ Falha ao importar dados de ${fileName}. Acesse Configurações > Fontes para tentar novamente.`])
+              } else {
+                const inserted = (etlData as { rows_inserted?: number } | null)?.rows_inserted
+                setLogs(prev => [...prev, `▸ ${fileName}: ${inserted ?? '—'} registros importados.`])
               }
             } catch (e) {
-              if (!cancelledRef.current) setLogs(prev => [...prev, `⚠ Falha ao enviar ${file.name}. Você pode reconectar depois.`])
+              if (!cancelledRef.current) setLogs(prev => [...prev, `⚠ Falha ao enviar ${fileName}. Você pode reconectar depois.`])
               console.warn('[onboarding] upload-csv-source:', e)
             }
           }
@@ -1981,7 +2042,7 @@ function StepLaunch({ bootstrap, pendingCredentials, onDone, website, csvFiles, 
           }
           try {
             const { data: driveData, error: driveErr } = await supabase.functions.invoke('upload-drive-source', {
-              body: { client_id: result.client_id, drive_file_id: driveFileId, schema_type: csvSchemaType || 'invoices' },
+              body: { client_id: result.client_id, drive_file_id: driveFileId, schema_type: 'invoices' },
             })
             if (!driveErr && driveData?.source_id) {
               if (!cancelledRef.current) {
@@ -2081,13 +2142,14 @@ export default function OnboardingApp() {
   const [searchParams] = useSearchParams()
   const { user, loading } = useAuth()
   const navigate = useNavigate()
+  // Post-launch mapping (BQ/Drive): single result discovered during launch.
   const [mappingResult, setMappingResult] = useState<ColumnMappingResult | null>(null)
-  const [confirmedColumnMapping, setConfirmedColumnMapping] = useState<Record<string, string> | null>(null)
   const [pendingCredentials, setPendingCredentials] = useState<PendingCredential[]>([])
   const [bqCredentialId, setBqCredentialId] = useState<number | null>(null)
   const [bqClientId, setBqClientId] = useState<string | null>(null)
-  const [csvFiles, setCsvFiles] = useState<File[]>([])
-  const [csvSchemaType, setCsvSchemaType] = useState<string>('invoices')
+  // Pre-launch CSV pipeline: one entry per uploaded spreadsheet, carrying its
+  // own schema type, match result and user-confirmed mapping.
+  const [csvEntries, setCsvEntries] = useState<CsvEntry[]>([])
   const [csvSourceId, setCsvSourceId] = useState<string | null>(null)
   const [driveFileId, setDriveFileId] = useState<string | null>(null)
 
@@ -2230,16 +2292,11 @@ export default function OnboardingApp() {
       <StepData
         key={user?.id ?? 'anon'}
         // CSV: go to mapping first (pre-launch). Drive/BQ/no-data: go straight to launch.
-        onNext={(result) => result ? go('mapping') : go('launch')}
+        onNext={(hasMapping) => hasMapping ? go('mapping') : go('launch')}
         onBack={() => go('info')}
         onSkip={() => go('launch')}
         saveDraft={saveDraft}
-        onMappingReady={setMappingResult}
-        onCsvFileReady={(file, _sheetName, schemaType) => {
-          if (!file) { setCsvFiles([]); return }
-          setCsvFiles(prev => [...prev, file])
-          if (schemaType) setCsvSchemaType(schemaType)
-        }}
+        onCsvEntriesReady={setCsvEntries}
         onDriveFileReady={(fileId) => setDriveFileId(fileId)}
         onCredentialCollected={(platform, nomServico, credentials) =>
           setPendingCredentials(prev => [
@@ -2251,6 +2308,11 @@ export default function OnboardingApp() {
     )
   }
   if (step === 'mapping') {
+    // Pre-launch (CSV): one mapping entry per uploaded file.
+    // Post-launch (BQ/Drive): single entry with the columns discovered in launch.
+    const entries: MappingEntry[] = bqClientId
+      ? [{ label: 'dados', mappingResult }]
+      : csvEntries.map(e => ({ label: e.file.name, mappingResult: e.mappingResult ?? null }))
     return (
       <StepMapping
         key={user?.id ?? 'anon'}
@@ -2258,9 +2320,14 @@ export default function OnboardingApp() {
         onNext={() => bqClientId ? navigate('/app', { replace: true }) : go('launch')}
         // Pre-launch: back to data. Post-launch: no back (bootstrap already ran).
         onBack={bqClientId ? undefined : () => go('data')}
-        onConfirmedMapping={setConfirmedColumnMapping}
+        onConfirmedMappings={(mappings) =>
+          setCsvEntries(prev => prev.map(e => ({
+            ...e,
+            confirmedMapping: mappings[e.file.name] ?? e.confirmedMapping ?? null,
+          })))
+        }
         saveDraft={saveDraft}
-        mappingResult={mappingResult}
+        entries={entries}
         credentialId={bqCredentialId}
         clientId={bqClientId}
         csvSourceId={csvSourceId}
@@ -2273,10 +2340,8 @@ export default function OnboardingApp() {
       bootstrap={bootstrap}
       pendingCredentials={pendingCredentials}
       website={draft.website || undefined}
-      csvFiles={csvFiles}
-      csvSchemaType={csvSchemaType}
+      csvEntries={csvEntries}
       driveFileId={driveFileId}
-      confirmedColumnMapping={confirmedColumnMapping ?? undefined}
       onDone={(bqMapping, credentialId, clientId, uploadedCsvSourceId) => {
         try { localStorage.removeItem('blu_first_run_done') } catch {}
         useAppStore.setState({ firstRun: true })

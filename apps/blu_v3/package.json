@@ -12,10 +12,10 @@
     "@phosphor-icons/react": "^2.1.10",
     "@supabase/supabase-js": "^2.86.0",
     "@tanstack/react-query": "^5.90.21",
+    "exceljs": "^4.4.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.28.0",
-    "xlsx": "^0.18.5",
     "zustand": "^5.0.3"
   },
   "devDependencies": {

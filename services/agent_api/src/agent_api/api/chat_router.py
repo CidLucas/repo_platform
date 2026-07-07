@@ -11,7 +11,7 @@ import json
 import logging
 
 from blu_context_service import ContextService
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from agent_api.api.auth import AuthResult, get_auth_result
@@ -42,6 +42,7 @@ def _get_context_service() -> ContextService:
 @router.post("/chat", response_model=ChatResponse)
 @limiter.limit("10/minute")
 async def chat_endpoint(
+    request: Request,
     body: ChatRequest,
     x_llm_model: str | None = Header(None, alias="X-LLM-Model"),
     authorization: str | None = Header(None, alias="Authorization"),
@@ -125,6 +126,7 @@ async def chat_endpoint(
 @router.post("/chat/stream")
 @limiter.limit("10/minute")
 async def chat_stream_endpoint(
+    request: Request,
     body: ChatRequest,
     x_llm_model: str | None = Header(None, alias="X-LLM-Model"),
     authorization: str | None = Header(None, alias="Authorization"),
@@ -179,7 +181,7 @@ async def chat_stream_endpoint(
 
 @router.get("/models")
 @limiter.limit("60/minute")
-async def list_models():
+async def list_models(request: Request):
     """List available LLM models from the configured provider."""
     from blu_llm_service import MODEL_MAPPINGS, LLMProvider, ModelTier, get_llm_settings
 
@@ -210,6 +212,7 @@ async def list_models():
 @router.get("/context")
 @limiter.limit("30/minute")
 async def get_client_context(
+    request: Request,
     auth_result: AuthResult = Depends(get_auth_result),
     context_service: ContextService = Depends(_get_context_service),
 ):

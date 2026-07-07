@@ -14,7 +14,7 @@ import os
 from uuid import UUID
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 
 from blu_auth.core.models import AuthResult
@@ -50,6 +50,7 @@ class IngestResponse(BaseModel):
 @router.post("/document", response_model=IngestResponse, status_code=status.HTTP_200_OK)
 @limiter.limit("10/minute")
 async def ingest_document(
+    request: Request,
     body: IngestRequest,
     client_id: UUID = Depends(get_client_id_from_token),
 ) -> IngestResponse:

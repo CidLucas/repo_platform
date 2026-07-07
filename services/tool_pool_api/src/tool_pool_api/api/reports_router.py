@@ -21,7 +21,7 @@ import logging
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastmcp.exceptions import ToolError
 from pydantic import BaseModel, Field
@@ -172,6 +172,7 @@ async def fetch_run_payload(
 @router.post("/generate")
 @limiter.limit("10/minute")
 async def generate_report(
+    request: Request,
     payload: GenerateReportRequest,
     auth: AuthResult = Depends(_get_auth_result),
 ):

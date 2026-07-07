@@ -116,6 +116,20 @@ export function useOnboardingDraft(userEmail: string) {
     })
 
     if (error) throw new Error(error.message ?? 'Bootstrap failed')
+
+    // Finaliza o onboarding: marca `onboarding_completed_at` e dispara a rotina
+    // `onboarding_complete` (event-triggered). Desde o refactor P12
+    // (migration 20260525_p12_split_onboarding_completion) essa é a ÚNICA via
+    // que faz o dispatch — a edge function não dispara mais. Sem esta chamada o
+    // onboarding nunca é finalizado e nenhuma rotina é triggered.
+    // Best-effort e idempotente (a RPC ignora chamadas repetidas via cooldown).
+    try {
+      const { error: finalizeErr } = await supabase.rpc('finalize_onboarding')
+      if (finalizeErr) console.warn('[onboarding] finalize_onboarding failed:', finalizeErr.message)
+    } catch (e) {
+      console.warn('[onboarding] finalize_onboarding error:', e)
+    }
+
     try {
       const key = DRAFT_KEY(state.email || userEmail || '')
       localStorage.removeItem(key)

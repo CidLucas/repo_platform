@@ -562,6 +562,18 @@ async def delete_client(
 
     db = get_supabase_client(use_service_role=True)
 
+    function_name = "cleanup-client-storage"
+
+    def cleanup_storage_now() -> None:
+        try:
+            db.functions.invoke(
+                function_name,
+                invoke_options={"body": {"client_id": str(client_id)}},
+            )
+            logger.info(f"Storage cleanup invoked for client {client_id}")
+        except Exception as exc:
+            logger.warning(f"Storage cleanup Edge Function failed for {client_id}: {exc}")
+
     if hard:
         logger.warning(f"HARD DELETE requested for client {client_id} by admin {admin.client_id}")
         success = crud.delete_cliente_blu(client_id)
@@ -570,10 +582,12 @@ async def delete_client(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to hard delete client",
             )
+        cleanup_storage_now()
         logger.info(f"Hard deleted client: {client_id}")
     else:
         # Soft delete via DB function — sets deleted_at, data purged after 7 days
         db.rpc("soft_delete_client", {"p_client_id": str(client_id)}).execute()
+        cleanup_storage_now()
         logger.info(f"Soft deleted client: {client_id} (data retained for 7 days)")
 
     return None

@@ -165,13 +165,18 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── 7. UPSERT client_data_sources (unique: client_id, source_type, resource_type) ──
+    // resource_type carries the file name so each uploaded spreadsheet gets
+    // its own data-source row (the unique constraint is per client + type +
+    // resource). Re-uploading the same file name replaces that source, which
+    // keeps the ETL idempotent per file instead of collapsing every CSV the
+    // client uploads into a single row.
     const now = new Date().toISOString();
     const { data: dataSource, error: insertErr } = await svc
       .from("client_data_sources")
       .upsert({
         client_id: clientId,
         source_type: "csv",
-        resource_type: "file",
+        resource_type: fileName,
         storage_type: "csv_file",
         storage_location: storagePath,
         source_columns: columns,
@@ -191,18 +196,30 @@ Deno.serve(async (req: Request) => {
     const sourceId = dataSource.id as string;
 
     // ── 8. Call match-columns (Python service, replaced the Deno EF in Phase 3.2) ──
-    const matchRes = await fetch(`${TOOL_POOL_API_URL}/v1/match-columns`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${SERVICE_ROLE_KEY}`,
-        "apikey": SUPABASE_ANON_KEY,
-      },
-      body: JSON.stringify({ source_columns: headers, schema_type: schemaType }),
-    });
+    // Auto-matching is best-effort: if tool_pool_api is unreachable (DNS
+    // error, timeout) or returns non-2xx, the upload still succeeds with an
+    // empty match and the user maps columns manually in the UI.
+    let matchResult: MatchResult | null = null;
+    try {
+      const matchRes = await fetch(`${TOOL_POOL_API_URL}/v1/match-columns`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${SERVICE_ROLE_KEY}`,
+          "apikey": SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({ source_columns: headers, schema_type: schemaType }),
+      });
+      if (matchRes.ok) {
+        matchResult = await matchRes.json() as MatchResult;
+      } else {
+        console.warn(`[upload-csv-source] ${requestId} match-columns returned ${matchRes.status}`);
+      }
+    } catch (matchErr) {
+      console.warn(`[upload-csv-source] ${requestId} match-columns unreachable:`, matchErr);
+    }
 
-    if (!matchRes.ok) {
-      console.warn(`[upload-csv-source] ${requestId} match-columns returned ${matchRes.status}`);
+    if (!matchResult) {
       return json({
         source_id: sourceId,
         columns,
@@ -215,8 +232,6 @@ Deno.serve(async (req: Request) => {
         detected_context: null,
       });
     }
-
-    const matchResult = await matchRes.json() as MatchResult;
 
     // ── 9. UPDATE client_data_sources with full match result ──────────────────
     await svc

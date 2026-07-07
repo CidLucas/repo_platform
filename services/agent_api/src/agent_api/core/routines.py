@@ -277,19 +277,26 @@ def _serialisable(state: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def _fetch_triggered_routines_sync(trigger_type: str) -> list[dict]:
-    """Fetch catalog routines with a given trigger_type (cron | numeric | event)."""
+def _fetch_triggered_routines_sync(trigger_type: str | list[str]) -> list[dict]:
+    """Fetch catalog routines with the given trigger_type(s).
+
+    Accepts a single value or a list. The builder/UI persist schedule-based
+    routines as trigger_type='schedule' (see routines_router.py triggers list
+    and routine-builder edge fn), while the seed catalog uses 'cron' — both
+    mean the same cron-driven poll, so the cron check queries both.
+    """
+    types = [trigger_type] if isinstance(trigger_type, str) else list(trigger_type)
     try:
         return (
             get_supabase_client()
             .table("cross_agent_routines")
             .select("id, name, trigger_config")
-            .eq("trigger_type", trigger_type)
+            .in_("trigger_type", types)
             .execute()
             .data or []
         )
     except Exception as exc:
-        logger.warning("[TriggerPoller] failed to fetch '%s' routines: %s", trigger_type, exc)
+        logger.warning("[TriggerPoller] failed to fetch %s routines: %s", types, exc)
         return []
 
 
@@ -522,7 +529,7 @@ async def _check_cron_routines() -> int:
         logger.warning("[TriggerPoller] croniter not installed — cron triggers disabled")
         return 0
 
-    routines = await asyncio.to_thread(_fetch_triggered_routines_sync, "cron")
+    routines = await asyncio.to_thread(_fetch_triggered_routines_sync, ["cron", "schedule"])
     if not routines:
         return 0
 

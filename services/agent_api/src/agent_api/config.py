@@ -38,6 +38,8 @@ class Settings(BaseSettings):
 
     # Routine dispatch
     ROUTINE_DISPATCH_TOKEN: str | None = None
+    # Max dispatched routine executions claimed per /internal/routines/run-dispatched tick
+    ROUTINE_BATCH_SIZE: int = 10
 
     # Context report endpoint — replaces the Deno generate-context-report EF
     # (Phase 4.1 — M7). Shared secret with onboarding-bootstrap so it can

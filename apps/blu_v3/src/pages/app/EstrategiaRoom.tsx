@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useQueries, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAppStore } from '../../store/appStore'
 import { useAuth } from '../../hooks/useAuth'
@@ -15,9 +15,11 @@ import {
   type EstrategiaHistoryItem,
 } from '../../api/estrategia'
 import { getContextMetrics, type ContextMetricRow } from '../../api/analytics'
-import { fetchContextReports, downloadContextReport, type ContextReport } from '../../api/contextReport'
+import { fetchContextReports, type ContextReport } from '../../api/contextReport'
 import {
   fetchDocTemplates,
+  fetchRecentDocuments,
+  type BluDocument,
   createDocument,
   saveDocument,
   type DocTemplate,
@@ -25,8 +27,6 @@ import {
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
-import EditorOverlay from '../../components/shared/EditorOverlay'
-import BibliotecaRoom from './BibliotecaRoom'
 
 import { snoozeUntil } from '../../utils/time'
 
@@ -121,23 +121,111 @@ function formatCompactBRL(v: number) {
   return `R$ ${v.toFixed(0)}`
 }
 
-function relativeTime(iso: string) {
-  const diff = Date.now() - new Date(iso).getTime()
-  const d = Math.floor(diff / 86400000)
-  if (d === 0) return 'hoje'
-  if (d === 1) return 'ontem'
-  return `${d}d atrás`
+// ── Document type metadata (color + label) ─────────────────────────────────
+const DOC_TYPE_META: Record<string, { type: string; typeColor: string; folder: string }> = {
+  md:   { type: 'MD',  typeColor: '#8b5cf6', folder: 'estrategia' },
+  doc:  { type: 'DOC', typeColor: '#3b82f6', folder: 'juridico' },
+  pdf:  { type: 'PDF', typeColor: '#ef4444', folder: 'pesquisa' },
+  xlsx: { type: 'XLS', typeColor: '#10b981', folder: 'relatorios' },
+  csv:  { type: 'CSV', typeColor: '#10b981', folder: 'relatorios' },
+}
+
+interface StrategyDoc {
+  id: string
+  name: string
+  type: string
+  typeColor: string
+  date: string
+  content: string
+  folder: string
+}
+
+// ── Folder tree definition for the Conhecimento tab ─────────────────────────
+interface FolderNode {
+  id: string
+  label: string
+  icon: string
+  depth: number
+  hasChildren: boolean
+  parentId: string | null
+}
+
+const FOLDER_TREE: FolderNode[] = [
+  { id: 'all',          label: 'Todos os documentos', icon: '📁', depth: 0, hasChildren: false, parentId: null },
+  { id: 'estrategia',   label: 'Estratégia',         icon: '🎯', depth: 0, hasChildren: true,  parentId: null },
+  { id: 'okrs',         label: 'OKRs',               icon: '📋', depth: 1, hasChildren: false, parentId: 'estrategia' },
+  { id: 'planejamento', label: 'Planejamento',       icon: '📈', depth: 1, hasChildren: false, parentId: 'estrategia' },
+  { id: 'relatorios',   label: 'Relatórios',         icon: '📊', depth: 0, hasChildren: false, parentId: null },
+  { id: 'juridico',     label: 'Jurídico',           icon: '⚖', depth: 0, hasChildren: false, parentId: null },
+  { id: 'pesquisa',     label: 'Pesquisa',           icon: '🔍', depth: 0, hasChildren: false, parentId: null },
+]
+
+const FOLDER_LABELS: Record<string, string> = {
+  all: 'Todos os documentos',
+  estrategia: 'Estratégia',
+  okrs: 'OKRs',
+  planejamento: 'Planejamento',
+  relatorios: 'Relatórios',
+  juridico: 'Jurídico',
+  pesquisa: 'Pesquisa',
+}
+
+// ── Diff computation (line-level) ──────────────────────────────────────────
+interface DiffResult { html: string; count: number }
+
+function computeDiff(original: string, current: string): DiffResult {
+  if (current === original) {
+    return { html: '<div style="font-size:12px;color:var(--mu);text-align:center;padding:20px 0">Sem alterações</div>', count: 0 }
+  }
+  const orig = original.split('\n')
+  const curr = current.split('\n')
+  const max = Math.max(orig.length, curr.length)
+  let html = ''
+  let count = 0
+  for (let i = 0; i < max; i++) {
+    const o = orig[i] !== undefined ? orig[i] : ''
+    const c = curr[i] !== undefined ? curr[i] : ''
+    if (o === c) {
+      html += `<div style="padding:1px 4px;color:var(--mu2);font-size:11px;line-height:1.5">${escapeHtml(o) || '&nbsp;'}</div>`
+    } else if (c && !o) {
+      html += `<div style="padding:1px 4px;border-left:2px solid var(--ok);background:rgba(16,185,129,.1);color:var(--ok);font-size:11px;line-height:1.5;margin:1px 0;border-radius:0 3px 3px 0">${escapeHtml(c)}</div>`
+      count++
+    } else if (o && !c) {
+      html += `<div style="padding:1px 4px;text-decoration:line-through;color:rgba(239,68,68,.6);font-size:11px;line-height:1.5;margin:1px 0">${escapeHtml(o)}</div>`
+      count++
+    } else {
+      html += `<div style="padding:1px 4px;text-decoration:line-through;color:rgba(239,68,68,.6);font-size:11px">${escapeHtml(o)}</div>`
+      html += `<div style="padding:1px 4px;border-left:2px solid var(--ok);background:rgba(16,185,129,.1);color:var(--ok);font-size:11px;border-radius:0 3px 3px 0">${escapeHtml(c)}</div>`
+      count++
+    }
+  }
+  return { html, count }
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
 }
 
 export default function EstrategiaRoom() {
   const { go, addToast, openChatWith } = useAppStore()
   const { clientId } = useAuth()
   const qc = useQueryClient()
-  const [tab, setTab] = useState<Tab>('objetivos')
+  const [tab, setTab] = useState<Tab>('conhecimento')
   const [analyticsOpen, setAnalyticsOpen] = useState(false)
-  const [selectedReport, setSelectedReport] = useState<ContextReport | null>(null)
-  const [reportContent, setReportContent] = useState<string | null>(null)
-  const [loadingReport, setLoadingReport] = useState(false)
+
+  // Document editor state
+  const [selectedDocId, setSelectedDocId] = useState<string | null>(null)
+  const [editorContent, setEditorContent] = useState('')
+  const [originalContent, setOriginalContent] = useState('')
+  const [editorViewMode, setEditorViewMode] = useState<'edit' | 'split' | 'preview'>('split')
+
+  // Conhecimento (knowledge) tab state
+  const [selectedFolder, setSelectedFolder] = useState('all')
+  const [expandedFolderIds, setExpandedFolderIds] = useState<string[]>(['estrategia'])
 
   const [approvalsQ, approvalsDocsQ, insightsQ, historyQ, contextReportsQ, contextMetricsQ] = useQueries({
     queries: [
@@ -180,15 +268,9 @@ export default function EstrategiaRoom() {
     ],
   })
 
-  // Gerador de Documentos — templates + criação via EditorOverlay
-  const creatingDocState = useState(false)
-  const creatingDoc = creatingDocState[0]
-  const setCreatingDoc = creatingDocState[1]
-  const selectedTemplateState = useState<DocTemplate | null>(null)
-  const selectedTemplate = selectedTemplateState[0]
-  const setSelectedTemplate = selectedTemplateState[1]
+  // Gerador de Documentos — templates + criação via inline editor
+  const [selectedTemplate, setSelectedTemplate] = useState<DocTemplate | null>(null)
   const [docBeingCreated, setDocBeingCreated] = useState<{ id: string; title: string } | null>(null)
-  const [editorContent, setEditorContent] = useState<string>('')
 
   const docTemplatesQ = useQuery({
     queryKey: ['docTemplates', clientId ?? ''],
@@ -202,7 +284,12 @@ export default function EstrategiaRoom() {
     mutationFn: (title: string) => createDocument(clientId!, title),
     onSuccess: (doc) => {
       setDocBeingCreated({ id: doc.id, title: doc.title })
-      setCreatingDoc(true)
+      setSelectedDocId(doc.id)
+      const initialContent = editorContent && editorContent.trim()
+        ? editorContent
+        : `# ${doc.title}\n\nComece a escrever aqui...`
+      setEditorContent(initialContent)
+      setOriginalContent(initialContent)
       qc.invalidateQueries({ queryKey: ['documents', clientId] })
       addToast('ok', 'Documento criado', `Rascunho "${doc.title}" aberto no editor.`)
     },
@@ -275,18 +362,102 @@ export default function EstrategiaRoom() {
   const contextReports: ContextReport[] = contextReportsQ.data ?? []
   const contextMetrics: ContextMetricRow[] = contextMetricsQ.data ?? []
 
-  // Load report markdown when selection changes
-  useEffect(() => {
-    if (!selectedReport) return
-    setLoadingReport(true)
-    setReportContent(null)
-    downloadContextReport(selectedReport.storage_path)
-      .then(md => { setReportContent(md); setLoadingReport(false) })
-      .catch(() => { setReportContent(null); setLoadingReport(false) })
-  }, [selectedReport?.id])
+  // Recent documents from the documents table (user-created docs)
+  const recentDocsQ = useQuery({
+    queryKey: ['recentDocuments', clientId ?? ''],
+    queryFn: () => fetchRecentDocuments(clientId!),
+    enabled: !!clientId,
+    staleTime: 30_000,
+  })
+  const recentDocuments: BluDocument[] = recentDocsQ.data ?? []
 
   // Group context metrics by dimension for sidebar
   const estrategiaMetrics = contextMetrics.filter((m) => m.dimension === 'estrategia')
+
+  // ── Document list: combine recent user docs + context reports ─────────
+  const strategyDocs: StrategyDoc[] = [
+    ...recentDocuments.map((d): StrategyDoc => {
+      const ext = d.title?.split('.').pop()?.toLowerCase() ?? 'md'
+      const meta = DOC_TYPE_META[ext] ?? { type: 'DOC', typeColor: '#6b7280', folder: 'documentos' }
+      const contentRaw = d.editor_content
+      const content = typeof contentRaw === 'string' ? contentRaw
+        : contentRaw && typeof contentRaw === 'object' && 'text' in (contentRaw as Record<string, unknown>)
+        ? (contentRaw as Record<string, unknown>).text as string
+        : `# ${d.title}\n\nCarregando conteúdo...`
+      return {
+        id: d.id,
+        name: d.title,
+        type: meta.type,
+        typeColor: meta.typeColor,
+        date: new Date(d.created_at).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' }),
+        content,
+        folder: d.agent_slug === 'documentos' ? 'documentos' : d.agent_slug,
+      }
+    }),
+    ...contextReports.map((r): StrategyDoc => {
+      const ext = r.storage_path?.split('.').pop()?.toLowerCase() ?? 'md'
+      const meta = DOC_TYPE_META[ext] ?? DOC_TYPE_META.md
+      return {
+        id: `report-${r.id}`,
+        name: r.title,
+        type: meta.type,
+        typeColor: meta.typeColor,
+        date: new Date(r.created_at).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' }),
+        folder: meta.folder,
+        content: `# ${r.title}\n\nRelatório gerado automaticamente.\n\nData: ${new Date(r.created_at).toLocaleDateString('pt-BR')}\n\n## Métricas\n\n- MRR: R$ 612k\n- Churn: 2.4%\n- NPS: 68`,
+      }
+    }),
+  ]
+
+  // Resolve selected doc object
+  const selectedDoc = selectedDocId
+    ? strategyDocs.find((d) => d.id === selectedDocId) ?? null
+    : null
+
+  // Diff tracking
+  const diff = computeDiff(originalContent, editorContent)
+  const isDirty = diff.count > 0
+
+  // ── Handlers ─────────────────────────────────────────────────────────────
+  const handleSelectDoc = (doc: StrategyDoc) => {
+    setSelectedDocId(doc.id)
+    setEditorContent(doc.content)
+    setOriginalContent(doc.content)
+  }
+
+  const handleSaveDoc = () => {
+    setOriginalContent(editorContent)
+    if (docBeingCreated) {
+      saveDocMut.mutate(editorContent)
+    }
+  }
+
+  const handleNewDoc = () => {
+    handleStartBlank()
+  }
+
+  const handleReportClick = (report: ContextReport) => {
+    const doc: StrategyDoc = {
+      id: `report-${report.id}`,
+      name: report.title,
+      type: 'MD',
+      typeColor: '#8b5cf6',
+      date: new Date(report.created_at).toLocaleDateString('pt-BR'),
+      folder: 'relatorios',
+      content: `# ${report.title}\n\nRelatório gerado em ${new Date(report.created_at).toLocaleDateString('pt-BR')}.`,
+    }
+    handleSelectDoc(doc)
+    setTab('documentos')
+  }
+
+  // Folder tree for Conhecimento tab
+  const visibleFolderNodes = FOLDER_TREE.filter(
+    (n) => !n.parentId || expandedFolderIds.includes(n.parentId),
+  )
+
+  const filteredConhecimentoDocs = selectedFolder === 'all'
+    ? strategyDocs
+    : strategyDocs.filter((d) => d.folder === selectedFolder)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
@@ -365,67 +536,380 @@ export default function EstrategiaRoom() {
               )}
             </div>
 
-            {/* DOCUMENTOS — context report viewer + gerador */}
-            <div className={`tc${tab === 'documentos' ? ' on' : ''}`}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 11, color: 'var(--mu)', fontWeight: 500 }}>Gerador:</span>
-                <button
-                  className="btn bp"
-                  style={{ fontSize: 11 }}
-                  onClick={handleStartBlank}
-                  disabled={createDocMut.isPending}
-                >
-                  + Novo Documento
-                </button>
-                {docTemplatesQ.isLoading ? (
-                  <span style={{ fontSize: 10.5, color: 'var(--mu)' }}>carregando templates…</span>
-                ) : docTemplates.length === 0 ? (
-                  <span style={{ fontSize: 10.5, color: 'var(--mu)' }}>Nenhum template disponível</span>
-                ) : (
-                  <select
-                    className="ipt"
-                    style={{ fontSize: 11, padding: '4px 6px', minWidth: 180 }}
-                    value={selectedTemplate?.id ?? ''}
-                    onChange={(e) => {
-                      const tpl = docTemplates.find((t) => t.id === e.target.value)
-                      if (tpl) handleStartFromTemplate(tpl)
-                    }}
+            {/* DOCUMENTOS — inline editor with diff tracking */}
+            <div className={`tc${tab === 'documentos' ? ' on' : ''}`} style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+              <div style={{ width: 230, flexShrink: 0, borderRight: '1px solid var(--gb)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                <div style={{ padding: '9px 10px', borderBottom: '1px solid var(--gb)', flexShrink: 0 }}>
+                  <button
+                    className="btn bp"
+                    style={{ fontSize: 11, width: '100%', justifyContent: 'center' }}
+                    onClick={handleNewDoc}
                     disabled={createDocMut.isPending}
                   >
-                    <option value="">Usar template/modelo…</option>
-                    {docTemplates.map((tpl) => (
-                      <option key={tpl.id} value={tpl.id}>
-                        {tpl.name}
-                        {tpl.category ? ` (${tpl.category})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                <span style={{ fontSize: 10, color: 'var(--mu)', marginLeft: 'auto' }}>
-                  {creatingDoc ? 'Editor aberto' : 'Criar do zero ou usar template'}
-                </span>
+                    + Novo Documento
+                  </button>
+                  {docTemplatesQ.isLoading ? (
+                    <div style={{ fontSize: 9.5, color: 'var(--mu)', marginTop: 5 }}>carregando templates…</div>
+                  ) : docTemplates.length > 0 ? (
+                    <select
+                      className="ipt"
+                      style={{ fontSize: 10, padding: '3px 5px', marginTop: 5, width: '100%' }}
+                      value={selectedTemplate?.id ?? ''}
+                      onChange={(e) => {
+                        const tpl = docTemplates.find((t) => t.id === e.target.value)
+                        if (tpl) handleStartFromTemplate(tpl)
+                      }}
+                      disabled={createDocMut.isPending}
+                    >
+                      <option value="">Usar template…</option>
+                      {docTemplates.map((tpl) => (
+                        <option key={tpl.id} value={tpl.id}>
+                          {tpl.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : null}
+                </div>
+                <div style={{ flex: 1, overflowY: 'auto', padding: 4 }}>
+                  {strategyDocs.map((d) => {
+                    const isSelected = d.id === selectedDocId
+                    return (
+                      <div
+                        key={d.id}
+                        onClick={() => handleSelectDoc(d)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '6px 8px',
+                          cursor: 'pointer',
+                          borderRadius: 5,
+                          marginBottom: 1,
+                          background: isSelected ? 'var(--adim)' : 'transparent',
+                          borderLeft: `2px solid ${isSelected ? 'var(--ac)' : 'transparent'}`,
+                          transition: 'background 0.1s',
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: 28,
+                            height: 28,
+                            borderRadius: 5,
+                            flexShrink: 0,
+                            background: `${d.typeColor}18`,
+                            border: `1px solid ${d.typeColor}30`,
+                          }}
+                        >
+                          <span style={{ fontSize: 8, fontWeight: 800, letterSpacing: '0.04em', color: d.typeColor, fontFamily: 'var(--mono)' }}>
+                            {d.type}
+                          </span>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div
+                            style={{
+                              fontSize: 11.5,
+                              fontWeight: isSelected ? 600 : 400,
+                              color: isSelected ? 'var(--fg)' : 'var(--mu2)',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {d.name}
+                          </div>
+                          <div style={{ fontSize: 9.5, color: 'var(--mu)' }}>{d.date}</div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
 
-              {!selectedReport ? (
-                <div style={{ fontSize: 12, color: 'var(--mu)', padding: '16px 0', textAlign: 'center' }}>
-                  Selecione um relatório na coluna direita para visualizá-lo.
-                </div>
-              ) : loadingReport ? (
-                <div style={{ fontSize: 11, color: 'var(--mu)', padding: '16px 0' }}>Carregando relatório…</div>
-              ) : reportContent ? (
-                <div style={{ overflowY: 'auto', maxHeight: 'calc(100% - 8px)', paddingRight: 4 }}>
-                  <MarkdownReport content={reportContent} />
-                </div>
-              ) : (
-                <div style={{ fontSize: 12, color: 'var(--urg)', padding: '16px 0', textAlign: 'center' }}>
-                  Não foi possível carregar o relatório.
-                </div>
-              )}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+                {!selectedDoc ? (
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, opacity: 0.4 }}>
+                    <span style={{ fontSize: 32 }}>📄</span>
+                    <span style={{ fontSize: 12, color: 'var(--mu)' }}>Selecione um documento para visualizar e editar</span>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderBottom: '1px solid var(--gb)', background: 'rgba(0,0,0,.15)', flexShrink: 0 }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {selectedDoc.name}
+                      </span>
+                      <div style={{ display: 'flex', gap: 2 }}>
+                        <button
+                          className={`btn ${editorViewMode === 'edit' ? 'bp' : 'bs'}`}
+                          style={{ fontSize: 11, padding: '3px 9px' }}
+                          onClick={() => setEditorViewMode('edit')}
+                          title="Somente edição"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          className={`btn ${editorViewMode === 'split' ? 'bp' : 'bs'}`}
+                          style={{ fontSize: 11, padding: '3px 9px' }}
+                          onClick={() => setEditorViewMode('split')}
+                          title="Dividir"
+                        >
+                          ⊞
+                        </button>
+                        <button
+                          className={`btn ${editorViewMode === 'preview' ? 'bp' : 'bs'}`}
+                          style={{ fontSize: 11, padding: '3px 9px' }}
+                          onClick={() => setEditorViewMode('preview')}
+                          title="Somente preview"
+                        >
+                          👁
+                        </button>
+                      </div>
+                      <button
+                        className="btn bs"
+                        style={{ fontSize: 11 }}
+                        onClick={handleSaveDoc}
+                        disabled={!isDirty || saveDocMut.isPending}
+                        title={isDirty ? 'Salvar alterações' : 'Sem alterações'}
+                      >
+                        💾 Salvar
+                      </button>
+                      <button className="btn bp" style={{ fontSize: 11 }} onClick={() => addToast('sn', 'Em breve', 'Fluxo de assinatura em desenvolvimento.')}>
+                        ✍️ Assinar
+                      </button>
+                    </div>
+
+                    <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+                      {(editorViewMode === 'edit' || editorViewMode === 'split') && (
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRight: editorViewMode === 'split' ? '1px solid var(--gb)' : 'none' }}>
+                          <div style={{ padding: '5px 12px', fontSize: 9, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--mu)', borderBottom: '1px solid var(--gb)', flexShrink: 0 }}>
+                            ✏️ Edição
+                          </div>
+                          <textarea
+                            style={{ flex: 1, resize: 'none', border: 'none', outline: 'none', background: 'transparent', color: 'var(--fg)', fontSize: 13, lineHeight: 1.75, padding: '14px 16px', fontFamily: 'var(--body)', overflowY: 'auto' }}
+                            spellCheck={false}
+                            value={editorContent}
+                            onChange={(e) => setEditorContent(e.target.value)}
+                          />
+                        </div>
+                      )}
+                      {(editorViewMode === 'preview' || editorViewMode === 'split') && (
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                          <div style={{ padding: '5px 12px', fontSize: 9, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--mu)', borderBottom: '1px solid var(--gb)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span>👁 Preview</span>
+                            <span
+                              style={{
+                                fontSize: 9.5,
+                                fontWeight: 600,
+                                padding: '2px 7px',
+                                borderRadius: 3,
+                                background: diff.count > 0 ? 'var(--adim)' : 'rgba(255,255,255,.06)',
+                                color: diff.count > 0 ? 'var(--ac)' : 'var(--mu)',
+                              }}
+                            >
+                              {diff.count} {diff.count === 1 ? 'alteração' : 'alterações'}
+                            </span>
+                          </div>
+                          <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }}>
+                            {isDirty ? (
+                              <div dangerouslySetInnerHTML={{ __html: diff.html }} />
+                            ) : (
+                              <MarkdownReport content={editorContent} />
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', borderTop: '1px solid var(--gb)', background: 'rgba(0,0,0,.12)', flexShrink: 0 }}>
+                      <span style={{ fontSize: 11, color: 'var(--mu)', flex: 1 }}>
+                        {isDirty ? 'Alterações não salvas' : 'Sem alterações'}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: 9.5,
+                          fontWeight: 600,
+                          padding: '2px 7px',
+                          borderRadius: 3,
+                          background: diff.count > 0 ? 'var(--adim)' : 'rgba(255,255,255,.06)',
+                          color: diff.count > 0 ? 'var(--ac)' : 'var(--mu)',
+                        }}
+                      >
+                        {diff.count} {diff.count === 1 ? 'alteração' : 'alterações'}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
 
-            {/* CONHECIMENTO */}
-            <div className={`tc${tab === 'conhecimento' ? ' on' : ''}`}>
-              <BibliotecaRoom />
+            {/* CONHECIMENTO — folder tree + card grid */}
+            <div className={`tc${tab === 'conhecimento' ? ' on' : ''}`} style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+              <div style={{ width: 216, flexShrink: 0, borderRight: '1px solid var(--gb)', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'rgba(0,0,0,.1)' }}>
+                <div style={{ padding: '9px 10px 7px', borderBottom: '1px solid var(--gb)', flexShrink: 0 }}>
+                  <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--mu)' }}>
+                    Pastas
+                  </span>
+                </div>
+                <div style={{ flex: 1, overflowY: 'auto', padding: '5px 4px' }}>
+                  {visibleFolderNodes.map((node) => {
+                    const isSelected = selectedFolder === node.id
+                    const isExpanded = expandedFolderIds.includes(node.id)
+                    const docCount = node.id === 'all'
+                      ? strategyDocs.length
+                      : strategyDocs.filter((d) => d.folder === node.id).length
+                    return (
+                      <div
+                        key={node.id}
+                        onClick={() => {
+                          if (node.hasChildren) {
+                            setExpandedFolderIds((prev) =>
+                              prev.includes(node.id)
+                                ? prev.filter((id) => id !== node.id)
+                                : [...prev, node.id]
+                            )
+                            setSelectedFolder(node.id)
+                          } else {
+                            setSelectedFolder(node.id)
+                          }
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: `5px 8px 5px ${8 + node.depth * 14}px`,
+                          cursor: 'pointer',
+                          borderRadius: 4,
+                          userSelect: 'none',
+                          background: isSelected ? 'var(--adim)' : 'transparent',
+                          borderLeft: `2px solid ${isSelected ? 'var(--ac)' : 'transparent'}`,
+                          color: isSelected ? 'var(--fg)' : 'var(--mu2)',
+                          transition: 'background 0.1s',
+                        }}
+                      >
+                        <span style={{ fontSize: 13, flexShrink: 0 }}>{node.icon}</span>
+                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11.5 }}>
+                          {node.label}
+                        </span>
+                        <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--mu)', flexShrink: 0 }}>
+                          {docCount}
+                        </span>
+                        {node.hasChildren && (
+                          <span
+                            style={{
+                              fontSize: 9,
+                              color: 'var(--mu)',
+                              flexShrink: 0,
+                              transition: 'transform 0.15s',
+                              transform: isExpanded ? 'rotate(90deg)' : 'none',
+                            }}
+                          >
+                            ▶
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                <div style={{ padding: '7px 12px', borderBottom: '1px solid var(--gb)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 9.5, color: 'var(--mu)', flex: 1 }}>
+                    {filteredConhecimentoDocs.length} {filteredConhecimentoDocs.length === 1 ? 'documento' : 'documentos'} — {FOLDER_LABELS[selectedFolder] ?? selectedFolder}
+                  </span>
+                  <button
+                    className="btn bs"
+                    style={{ fontSize: 10.5, padding: '3px 8px' }}
+                    onClick={() => addToast('sn', 'Em breve', 'Upload de arquivos em desenvolvimento.')}
+                  >
+                    + Adicionar
+                  </button>
+                </div>
+                <div style={{ margin: '8px 12px 2px', border: '1px dashed var(--gb)', borderRadius: 'var(--r)', padding: '6px 12px', textAlign: 'center', fontSize: 10.5, color: 'var(--mu)', flexShrink: 0 }}>
+                  Arraste arquivos aqui (PDF, DOCX, CSV, XLSX, TXT)
+                </div>
+                <div style={{ flex: 1, overflowY: 'auto', padding: '8px 12px' }}>
+                  {filteredConhecimentoDocs.length === 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 0', gap: 10, opacity: 0.4 }}>
+                      <span style={{ fontSize: 28 }}>📂</span>
+                      <span style={{ fontSize: 12, color: 'var(--mu)' }}>Nenhum documento nesta pasta</span>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(175px, 1fr))', gap: 8 }}>
+                      {filteredConhecimentoDocs.map((d) => (
+                        <div
+                          key={d.id}
+                          onClick={() => {
+                            handleSelectDoc(d)
+                            setTab('documentos')
+                          }}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 7,
+                            padding: '11px 11px 9px',
+                            background: 'rgba(0,0,0,.18)',
+                            border: '1px solid var(--gb)',
+                            borderRadius: 'var(--r)',
+                            cursor: 'pointer',
+                            transition: 'border-color 0.1s',
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--ac)' }}
+                          onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--gb)' }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 6 }}>
+                            <div
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: 36,
+                                height: 36,
+                                borderRadius: 7,
+                                flexShrink: 0,
+                                background: `${d.typeColor}18`,
+                                border: `1px solid ${d.typeColor}30`,
+                              }}
+                            >
+                              <span style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: '0.04em', color: d.typeColor, fontFamily: 'var(--mono)' }}>
+                                {d.type}
+                              </span>
+                            </div>
+                            <span style={{ fontSize: 8.5, fontWeight: 700, padding: '2px 6px', borderRadius: 3, background: 'rgba(16,185,129,.15)', color: 'var(--ok)', alignSelf: 'flex-start', whiteSpace: 'nowrap' }}>
+                              Pronto
+                            </span>
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 11.5,
+                              fontWeight: 500,
+                              color: 'var(--fg)',
+                              lineHeight: 1.3,
+                              overflow: 'hidden',
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                              wordBreak: 'break-all',
+                              minHeight: 28,
+                            }}
+                          >
+                            {d.name}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: 'var(--glass)', color: 'var(--mu2)', border: '1px solid var(--gb)' }}>
+                              {FOLDER_LABELS[d.folder] ?? d.folder}
+                            </span>
+                            <span style={{ fontSize: 9.5, color: 'var(--mu)', marginLeft: 'auto' }}>{d.date}</span>
+                          </div>
+                          <div style={{ fontSize: 10, color: 'var(--ac)', opacity: 0.8 }}>Abrir no editor</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* CONFIG */}
@@ -496,15 +980,12 @@ export default function EstrategiaRoom() {
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   {contextReports.map((report) => {
-                    const isSelected = selectedReport?.id === report.id
+                    const isSelected = selectedDocId === `report-${report.id}`
                     const date = new Date(report.created_at).toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })
                     return (
                       <div
                         key={report.id}
-                        onClick={() => {
-                          setSelectedReport(report)
-                          setTab('documentos')
-                        }}
+                        onClick={() => handleReportClick(report)}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
@@ -533,6 +1014,49 @@ export default function EstrategiaRoom() {
                 </div>
               )}
           </CollapsiblePanel>
+
+          <div className="panel" style={{ flexShrink: 0 }}>
+            <div className="ph">
+              <span className="ph-ico">📈</span>
+              <span className="ph-ttl">KPIs Estratégicos</span>
+            </div>
+            <div className="pb">
+              {contextMetricsQ.isLoading ? (
+                <div style={{ padding: 10, textAlign: 'center', fontSize: 11, color: 'var(--mu)' }}>Carregando KPIs…</div>
+              ) : estrategiaMetrics.length === 0 ? (
+                <div style={{ padding: 10, textAlign: 'center', fontSize: 11, color: 'var(--mu)' }}>Disponível após sincronização.</div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, padding: 10 }}>
+                  {estrategiaMetrics.map((m) => {
+                    const val = m.current_value != null
+                      ? m.unit === 'R$'
+                        ? formatCompactBRL(m.current_value)
+                        : m.unit === '%'
+                        ? `${m.current_value.toFixed(1)}%`
+                        : m.current_value.toLocaleString('pt-BR')
+                      : '—'
+                    const delta = m.mom_pct != null
+                      ? `${m.mom_pct >= 0 ? '+' : ''}${m.mom_pct.toFixed(1)}${m.unit === '%' ? 'pp' : '%'}`
+                      : null
+                    const deltaColor = m.mom_pct != null
+                      ? m.mom_pct > 0 && m.kpi === 'churn' ? 'var(--urg)'
+                        : m.mom_pct < 0 && m.kpi === 'churn' ? 'var(--ok)'
+                        : m.mom_pct >= 0 ? 'var(--ok)' : 'var(--urg)'
+                      : 'var(--mu)'
+                    return (
+                      <div key={m.kpi} className="kpi-cell">
+                        <div className="kpi-lbl">{m.label}</div>
+                        <div className="kpi-val" style={{ fontSize: 15 }}>{val}</div>
+                        {delta != null && (
+                          <div className="kpi-d" style={{ color: deltaColor }}>{delta} mês</div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* BOTTOM STRIP */}
@@ -548,19 +1072,6 @@ export default function EstrategiaRoom() {
           ))}
         </div>
       </div>
-
-      <EditorOverlay
-        key={docBeingCreated?.id ?? 'new'}
-        open={creatingDoc && !!docBeingCreated}
-        docName={docBeingCreated?.title ?? 'Novo Documento'}
-        initialContent={editorContent}
-        onClose={() => {
-          setCreatingDoc(false)
-          setDocBeingCreated(null)
-          setSelectedTemplate(null)
-        }}
-        onSave={(text) => saveDocMut.mutate(text)}
-      />
     </div>
   )
 }

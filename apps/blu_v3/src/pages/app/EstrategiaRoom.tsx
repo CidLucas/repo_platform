@@ -429,11 +429,12 @@ export default function EstrategiaRoom() {
 
     const handler = (e: InputEvent) => {
       if (e.inputType !== 'deleteContentBackward' && e.inputType !== 'deleteContentForward') return
-      e.preventDefault()
 
       const sel = window.getSelection()
       if (!sel || !sel.rangeCount) return
       const range = sel.getRangeAt(0)
+
+      let canHandle = true
 
       if (range.collapsed) {
         if (e.inputType === 'deleteContentBackward' && range.startOffset > 0) {
@@ -443,12 +444,16 @@ export default function EstrategiaRoom() {
           if (range.startOffset < len) {
             range.setEnd(range.startContainer, range.startOffset + 1)
           } else {
-            return
+            canHandle = false
           }
         } else {
-          return
+          canHandle = false
         }
       }
+
+      if (!canHandle) return // browser handles normally (preventDefault not called)
+
+      e.preventDefault()
 
       const fragment = range.extractContents()
       if (!fragment.textContent) return
@@ -609,7 +614,7 @@ export default function EstrategiaRoom() {
             </div>
 
             {/* DOCUMENTOS — inline editor with diff tracking */}
-            <div className={`tc${tab === 'documentos' ? ' on' : ''}`} style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+            <div className={`tc${tab === 'documentos' ? ' on' : ''}`} style={tab === 'documentos' ? { display: 'flex', flex: 1, overflow: 'hidden' } : undefined}>
               <div style={{ width: 230, flexShrink: 0, borderRight: '1px solid var(--gb)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 <div style={{ padding: '9px 10px', borderBottom: '1px solid var(--gb)', flexShrink: 0 }}>
                   <button
@@ -791,7 +796,7 @@ export default function EstrategiaRoom() {
             </div>
 
             {/* CONHECIMENTO — folder tree + card grid */}
-            <div className={`tc${tab === 'conhecimento' ? ' on' : ''}`} style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+            <div className={`tc${tab === 'conhecimento' ? ' on' : ''}`} style={tab === 'conhecimento' ? { display: 'flex', flex: 1, overflow: 'hidden' } : undefined}>
               <div style={{ width: 216, flexShrink: 0, borderRight: '1px solid var(--gb)', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'rgba(0,0,0,.1)' }}>
                 <div style={{ padding: '9px 10px 7px', borderBottom: '1px solid var(--gb)', flexShrink: 0 }}>
                   <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--mu)' }}>

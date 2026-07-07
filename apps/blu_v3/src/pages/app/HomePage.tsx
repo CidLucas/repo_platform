@@ -26,7 +26,7 @@ const DOMAIN_SCREEN: Record<string, { screen: Screen; label: string }> = {
   compras: { screen: 'compras', label: 'Compras' },
   financeiro: { screen: 'financeiro', label: 'Financeiro' },
   clientes: { screen: 'clientes', label: 'Clientes' },
-  documentos: { screen: 'documentos', label: 'Documentos' },
+  documentos: { screen: 'biblioteca', label: 'Documentos' },
   estrategia: { screen: 'estrategia', label: 'Estratégia' },
   agenda: { screen: 'agenda', label: 'Agenda' },
 }

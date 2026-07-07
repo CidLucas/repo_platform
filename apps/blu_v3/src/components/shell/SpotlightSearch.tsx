@@ -15,10 +15,9 @@ const BASE_ITEMS: SpotlightItem[] = [
   { s: 'compras',    label: 'Compras',     desc: 'Aprovações, fornecedores e tarefas',           icon: '🛒' },
   { s: 'financeiro', label: 'Financeiro',  desc: 'Fluxo de caixa, pagamentos e relatórios',      icon: '📊' },
   { s: 'agenda',     label: 'Agenda',      desc: 'Reuniões, rotinas e planejamento semanal',     icon: '📅' },
-  { s: 'documentos', label: 'Documentos',  desc: 'Propostas, contratos e documentos',            icon: '📝' },
   { s: 'estrategia', label: 'Estratégia',  desc: 'Metas, OKRs e planos de ação',                icon: '🎯' },
   { s: 'clientes',   label: 'Clientes',    desc: 'Base de clientes e relacionamento',            icon: '👥' },
-  { s: 'biblioteca', label: 'Biblioteca', desc: 'Memória de negócio compartilhada',              icon: '📚' },
+  { s: 'biblioteca', label: 'Biblioteca', desc: 'Propostas, contratos e memória de negócio',     icon: '📚' },
   { s: 'atividade',  label: 'Atividade',   desc: 'Notificações e histórico de ações',            icon: '🔔' },
 ]
 

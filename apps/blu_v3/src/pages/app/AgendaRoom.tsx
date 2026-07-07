@@ -190,7 +190,7 @@ export default function AgendaRoom() {
                   const isExpanded = hojeExpandedId === ev.id
                   return (
                     <div key={ev.id} className={['dc', isExpanded ? 'expanded' : ''].filter(Boolean).join(' ')} id={ev.id}>
-                      <dc-row className="dc-row" onClick={() => toggleHojeDc(ev.id)}>
+                      <div className="dc-row" onClick={() => toggleHojeDc(ev.id)}>
                         <span className="ev-time">{formatTime(ev.start_at)}</span>
                         <div className="ev-dot" style={{ background: DOT_COLORS[ev.agenda_source] ?? '#818cf8' }} />
                         <span className="dc-row-summary">{ev.title}</span>
@@ -198,7 +198,7 @@ export default function AgendaRoom() {
                           <span className="bdg bw">Pendente</span>
                         )}
                         <span className="dc-chev">▶</span>
-                      </dc-row>
+                      </div>
                       <div className="dc-expand">
                         {ev.location && <div className="db">📍 {ev.location}</div>}
                         {ev.contact && <div className="db">👤 {ev.contact}</div>}

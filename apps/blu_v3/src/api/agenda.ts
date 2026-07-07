@@ -8,6 +8,9 @@ export interface CalendarEvent {
   location: string | null
   calendar_source: string | null
   agenda_source: 'calendar' | 'approval'
+  // Ainda não populados por nenhuma fonte; exibidos condicionalmente na AgendaRoom
+  contact?: string | null
+  observation?: string | null
 }
 
 export interface CalendarSettings {

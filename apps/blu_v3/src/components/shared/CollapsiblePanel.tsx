@@ -8,11 +8,12 @@ interface Props {
   badge?: React.ReactNode
   action?: React.ReactNode
   defaultOpen?: boolean
+  style?: React.CSSProperties
   children: React.ReactNode
 }
 
 export default function CollapsiblePanel({
-  id, icon, title, badge, action, defaultOpen = true, children,
+  id, icon, title, badge, action, defaultOpen = true, style, children,
 }: Props) {
   const { clientId } = useAuth()
   const [open, setOpen] = useState(defaultOpen)
@@ -37,7 +38,7 @@ export default function CollapsiblePanel({
   }, [clientId, id])
 
   return (
-    <div className={`panel${open ? '' : ' collapsed'}`}>
+    <div className={`panel${open ? '' : ' collapsed'}`} style={style}>
       <div className="ph" onClick={toggle} style={{ cursor: 'pointer' }}>
         {icon && <span className="ph-ico">{icon}</span>}
         <span className="ph-ttl">{title}</span>

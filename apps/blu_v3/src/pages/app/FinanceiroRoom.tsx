@@ -299,9 +299,9 @@ export default function FinanceiroRoom() {
                       <div className="dc-expand">
                         <div className="db">{approval.body}</div>
                         <div className="dc-act">
-                          <button className="btn bp" onClick={() => approveMut.mutate(approval.id)}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Agendar</button>
-                          <button className="btn bg" onClick={() => snoozeMut.mutate(approval.id)}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 2 16 8 22 8"/><line x1="4" y1="18" x2="4" y2="22"/><line x1="8" y1="18" x2="8" y2="22"/><polyline points="9 22 5 12 19 12 15 22"/></svg> Depois</button>
-                          <button className="btn bs" onClick={() => rejectMut.mutate(approval.id)}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Rejeitar</button>
+                          <button className="btn bp" onClick={() => approveMut.mutate(approval.id)}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Agendar</button>
+                          <button className="btn bg" onClick={() => snoozeMut.mutate(approval.id)}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 2 16 8 22 8"/><line x1="4" y1="18" x2="4" y2="22"/><line x1="8" y1="18" x2="8" y2="22"/><polyline points="9 22 5 12 19 12 15 22"/></svg> Depois</button>
+                          <button className="btn bs" onClick={() => rejectMut.mutate(approval.id)}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Rejeitar</button>
                         </div>
                       </div>
                     </div>

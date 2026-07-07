@@ -793,6 +793,9 @@ async def _run_single_execution(
                 "worker_slug": worker_slug,
             },
         )
+        # P1: circuit breaker — sucesso zera consecutive_failures, senão 3 falhas
+        # acumuladas ao longo do tempo suspendem a rotina permanentemente
+        await asyncio.to_thread(_reset_routine_failures_sync, client_id, routine_id)
     except asyncio.TimeoutError:
         logger.error(
             "[RoutineExecutor] Execution %s timed out after %ds",
@@ -847,55 +850,6 @@ async def _run_single_execution(
                 routine_id, client_id,
             )
         return
-        logger.error(
-            "[RoutineExecutor] Execution %s timed out after %ds",
-            exec_id, _ROUTINE_EXECUTION_TIMEOUT_S,
-            extra={
-                "execution_id": exec_id,
-                "routine_id": routine_id,
-                "client_id": client_id,
-                "error_type": "timeout",
-            },
-        )
-        await asyncio.to_thread(
-            _update_execution_sync,
-            exec_id,
-            {
-                "status": "failed",
-                "result_text": f"Erro: timeout após {_ROUTINE_EXECUTION_TIMEOUT_S}s",
-                "completed_at": datetime.now(timezone.utc).isoformat(),
-            },
-        )
-        # P1: circuit breaker — conta falha
-        new_status = await asyncio.to_thread(
-            _record_routine_failure_sync, client_id, routine_id
-        )
-        if new_status == "suspended":
-            logger.warning(
-                "[CircuitBreaker] routine %s client %s SUSPENDED after repeated failures",
-                routine_id, client_id,
-            )
-
-    except Exception as exc:
-        logger.exception("[RoutineExecutor] Execution %s failed", exec_id)
-        await asyncio.to_thread(
-            _update_execution_sync,
-            exec_id,
-            {
-                "status": "failed",
-                "result_text": f"Erro: {exc}",
-                "completed_at": datetime.now(timezone.utc).isoformat(),
-            },
-        )
-        # P1: circuit breaker — conta falha
-        new_status = await asyncio.to_thread(
-            _record_routine_failure_sync, client_id, routine_id
-        )
-        if new_status == "suspended":
-            logger.warning(
-                "[CircuitBreaker] routine %s client %s SUSPENDED after repeated failures",
-                routine_id, client_id,
-                )
 
 
 async def run_dispatched_executions(
@@ -1495,12 +1449,6 @@ async def _execute_skill_step(
                     "[RoutineExecutor] skill '%s' returned no structured output",
                     skill_slug,
                 )
-
-        _json2 = json
-
-        for k in outputs_schema:
-            if k in step_outputs and not isinstance(step_outputs[k], str):
-                step_outputs[k] = _json2.dumps(step_outputs[k], ensure_ascii=False)
 
     if result.error:
         logger.warning("[RoutineExecutor] skill '%s' error: %s", skill_slug, result.error)

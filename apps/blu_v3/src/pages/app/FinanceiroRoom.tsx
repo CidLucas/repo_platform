@@ -592,7 +592,7 @@ export default function FinanceiroRoom() {
               kpis={[
                 { label: 'Faturamento', value: fmtCompact(fin?.receita_liquida ?? null) },
                 { label: 'Margem', value: fin?.margem_bruta_perc != null ? `${fin.margem_bruta_perc.toFixed(1)}%` : '—', color: 'var(--ok)' },
-                { label: 'Despesas', value: fmtCompact(fin?.custo_total ?? null), color: 'var(--urg)' },
+                { label: 'Despesas', value: fmtCompact(fin?.despesas_total ?? null), color: 'var(--urg)' },
                 { label: 'Fluxo 30d', value: fmtCompact(fin?.cash_flow_30d ?? null), color: fin?.cash_flow_30d != null ? (fin.cash_flow_30d >= 0 ? 'var(--ok)' : 'var(--urg)') : undefined },
               ]}
               period={analyticsPeriod}
@@ -618,6 +618,10 @@ export default function FinanceiroRoom() {
                 </div>
                 <div className="anl-kc">
                   <div className="anl-kl">Despesas</div>
+                  <div className="anl-kv">{fmtCompact(fin?.despesas_total ?? null)}</div>
+                </div>
+                <div className="anl-kc">
+                  <div className="anl-kl">Compras (custo)</div>
                   <div className="anl-kv">{fmtCompact(fin?.custo_total ?? null)}</div>
                 </div>
                 <div className="anl-kc">

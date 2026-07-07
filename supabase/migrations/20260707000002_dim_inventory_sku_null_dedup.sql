@@ -9,6 +9,10 @@
 --    re-apontando fato_transacoes.produto_id antes de deletar).
 -- 2) Índice único parcial (client_id, nome) WHERE sku IS NULL.
 -- 3) sincronizar_csv_cliente passa a fazer upsert por nome quando sku é NULL.
+-- 4) cleanup_datasource_storage_object: seta storage.allow_delete_query (sem isso o
+--    guard storage.protect_delete aborta QUALQUER delete em client_data_sources) e
+--    corrige o bucket de csv_uploads/% → csv_datasets (o bucket 'file-uploads' que
+--    o trigger assumia não existe; uploads de CSV vivem em csv_datasets).
 --
 -- NOTA (drift): o corpo do sincronizar_csv_cliente abaixo foi copiado da função
 -- LIVE de prod (que já contém os fixes de 20260707000001) com apenas o bloco de
@@ -488,6 +492,51 @@ BEGIN
 
     RETURN jsonb_build_object('success', false, 'job_id', p_job_id, 'error', v_error_msg);
   END;
+END;
+$function$;
+
+-- ── 4. Trigger de cleanup de storage: GUC do guard + bucket correto ─────────
+CREATE OR REPLACE FUNCTION public.cleanup_datasource_storage_object()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'storage'
+AS $function$
+DECLARE
+  v_bucket text;
+  v_path   text;
+BEGIN
+  IF OLD.storage_location IS NULL THEN
+    RETURN OLD;
+  END IF;
+
+  -- Inferir bucket pelo prefixo do path
+  -- Padrões conhecidos:
+  --   csv_uploads/{client_id}/...    → bucket: csv_datasets
+  --   drive_imports/{client_id}/...  → bucket: csv_datasets
+  --   knowledge-base/... onboarding/... → bucket: knowledge-base
+  IF OLD.storage_location LIKE 'csv_uploads/%' OR OLD.storage_location LIKE 'drive_imports/%' THEN
+    v_bucket := 'csv_datasets';
+    v_path   := OLD.storage_location;
+  ELSIF OLD.storage_location LIKE 'knowledge-base/%' OR OLD.storage_location LIKE 'onboarding/%' THEN
+    v_bucket := 'knowledge-base';
+    v_path   := OLD.storage_location;
+  ELSE
+    -- Path desconhecido — não tenta deletar para evitar deleção acidental
+    RETURN OLD;
+  END IF;
+
+  -- storage.protect_delete bloqueia DELETE em storage.objects a menos que este
+  -- GUC esteja setado (é o mesmo mecanismo usado pela Storage API). set_config
+  -- com is_local=true reverte no fim da transação.
+  PERFORM set_config('storage.allow_delete_query', 'true', true);
+
+  DELETE FROM storage.objects
+  WHERE bucket_id = v_bucket AND name = v_path;
+
+  PERFORM set_config('storage.allow_delete_query', 'false', true);
+
+  RETURN OLD;
 END;
 $function$;
 

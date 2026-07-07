@@ -329,6 +329,7 @@ export type DimensionKey = 'finance' | 'commercial' | 'inventory' | 'supply' | '
 export interface FinanceIndicators {
   receita_liquida: number
   custo_total: number | null
+  despesas_total: number | null
   margem_bruta_perc: number | null
   margem_operacional_perc: number | null
   ticket_medio: number
@@ -441,6 +442,7 @@ export const getFinanceIndicators = async (period: string = '30d'): Promise<Fina
   return {
     receita_liquida: num(r?.receita_liquida),
     custo_total: numOrNull(r?.custo_total),
+    despesas_total: numOrNull(r?.despesas_total),
     margem_bruta_perc: numOrNull(r?.margem_bruta_perc),
     margem_operacional_perc: numOrNull(r?.margem_operacional_perc),
     ticket_medio: num(r?.ticket_medio),

@@ -1,0 +1,42 @@
+{
+  "updatedAt": "2026-06-22",
+  "gitHead": "unknown",
+  "pages": [
+    "openwiki/quickstart.md",
+    "openwiki/architecture/overview.md",
+    "openwiki/architecture/routines.md",
+    "openwiki/agents/catalog.md",
+    "openwiki/agents/skills.md",
+    "openwiki/data-models/schema.md",
+    "openwiki/integrations/auth.md",
+    "openwiki/workflows/onboarding.md",
+    "openwiki/workflows/hitl.md",
+    "openwiki/workflows/dev-playbooks.md",
+    "openwiki/operations/backlog.md",
+    "openwiki/product/ux.md"
+  ],
+  "sourcesUsed": [
+    "docs/system_reference/AGENT_SYSTEM.md",
+    "docs/system_reference/SKILLS_SYSTEM.md",
+    "docs/system_reference/ROUTINES_SYSTEM.md",
+    "docs/system_reference/TOOL_INVENTORY.md",
+    "docs/system_reference/FEATURE_MAP.md",
+    "docs/system_reference/CODE_MAP.md",
+    "docs/system_reference/INTEGRATIONS_AUTH.md",
+    "docs/system_reference/ONBOARDING.md",
+    "docs/system_reference/PRODUCT_CONCEPT.md",
+    "docs/system_reference/TASK_PLAYBOOKS.md",
+    "docs/system_reference/DOC_STRUCTURE.md",
+    "docs/llm_wiki/00_INDEX.md",
+    "docs/llm_wiki/01_plataforma.md",
+    "docs/llm_wiki/02_agentes.md",
+    "docs/llm_wiki/03_skills.md",
+    "docs/llm_wiki/04_tools.md",
+    "docs/llm_wiki/05_rotinas.md",
+    "docs/llm_wiki/06_onboarding.md",
+    "docs/llm_wiki/07_dados_modelos.md",
+    "docs/llm_wiki/08_produto_ux.md",
+    "docs/llm_wiki/09_backlog_status.md"
+  ],
+  "note": "Initialized from docs/system_reference and docs/llm_wiki. Repo layout verified against services/agent_api and services/tool_pool_api."
+}

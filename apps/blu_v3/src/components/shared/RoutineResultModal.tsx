@@ -1,5 +1,5 @@
 import type { RoutineExecution } from '../../api/routines'
-import Checkbox from './Checkbox'
+import SmartRenderer from '../chat/SmartRenderer'
 
 interface Props {
   execution: RoutineExecution
@@ -21,7 +21,6 @@ function formatDuration(start: string, end: string | null) {
 }
 
 export default function RoutineResultModal({ execution, routineName, onClose }: Props) {
-  const lines = (execution.result_text ?? '').split('\n').filter(Boolean)
   const duration = formatDuration(execution.created_at, execution.completed_at)
   const failed = execution.status === 'failed'
 
@@ -68,48 +67,10 @@ export default function RoutineResultModal({ execution, routineName, onClose }: 
 
         {/* Result body */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {lines.length === 0 ? (
-            <div style={{ fontSize: 12, color: 'var(--mu)' }}>Sem resultado registrado.</div>
+          {execution.result_text ? (
+            <SmartRenderer content={execution.result_text} />
           ) : (
-            lines.map((line, i) => {
-              const colonIdx = line.indexOf(':')
-              const hasLabel = colonIdx > 0 && colonIdx < 40
-              const label = hasLabel ? line.slice(0, colonIdx).trim() : null
-              const text = hasLabel ? line.slice(colonIdx + 1).trim() : line
-
-              return (
-                <div
-                  key={i}
-                  style={{
-                    background: 'var(--glass)',
-                    border: '1px solid var(--gb)',
-                    borderRadius: 6,
-                    padding: '8px 11px',
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: 8,
-                  }}
-                >
-                  <div style={{ paddingTop: 1, flexShrink: 0 }}>
-                    <Checkbox
-                      checked={!failed}
-                      disabled
-                      onChange={() => {}}
-                    />
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    {label && (
-                      <div style={{ fontSize: 10, color: 'var(--mu)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>
-                        {i + 1}. {label}
-                      </div>
-                    )}
-                    <div style={{ fontSize: 12, lineHeight: 1.5, color: text ? 'inherit' : 'var(--mu)', fontStyle: text ? 'normal' : 'italic' }}>
-                      {text || 'ok'}
-                    </div>
-                  </div>
-                </div>
-              )
-            })
+            <div style={{ fontSize: 12, color: 'var(--mu)' }}>Sem resultado registrado.</div>
           )}
         </div>
 

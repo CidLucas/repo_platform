@@ -1,5 +1,6 @@
 import type { RoutineStep, CatalogStep } from '../../api/routines'
 import Checkbox from './Checkbox'
+import SmartRenderer from '../chat/SmartRenderer'
 
 interface Props {
   name: string
@@ -78,7 +79,11 @@ export default function RoutinePreviewCard({
               </span>
             )}
           </div>
-          {description && <div style={{ fontSize: 11, color: 'var(--mu)', marginTop: 3 }}>{description}</div>}
+          {description && (
+            <div style={{ fontSize: 11, color: 'var(--mu)', marginTop: 3 }}>
+              <SmartRenderer content={description} />
+            </div>
+          )}
         </div>
         <span style={{ fontSize: 10, color: 'var(--mu)', background: 'rgba(0,0,0,.2)', borderRadius: 4, padding: '2px 6px', whiteSpace: 'nowrap', marginTop: 2 }}>
           Rascunho

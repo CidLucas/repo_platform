@@ -3,6 +3,7 @@ import { useAppStore } from '../../store/appStore'
 import type { ApprovalRequest } from '../../api/approvals'
 import { AGENT_COLORS } from '../../utils/constants'
 import Checkbox from './Checkbox'
+import SmartRenderer from '../chat/SmartRenderer'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -38,22 +39,6 @@ function dcClass(priority: ApprovalRequest['priority']) {
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-}
-
-function renderBody(text: string) {
-  return text.split('\n').map((line, i, arr) => {
-    const parts = line.split(/(\*\*[\s\S]+?\*\*)/g)
-    return (
-      <span key={i}>
-        {parts.map((p, j) =>
-          p.startsWith('**') && p.endsWith('**')
-            ? <strong key={j}>{p.slice(2, -2)}</strong>
-            : p
-        )}
-        {i < arr.length - 1 && <br />}
-      </span>
-    )
-  })
 }
 
 // ── Routine Activation Card (nested) ───────────────────────────────────────────
@@ -185,7 +170,11 @@ export default function DecisionCard({
         <span className="dc-chev">{isExpanded ? '▼' : '▶'}</span>
       </div>
       <div className="dc-expand">
-        {approval.body && <div className="db">{renderBody(approval.body)}</div>}
+        {approval.body && (
+          <div className="db">
+            <SmartRenderer content={approval.body} />
+          </div>
+        )}
         {artifactType === 'document' && artifactId && (
           <button
             className="btn bg"

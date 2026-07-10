@@ -1,5 +1,12 @@
 # Missão: Sistema Blu completo no ar no Cloud Run
 
+> ✅ **MISSÃO CONCLUÍDA em 2026-07-10.** Os 3 serviços estão no ar com
+> CI/CD por push e segredos no Secret Manager. Este arquivo é histórico;
+> o runbook vivo é `docs/cloud-run-deploy.md`. Notas pós-missão:
+> `/healthz` do blu-v3 é interceptado pelo GFE dos domínios `*.run.app`
+> (smoke test externo usa `/`), e o build do blu-v3 é um build de
+> workspace npm (ver runbook).
+
 Leia este arquivo inteiro antes de agir. Ele consolida o estado real da
 infraestrutura em 2026-07-10 — verifique o que mudou desde então antes de
 repetir qualquer passo. O runbook complementar é `docs/cloud-run-deploy.md`.

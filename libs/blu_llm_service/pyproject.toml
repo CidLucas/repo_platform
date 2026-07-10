@@ -19,18 +19,20 @@ requests = "^2.31.0"
 # Settings
 pydantic-settings = "^2.0.0"
 
-# Providers opcionais - instale com: poetry install -E openai -E anthropic -E google
-langchain-openai = {version = ">=0.2.0", optional = true}
+# langchain-openai é OBRIGATÓRIO: os providers HuggingFace e DeepSeek usam
+# ChatOpenAI (endpoints OpenAI-compatible) e o task routing padrão
+# (CODE/MATH/CLASSIFICATION/RAG/SUMMARIZATION) roteia para HuggingFace.
+langchain-openai = ">=0.2.0"
+# Providers opcionais - instale com: poetry install -E anthropic -E google
 langchain-anthropic = {version = ">=0.2.0", optional = true}
 langchain-google-genai = {version = ">=2.0.0", optional = true}
 huggingface-hub = ">=0.30"
 
 [tool.poetry.extras]
 # Providers opcionais - instale conforme necessário
-openai = ["langchain-openai"]
 anthropic = ["langchain-anthropic"]
 google = ["langchain-google-genai"]
-all = ["langchain-openai", "langchain-anthropic", "langchain-google-genai"]
+all = ["langchain-anthropic", "langchain-google-genai"]
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"

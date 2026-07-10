@@ -8,6 +8,7 @@ from langchain_community.chat_models import ChatOllama
 from blu_llm_service.client import (
     BluEmbeddingAPIClient,
     CohereEmbeddingClient,
+    LLMProvider,
     ModelTier,
     get_cohere_embedding_model,
     get_embedding_model,
@@ -115,6 +116,41 @@ def test_get_model_tier_mapping():
     llm_powerful = get_model(tier=ModelTier.POWERFUL)
     # POWERFUL maps to deepseek-v4-pro for Ollama Cloud
     assert llm_powerful.bound.model == "deepseek-v4-pro"
+
+
+# --- Testes do Provider DeepSeek ---
+
+
+class TestDeepSeekProvider:
+    def test_factory_returns_chatopenai_with_deepseek_base_url(self):
+        """DeepSeek usa ChatOpenAI apontando para api.deepseek.com."""
+        from langchain_openai import ChatOpenAI
+
+        settings = get_llm_settings()
+        settings.DEEPSEEK_API_KEY = "test-deepseek-key"
+
+        llm = get_model(provider=LLMProvider.DEEPSEEK, tier=ModelTier.DEFAULT)
+
+        assert isinstance(llm, ChatOpenAI)
+        assert llm.openai_api_base == "https://api.deepseek.com"
+        assert llm.model_name == "deepseek-v4-flash"
+
+    def test_tier_powerful_uses_v4_pro(self):
+        """Tier POWERFUL mapeia para deepseek-v4-pro."""
+        settings = get_llm_settings()
+        settings.DEEPSEEK_API_KEY = "test-deepseek-key"
+
+        llm = get_model(provider=LLMProvider.DEEPSEEK, tier=ModelTier.POWERFUL)
+
+        assert llm.model_name == "deepseek-v4-pro"
+
+    def test_missing_api_key_raises(self):
+        """Sem DEEPSEEK_API_KEY, a factory falha com mensagem clara."""
+        settings = get_llm_settings()
+        settings.DEEPSEEK_API_KEY = None
+
+        with pytest.raises(ValueError, match="DEEPSEEK_API_KEY"):
+            get_model(provider=LLMProvider.DEEPSEEK)
 
 
 # --- Testes do Cliente de Embedding Cohere (CohereEmbeddingClient) ---

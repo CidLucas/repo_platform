@@ -3,10 +3,12 @@
 Blu LLM Service: Centralized client for local and commercial LLMs.
 
 Supports:
-- Ollama (local)
+- Ollama Cloud (ollama.com)
 - OpenAI (API)
 - Anthropic (API)
 - Google Gemini (API)
+- HuggingFace Inference API
+- DeepSeek (API direta, OpenAI-compatible)
 
 Langfuse integration is handled by blu_observability_bootstrap.
 """
@@ -63,6 +65,7 @@ class LLMProvider(Enum):
     ANTHROPIC = "anthropic"         # Anthropic API
     GOOGLE = "google"               # Google Gemini API
     HUGGINGFACE = "huggingface"     # HuggingFace Inference API
+    DEEPSEEK = "deepseek"           # DeepSeek API direta (OpenAI-compatible)
 
 
 class OllamaCloudModel(str, Enum):
@@ -425,6 +428,45 @@ def _get_huggingface_model(
     )
 
 
+def _get_deepseek_model(
+    model_name: str,
+    settings: LLMSettings,
+    callbacks: list[BaseCallbackHandler],
+    **kwargs: Any,
+) -> BaseChatModel:
+    """
+    Cria cliente DeepSeek via API direta (endpoint OpenAI-compatible).
+
+    Usa ChatOpenAI apontando para https://api.deepseek.com.
+    Modelos: "deepseek-v4-flash" (rápido) e "deepseek-v4-pro" (frontier).
+
+    Ref: https://api-docs.deepseek.com
+
+    Requer DEEPSEEK_API_KEY configurada.
+    """
+    try:
+        from langchain_openai import ChatOpenAI
+    except ImportError:
+        raise ImportError("langchain-openai não instalado. Rode: pip install langchain-openai")
+
+    api_key = settings.DEEPSEEK_API_KEY
+    if not api_key:
+        raise ValueError(
+            "DEEPSEEK_API_KEY não configurada. "
+            "Obtenha em: https://platform.deepseek.com/api_keys"
+        )
+
+    logger.debug(f"DeepSeek: {settings.DEEPSEEK_BASE_URL} model={model_name}")
+
+    return ChatOpenAI(
+        model=model_name,
+        api_key=api_key,
+        base_url=settings.DEEPSEEK_BASE_URL,
+        callbacks=callbacks,
+        **kwargs,
+    )
+
+
 # ============================================================================
 # MODEL MAPPINGS
 # ============================================================================
@@ -449,6 +491,12 @@ MODEL_MAPPINGS: dict[LLMProvider, dict[ModelTier, str]] = {
         ModelTier.FAST:     "gemini-1.5-flash",
         ModelTier.DEFAULT:  "gemini-2.0-flash",
         ModelTier.POWERFUL: "gemini-1.5-pro",
+    },
+    LLMProvider.DEEPSEEK: {
+        # IDs confirmados via GET https://api.deepseek.com/models (2026-07)
+        ModelTier.FAST:     "deepseek-v4-flash",  # MoE 284B (13B ativos), 1M ctx
+        ModelTier.DEFAULT:  "deepseek-v4-flash",
+        ModelTier.POWERFUL: "deepseek-v4-pro",    # frontier MoE, 1M ctx
     },
 }
 
@@ -617,6 +665,7 @@ def get_model(
             LLMProvider.ANTHROPIC: _get_anthropic_model,
             LLMProvider.GOOGLE: _get_google_model,
             LLMProvider.HUGGINGFACE: _get_huggingface_model,
+            LLMProvider.DEEPSEEK: _get_deepseek_model,
         }
         factory = factory_map[task_provider]
         primary = factory(task_model, settings, callbacks, **kwargs)
@@ -648,6 +697,7 @@ def get_model(
         LLMProvider.ANTHROPIC: _get_anthropic_model,
         LLMProvider.GOOGLE: _get_google_model,
         LLMProvider.HUGGINGFACE: _get_huggingface_model,
+        LLMProvider.DEEPSEEK: _get_deepseek_model,
     }
 
     factory = factory_map.get(provider)

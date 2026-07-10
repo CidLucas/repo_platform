@@ -16,6 +16,7 @@ class LLMSettings(BaseSettings):
     - Anthropic (API)
     - Google Gemini (API)
     - HuggingFace Inference API
+    - DeepSeek (API direta, OpenAI-compatible)
     """
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
@@ -65,6 +66,13 @@ class LLMSettings(BaseSettings):
     # GOOGLE GEMINI
     # ========================================================================
     GOOGLE_API_KEY: str | None = Field(default=None)
+
+    # ========================================================================
+    # DEEPSEEK (API direta — OpenAI-compatible)
+    # Ref: https://api-docs.deepseek.com
+    # ========================================================================
+    DEEPSEEK_API_KEY: str | None = Field(default=None)
+    DEEPSEEK_BASE_URL: str = Field(default="https://api.deepseek.com")
 
     # ========================================================================
     # HUGGING FACE
@@ -122,6 +130,11 @@ class LLMSettings(BaseSettings):
     def huggingface_enabled(self) -> bool:
         """HuggingFace está habilitado se tiver HF_TOKEN."""
         return bool(self.HF_TOKEN)
+
+    @property
+    def deepseek_enabled(self) -> bool:
+        """DeepSeek está habilitado se tiver API key."""
+        return bool(self.DEEPSEEK_API_KEY)
 
 
 @lru_cache

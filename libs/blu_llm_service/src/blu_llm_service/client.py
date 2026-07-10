@@ -473,9 +473,11 @@ def _get_deepseek_model(
 
 MODEL_MAPPINGS: dict[LLMProvider, dict[ModelTier, str]] = {
     LLMProvider.OLLAMA_CLOUD: {
-        ModelTier.FAST:     OllamaCloudModel.MINISTRAL_3,        # confirmed working
-        ModelTier.DEFAULT:  OllamaCloudModel.DEEPSEEK_V4_FLASH,   # 284B MoE, 1M ctx, SQL tasks
-        ModelTier.POWERFUL: OllamaCloudModel.DEEPSEEK_V4_PRO,     # frontier MoE, 1M ctx
+        # gpt-oss:20b é o único modelo confirmado acessível na conta free do
+        # Ollama Cloud (deepseek-v4-* retornam 403 subscription required).
+        ModelTier.FAST:     OllamaCloudModel.GPT_OSS_20B,
+        ModelTier.DEFAULT:  OllamaCloudModel.GPT_OSS_20B,
+        ModelTier.POWERFUL: OllamaCloudModel.GPT_OSS_20B,
     },
     LLMProvider.OPENAI: {
         ModelTier.FAST:     "gpt-4o-mini",
@@ -494,9 +496,11 @@ MODEL_MAPPINGS: dict[LLMProvider, dict[ModelTier, str]] = {
     },
     LLMProvider.DEEPSEEK: {
         # IDs confirmados via GET https://api.deepseek.com/models (2026-07)
-        ModelTier.FAST:     "deepseek-v4-flash",  # MoE 284B (13B ativos), 1M ctx
+        # POWERFUL também usa flash: v4-pro tem custo frontier e o flash
+        # (MoE 284B, 13B ativos, 1M ctx) cobre os casos atuais.
+        ModelTier.FAST:     "deepseek-v4-flash",
         ModelTier.DEFAULT:  "deepseek-v4-flash",
-        ModelTier.POWERFUL: "deepseek-v4-pro",    # frontier MoE, 1M ctx
+        ModelTier.POWERFUL: "deepseek-v4-flash",
     },
 }
 
@@ -504,9 +508,9 @@ MODEL_MAPPINGS: dict[LLMProvider, dict[ModelTier, str]] = {
 # Wired automatically via LangChain's .with_fallbacks() in get_model().
 FALLBACK_MODEL_MAPPINGS: dict[LLMProvider, dict[ModelTier, str]] = {
     LLMProvider.OLLAMA_CLOUD: {
-        ModelTier.FAST:     OllamaCloudModel.MINISTRAL_3,  # fallback = same (only confirmed working model)
-        ModelTier.DEFAULT:  OllamaCloudModel.MINISTRAL_3,  # fallback = same
-        ModelTier.POWERFUL: OllamaCloudModel.MINISTRAL_3,  # fallback = same
+        ModelTier.FAST:     OllamaCloudModel.MINISTRAL_3,  # ministral-3:8b, acessível na conta free
+        ModelTier.DEFAULT:  OllamaCloudModel.MINISTRAL_3,
+        ModelTier.POWERFUL: OllamaCloudModel.MINISTRAL_3,
     },
 }
 

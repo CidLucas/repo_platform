@@ -8,18 +8,23 @@
 #             gcloud run deploy blu-frontend --image gcr.io/$PROJECT/blu-frontend --port 80
 
 # ─── Stage 1: Build ───────────────────────────────────────────────────
+# O repo é um npm workspace (workspaces: apps/*, packages/*): as deps são
+# hoisted para o node_modules da RAIZ, e é assim que o tsc resolve
+# vite/client e que packages/blu-auth enxerga react. O build no Docker
+# replica essa estrutura — instalar o app isolado não funciona.
 FROM node:20-alpine AS builder
 
-WORKDIR /app
+WORKDIR /repo
 
-# Cache de dependências (só reinstala se package*.json mudar)
-COPY apps/blu_v3/package*.json ./
+# Cache de dependências (só reinstala se manifests/lock mudarem)
+COPY package.json package-lock.json ./
+COPY apps/blu_v3/package.json apps/blu_v3/
+COPY packages/blu-auth/package.json packages/blu-auth/
 RUN npm ci
 
-# Cópia do código fonte e dependências do monorepo
-COPY apps/blu_v3/ .
-COPY packages/ /app/../packages/
-COPY tsconfig*.json /app/../
+# Código fonte do workspace
+COPY packages/ packages/
+COPY apps/blu_v3/ apps/blu_v3/
 
 # ─── Variáveis VITE_ (build-time) ─────────────────────────────────────
 # Vite embute essas variáveis no bundle JS durante o `npm run build` —
@@ -42,6 +47,7 @@ ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL \
     VITE_GOOGLE_PICKER_API_KEY=$VITE_GOOGLE_PICKER_API_KEY
 
 # Build
+WORKDIR /repo/apps/blu_v3
 RUN npm run build
 
 # ─── Stage 2: Serve ───────────────────────────────────────────────────
@@ -51,7 +57,7 @@ FROM nginx:1.27-alpine
 COPY apps/blu_v3/nginx.conf /etc/nginx/conf.d/default.conf
 
 # Assets do build (HTML, JS, CSS, imagens)
-COPY --from=builder /app/dist /usr/share/nginx/html
+COPY --from=builder /repo/apps/blu_v3/dist /usr/share/nginx/html
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

@@ -33,6 +33,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import re
 import threading
 from datetime import datetime, timezone
@@ -47,8 +48,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-# P0: tempo máximo total de uma execução de rotina (segundos)
-_ROUTINE_EXECUTION_TIMEOUT_S = 120
+# P0: tempo máximo total de uma execução de rotina (segundos). Rotinas de
+# contexto (crawl + síntese LLM do masterprompt) passam fácil de 120s.
+_ROUTINE_EXECUTION_TIMEOUT_S = int(os.getenv("ROUTINE_EXECUTION_TIMEOUT_S", "600"))
 
 # P1: semáforo por cliente — max 2 execuções simultâneas por client_id
 _client_semaphores: dict[str, asyncio.Semaphore] = {}

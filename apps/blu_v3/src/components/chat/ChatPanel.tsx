@@ -5,7 +5,7 @@ import { useAtendenteChat } from '../../hooks/useAtendenteChat'
 import LoadingState from '../shared/LoadingState'
 import Pagination from '../shared/Pagination'
 import SmartRenderer from './SmartRenderer'
-import { IconX } from '../shared/Icons'
+import { IconX, IconSend, IconStop, IconWrench } from '../shared/Icons'
 
 function relTime(date: Date): string {
   const diff = (Date.now() - date.getTime()) / 1000
@@ -46,30 +46,6 @@ function BluOrb({ size = 24, working = false }: { size?: number; working?: boole
         <path d="M-2,11 Q7.5,8.5 15,11 Q22.5,13.5 32,11" stroke="white" strokeWidth="1.6" fill="none" strokeLinecap="round" strokeOpacity={0.9} />
         <path d="M-2,15 Q7.5,12.5 15,15 Q22.5,17.5 32,15" stroke="white" strokeWidth="1.6" fill="none" strokeLinecap="round" strokeOpacity={0.5} />
       </g>
-    </svg>
-  )
-}
-
-function SendIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M22 2L11 13" /><path d="M22 2L15 22L11 13L2 9L22 2Z" />
-    </svg>
-  )
-}
-
-function StopIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10" /><rect x="9" y="9" width="6" height="6" />
-    </svg>
-  )
-}
-
-function WrenchIcon() {
-  return (
-    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
     </svg>
   )
 }
@@ -208,7 +184,7 @@ export default function ChatPanel() {
               </div>
               {isStreaming && activeToolName ? (
                 <div style={{ fontSize: 10, color: 'var(--ac)', display: 'flex', alignItems: 'center', gap: 3, marginTop: 2 }}>
-                  <WrenchIcon />
+                  <IconWrench size={10} />
                   {activeToolName}
                 </div>
               ) : isStreaming ? (
@@ -352,7 +328,7 @@ export default function ChatPanel() {
               <div style={{ padding: '6px 7px 7px', flexShrink: 0 }}>
                 {isStreaming ? (
                   <button onClick={cancelStream} aria-label="Cancelar resposta" style={{ padding: 6, borderRadius: 6, color: 'var(--urg)', display: 'flex' }}>
-                    <StopIcon />
+                    <IconStop size={16} />
                   </button>
                 ) : (
                   <button
@@ -368,7 +344,7 @@ export default function ChatPanel() {
                       transition: 'color .12s, opacity .12s',
                     }}
                   >
-                    <SendIcon />
+                    <IconSend size={16} />
                   </button>
                 )}
               </div>

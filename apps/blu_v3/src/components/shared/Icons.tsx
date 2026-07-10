@@ -13,6 +13,13 @@ import {
   PencilSimple,
   ArrowRight,
   CheckCircle,
+  PaperPlaneTilt,
+  Stop,
+  Wrench,
+  SignOut,
+  SignIn,
+  Lightning,
+  List,
 } from '@phosphor-icons/react'
 
 const SZ = 14
@@ -32,3 +39,10 @@ export const IconTrash = (p: any) => <Trash size={SZ} weight={WT} {...p} />
 export const IconEdit = (p: any) => <PencilSimple size={SZ} weight={WT} {...p} />
 export const IconArrowRight = (p: any) => <ArrowRight size={SZ} weight={WT} {...p} />
 export const IconCheckCircle = (p: any) => <CheckCircle size={SZ} weight={WT} {...p} />
+export const IconSend = (p: any) => <PaperPlaneTilt size={SZ} weight="fill" {...p} />
+export const IconStop = (p: any) => <Stop size={SZ} weight="fill" {...p} />
+export const IconWrench = (p: any) => <Wrench size={SZ} weight={WT} {...p} />
+export const IconSignOut = (p: any) => <SignOut size={SZ} weight={WT} {...p} />
+export const IconSignIn = (p: any) => <SignIn size={SZ} weight={WT} {...p} />
+export const IconLightning = (p: any) => <Lightning size={SZ} weight="fill" {...p} />
+export const IconList = (p: any) => <List size={SZ} weight="bold" {...p} />

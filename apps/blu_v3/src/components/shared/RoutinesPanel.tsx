@@ -9,6 +9,7 @@ import {
   updateRoutineTrigger,
   createCustomRoutine,
   deleteCustomRoutine,
+  runRoutineNow,
   submitRoutineForApproval,
   type ClientRoutine,
   type CustomRoutine,
@@ -230,6 +231,10 @@ function CatalogRoutineRow({
   const [showConfig, setShowConfig] = useState(false)
   const isActive = routine.active && routine.status === 'active'
   const name = routine.cross_agent_routines?.name ?? routine.routine_id
+
+  const runMut = useMutation({
+    mutationFn: () => runRoutineNow(routine.routine_id),
+  })
   const triggerLabel: Record<string, string> = {
     manual: 'manual',
     schedule: 'agenda',
@@ -268,11 +273,27 @@ function CatalogRoutineRow({
             </span>
           </div>
         </div>
+        {isActive && (
+          <button
+            className="btn bs"
+            style={{ fontSize: 10.5, padding: '4px 10px', whiteSpace: 'nowrap' }}
+            disabled={runMut.isPending}
+            title="Executar esta rotina agora, sem esperar o agendamento"
+            onClick={() => runMut.mutate()}
+          >
+            {runMut.isPending ? 'Disparando…' : runMut.isSuccess ? 'Disparada ✓' : '▶ Rodar agora'}
+          </button>
+        )}
         <Toggle
           checked={isActive}
           onChange={v => onToggle(routine.id, v)}
         />
       </div>
+      {runMut.isError && (
+        <div style={{ padding: '0 12px 8px', fontSize: 11, color: 'var(--urg)' }}>
+          {(runMut.error as Error).message}
+        </div>
+      )}
       {showConfig && (
         <div style={{ padding: '0 12px 12px' }}>
           <TriggerConfigurator

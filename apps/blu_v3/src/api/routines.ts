@@ -132,12 +132,34 @@ export async function fetchRoutineCatalog(): Promise<RoutineCatalog> {
   return res.json() as Promise<RoutineCatalog>
 }
 
+/**
+ * Dispara uma rotina imediatamente ("Rodar agora"), ignorando o agendamento cron.
+ * Retorna o execution_id; lança erro com a mensagem do backend em 404/409.
+ */
+export async function runRoutineNow(routineId: string): Promise<string> {
+  const baseUrl = (import.meta.env.VITE_ATENDENTE_CORE as string | undefined) ?? ''
+  const { data: { session } } = await supabase.auth.getSession()
+  const res = await fetch(`${baseUrl}/v1/routines/${encodeURIComponent(routineId)}/run`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${session?.access_token ?? ''}`,
+    },
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => null) as { detail?: string } | null
+    throw new Error(body?.detail ?? `Falha ao disparar rotina: ${res.status}`)
+  }
+  const body = await res.json() as { execution_id: string }
+  return body.execution_id
+}
+
 // ─── Execution history ────────────────────────────────────────────────────────
 
 export interface RoutineExecution {
   id: string
   routine_id: string
-  status: 'pending' | 'dispatched' | 'executing' | 'completed' | 'failed'
+  status: 'pending' | 'dispatched' | 'executing' | 'completed' | 'partial' | 'failed'
   triggered_by: string
   created_at: string
   completed_at: string | null
@@ -209,7 +231,7 @@ export async function fetchLastExecution(
     .select('*')
     .eq('client_id', clientId)
     .eq('routine_id', routineId)
-    .eq('status', 'completed')
+    .in('status', ['completed', 'partial'])
     .order('completed_at', { ascending: false })
     .limit(1)
     .maybeSingle()
@@ -227,7 +249,7 @@ export async function fetchExecutionHistory(
     .from('client_routine_executions')
     .select('*')
     .eq('client_id', clientId)
-    .in('status', ['completed', 'failed'])
+    .in('status', ['completed', 'partial', 'failed'])
     .order('created_at', { ascending: false })
     .limit(limit)
 

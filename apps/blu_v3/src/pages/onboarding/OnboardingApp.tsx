@@ -705,7 +705,7 @@ function StepInfo({
 
           {/* CNPJ enrichment: rate limit message (B-5) */}
           {rateLimitMsg && (
-            <div style={{ marginTop: -8, marginBottom: 8, fontSize: 12, color: 'var(--amber, #ca8a04)' }}>
+            <div style={{ marginTop: -8, marginBottom: 8, fontSize: 12, color: 'var(--att)' }}>
               {rateLimitMsg}
             </div>
           )}
@@ -716,7 +716,7 @@ function StepInfo({
               <div className="scrape-h">
                 <IconCheck size={13} />
                 Dados da Receita Federal
-                <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--green, #16a34a)', background: 'color-mix(in srgb, var(--ok) 10%, transparent)', padding: '1px 7px', borderRadius: 20, marginLeft: 6 }}>Confirmado pela Receita</span>
+                <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--ok)', background: 'var(--odim)', padding: '1px 7px', borderRadius: 20, marginLeft: 6 }}>Confirmado pela Receita</span>
               </div>
               <div className="scrape-grid">
                 <ScrapeField label="Razão Social" value={cnpjEnrichData.razao_social} delay={0} />
@@ -750,9 +750,9 @@ function StepInfo({
                 <IconCheck size={13} />
                 Encontrei sua empresa. Já anotei.
                 {siteContext.confidence >= 0.7 ? (
-                  <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--green, #16a34a)', background: 'color-mix(in srgb, var(--ok) 10%, transparent)', padding: '1px 7px', borderRadius: 20, marginLeft: 2 }}>Confiança alta</span>
+                  <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--ok)', background: 'var(--odim)', padding: '1px 7px', borderRadius: 20, marginLeft: 2 }}>Confiança alta</span>
                 ) : siteContext.confidence >= 0.3 ? (
-                  <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--amber, #ca8a04)', background: 'color-mix(in srgb, var(--att) 10%, transparent)', padding: '1px 7px', borderRadius: 20, marginLeft: 2 }}>Confiança média</span>
+                  <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--att)', background: 'var(--adm2)', padding: '1px 7px', borderRadius: 20, marginLeft: 2 }}>Confiança média</span>
                 ) : null}
               </div>
 
@@ -777,9 +777,9 @@ function StepInfo({
                   <div key="cnpj" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <ScrapeField label="CNPJ" value={formatCnpj(siteContext.cnpj)} delay={250} />
                     {siteContext.confidence >= 0.7 ? (
-                      <span style={{ color: 'var(--ok)', background: '#dcfce7', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança alta</span>
+                      <span style={{ color: 'var(--ok)', background: 'var(--odim)', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança alta</span>
                     ) : siteContext.confidence >= 0.3 ? (
-                      <span style={{ color: 'var(--att)', background: '#fef9c3', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança média</span>
+                      <span style={{ color: 'var(--att)', background: 'var(--adm2)', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança média</span>
                     ) : null}
                   </div>
                 )}
@@ -787,9 +787,9 @@ function StepInfo({
                   <div key="telefone" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <ScrapeField label="Telefone" value={siteContext.telefone} delay={500} />
                     {siteContext.confidence >= 0.7 ? (
-                      <span style={{ color: 'var(--ok)', background: '#dcfce7', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança alta</span>
+                      <span style={{ color: 'var(--ok)', background: 'var(--odim)', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança alta</span>
                     ) : siteContext.confidence >= 0.3 ? (
-                      <span style={{ color: 'var(--att)', background: '#fef9c3', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança média</span>
+                      <span style={{ color: 'var(--att)', background: 'var(--adm2)', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança média</span>
                     ) : null}
                   </div>
                 )}
@@ -804,9 +804,9 @@ function StepInfo({
                   <div key="cnpj" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <ScrapeField label="CNPJ" value={formatCnpj(siteContext.cnpj)} delay={250} />
                     {siteContext.confidence >= 0.7 ? (
-                      <span style={{ color: 'var(--ok)', background: '#dcfce7', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança alta</span>
+                      <span style={{ color: 'var(--ok)', background: 'var(--odim)', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança alta</span>
                     ) : siteContext.confidence >= 0.3 ? (
-                      <span style={{ color: 'var(--att)', background: '#fef9c3', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança média</span>
+                      <span style={{ color: 'var(--att)', background: 'var(--adm2)', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança média</span>
                     ) : null}
                   </div>
                 )}
@@ -814,9 +814,9 @@ function StepInfo({
                   <div key="telefone" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <ScrapeField label="Telefone" value={siteContext.telefone} delay={500} />
                     {siteContext.confidence >= 0.7 ? (
-                      <span style={{ color: 'var(--ok)', background: '#dcfce7', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança alta</span>
+                      <span style={{ color: 'var(--ok)', background: 'var(--odim)', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança alta</span>
                     ) : siteContext.confidence >= 0.3 ? (
-                      <span style={{ color: 'var(--att)', background: '#fef9c3', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança média</span>
+                      <span style={{ color: 'var(--att)', background: 'var(--adm2)', padding: '1px 7px', borderRadius: 20, fontSize: 10.5, fontWeight: 600 }}>Confiança média</span>
                     ) : null}
                   </div>
                 )}
@@ -845,9 +845,9 @@ function StepInfo({
             <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               Setor *
               {siteContext && siteContext.confidence >= 0.7 ? (
-                <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--green, #16a34a)', background: 'color-mix(in srgb, var(--ok) 10%, transparent)', padding: '1px 7px', borderRadius: 20 }}>detectado automaticamente</span>
+                <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--ok)', background: 'var(--odim)', padding: '1px 7px', borderRadius: 20 }}>detectado automaticamente</span>
               ) : siteContext && siteContext.confidence >= 0.3 ? (
-                <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--amber, #ca8a04)', background: 'color-mix(in srgb, var(--att) 10%, transparent)', padding: '1px 7px', borderRadius: 20 }}>detectado — confiança média</span>
+                <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--att)', background: 'var(--adm2)', padding: '1px 7px', borderRadius: 20 }}>detectado — confiança média</span>
               ) : null}
             </label>
             <div className="radio-pills">

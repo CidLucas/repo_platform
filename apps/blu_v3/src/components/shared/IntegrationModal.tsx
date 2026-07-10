@@ -1,4 +1,5 @@
 import { useAppStore } from '../../store/appStore'
+import Modal from './Modal'
 
 interface ModalField {
   label: string
@@ -73,66 +74,59 @@ export default function IntegrationModal({
   }
 
   return (
-    <div className={`modal-overlay${open ? ' open' : ''}`} id="intgModal" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="modal">
-        <div className="modal-hd">
-          <div>
-            <div className="m-title" id="m-title">
-              {mode === 'connect' ? `Conectar — ${name}` : `Configurar — ${name}`}
+    <Modal
+      open={open}
+      onClose={onClose}
+      width="440px"
+      title={mode === 'connect' ? `Conectar — ${name}` : `Configurar — ${name}`}
+      subtitle={mode === 'connect'
+        ? `Informe as credenciais para ativar a integração com ${name}.`
+        : 'Integração ativa. Revise ou atualize as configurações abaixo.'}
+    >
+      <div className="modal-body" id="m-body">
+        {mode === 'connect' ? (
+          fields.map((f, i) => (
+            <div className="intg-field" key={i}>
+              <label>{f.label}</label>
+              <input type={f.type} placeholder={f.placeholder} />
             </div>
-            <div className="m-sub" id="m-sub">
-              {mode === 'connect'
-                ? `Informe as credenciais para ativar a integração com ${name}.`
-                : 'Integração ativa. Revise ou atualize as configurações abaixo.'}
+          ))
+        ) : (
+          <>
+            <div className="intg-field">
+              <label>API Key / Credencial</label>
+              <input type="password" value="••••••••••••" readOnly />
             </div>
-          </div>
-          <button className="ibtn" style={{ color: 'var(--mu2)' }} onClick={onClose}>✕</button>
-        </div>
-        <div className="modal-body" id="m-body">
-          {mode === 'connect' ? (
-            fields.map((f, i) => (
-              <div className="intg-field" key={i}>
-                <label>{f.label}</label>
-                <input type={f.type} placeholder={f.placeholder} />
+            <div className="intg-field">
+              <label>Última sincronização</label>
+              <input type="text" value="05/05/2026 10:32" readOnly />
+            </div>
+            <div className="intg-field">
+              <label>Dados sincronizados este mês</label>
+              <input type="text" value="1.247 registros" readOnly />
+            </div>
+            <div style={{ marginTop: 14 }}>
+              <div className="ld-lbl" style={{ marginBottom: 6 }}>Ações</div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button className="btn bs" style={{ fontSize: 11 }} onClick={handleSync}>
+                  Sincronizar agora
+                </button>
+                <button className="btn brd" style={{ fontSize: 11 }} onClick={handleDisconnect}>
+                  Desconectar
+                </button>
               </div>
-            ))
-          ) : (
-            <>
-              <div className="intg-field">
-                <label>API Key / Credencial</label>
-                <input type="password" value="••••••••••••" readOnly />
-              </div>
-              <div className="intg-field">
-                <label>Última sincronização</label>
-                <input type="text" value="05/05/2026 10:32" readOnly />
-              </div>
-              <div className="intg-field">
-                <label>Dados sincronizados este mês</label>
-                <input type="text" value="1.247 registros" readOnly />
-              </div>
-              <div style={{ marginTop: 14 }}>
-                <div className="ld-lbl" style={{ marginBottom: 6 }}>Ações</div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button className="btn bs" style={{ fontSize: 11 }} onClick={handleSync}>
-                    Sincronizar agora
-                  </button>
-                  <button className="btn brd" style={{ fontSize: 11 }} onClick={handleDisconnect}>
-                    Desconectar
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-        <div className="modal-acts" id="m-acts">
-          <button className="btn bg" onClick={onClose}>Cancelar</button>
-          {mode === 'connect' ? (
-            <button className="btn bp" onClick={handleConnect}>Conectar</button>
-          ) : (
-            <button className="btn bp" onClick={handleSave}>Salvar</button>
-          )}
-        </div>
+            </div>
+          </>
+        )}
       </div>
-    </div>
+      <div className="modal-acts" id="m-acts">
+        <button className="btn bg" onClick={onClose}>Cancelar</button>
+        {mode === 'connect' ? (
+          <button className="btn bp" onClick={handleConnect}>Conectar</button>
+        ) : (
+          <button className="btn bp" onClick={handleSave}>Salvar</button>
+        )}
+      </div>
+    </Modal>
   )
 }

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useQueries, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAppStore } from '../../store/appStore'
+import { BRAND } from '../../theme/brands'
 import { useAuth } from '../../hooks/useAuth'
 import { useIntegrations } from '../../hooks/useAdmin'
 import {
@@ -232,7 +233,7 @@ export default function AgendaRoom() {
                 return (
                   <div key={approval.id} className={cls} id={approval.id}>
                     <div className="dc-row" onClick={() => toggleDc(approval.id)}>
-                      <div className="ag"><div className="agd" style={{ background: '#fb923c' }} />Agenda</div>
+                      <div className="ag"><div className="agd" style={{ background: 'var(--orange)' }} />Agenda</div>
                       <span className="bdg bw">{approval.created_at ? formatTime(approval.created_at) : ''}</span>
                       <span className="dc-row-summary">{approval.title}</span>
                       <span className="dc-chev">▶</span>
@@ -319,18 +320,18 @@ export default function AgendaRoom() {
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
                           <rect width="24" height="24" rx="3" fill="#fff"/>
                           <rect x="3" y="3" width="18" height="18" rx="2" fill="#fff" stroke="#e0e0e0" strokeWidth="1"/>
-                          <rect x="3" y="3" width="18" height="5" rx="2" fill="#4285F4"/>
-                          <rect x="3" y="6" width="18" height="2" fill="#4285F4"/>
-                          <rect x="7" y="1.5" width="2" height="4" rx="1" fill="#4285F4"/>
-                          <rect x="15" y="1.5" width="2" height="4" rx="1" fill="#4285F4"/>
-                          <text x="12" y="18" textAnchor="middle" fontSize="8" fontWeight="700" fill="#4285F4">G</text>
+                          <rect x="3" y="3" width="18" height="5" rx="2" fill={BRAND.google}/>
+                          <rect x="3" y="6" width="18" height="2" fill={BRAND.google}/>
+                          <rect x="7" y="1.5" width="2" height="4" rx="1" fill={BRAND.google}/>
+                          <rect x="15" y="1.5" width="2" height="4" rx="1" fill={BRAND.google}/>
+                          <text x="12" y="18" textAnchor="middle" fontSize="8" fontWeight="700" fill={BRAND.google}>G</text>
                         </svg>
                       )
                       if (provider === 'monday') return (
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                          <circle cx="4"  cy="12" r="4" fill="#FF3D57"/>
-                          <circle cx="12" cy="12" r="4" fill="#FFCB00"/>
-                          <circle cx="20" cy="12" r="4" fill="#00CA72"/>
+                          <circle cx="4"  cy="12" r="4" fill={BRAND.monday.red}/>
+                          <circle cx="12" cy="12" r="4" fill={BRAND.monday.yellow}/>
+                          <circle cx="20" cy="12" r="4" fill={BRAND.monday.green}/>
                         </svg>
                       )
                       if (provider === 'notion') return (
@@ -341,19 +342,19 @@ export default function AgendaRoom() {
                       )
                       if (provider === 'slack') return (
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                          <path d="M6 15a2 2 0 0 1-2 2 2 2 0 0 1-2-2 2 2 0 0 1 2-2h2v2Z" fill="#E01E5A"/>
-                          <path d="M7 15a2 2 0 0 1 2-2 2 2 0 0 1 2 2v5a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-5Z" fill="#E01E5A"/>
-                          <path d="M9 7a2 2 0 0 1-2-2 2 2 0 0 1 2-2 2 2 0 0 1 2 2v2H9Z" fill="#36C5F0"/>
-                          <path d="M9 8a2 2 0 0 1 2 2 2 2 0 0 1-2 2H4a2 2 0 0 1-2-2 2 2 0 0 1 2-2h5Z" fill="#36C5F0"/>
-                          <path d="M17 10a2 2 0 0 1 2-2 2 2 0 0 1 2 2 2 2 0 0 1-2 2h-2v-2Z" fill="#2EB67D"/>
-                          <path d="M16 10a2 2 0 0 1-2 2 2 2 0 0 1-2-2V5a2 2 0 0 1 2-2 2 2 0 0 1 2 2v5Z" fill="#2EB67D"/>
-                          <path d="M14 18a2 2 0 0 1 2 2 2 2 0 0 1-2 2 2 2 0 0 1-2-2v-2h2Z" fill="#ECB22E"/>
-                          <path d="M14 17a2 2 0 0 1-2-2 2 2 0 0 1 2-2h5a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-5Z" fill="#ECB22E"/>
+                          <path d="M6 15a2 2 0 0 1-2 2 2 2 0 0 1-2-2 2 2 0 0 1 2-2h2v2Z" fill={BRAND.slack.aubergine}/>
+                          <path d="M7 15a2 2 0 0 1 2-2 2 2 0 0 1 2 2v5a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-5Z" fill={BRAND.slack.aubergine}/>
+                          <path d="M9 7a2 2 0 0 1-2-2 2 2 0 0 1 2-2 2 2 0 0 1 2 2v2H9Z" fill={BRAND.slack.blue}/>
+                          <path d="M9 8a2 2 0 0 1 2 2 2 2 0 0 1-2 2H4a2 2 0 0 1-2-2 2 2 0 0 1 2-2h5Z" fill={BRAND.slack.blue}/>
+                          <path d="M17 10a2 2 0 0 1 2-2 2 2 0 0 1 2 2 2 2 0 0 1-2 2h-2v-2Z" fill={BRAND.slack.green}/>
+                          <path d="M16 10a2 2 0 0 1-2 2 2 2 0 0 1-2-2V5a2 2 0 0 1 2-2 2 2 0 0 1 2 2v5Z" fill={BRAND.slack.green}/>
+                          <path d="M14 18a2 2 0 0 1 2 2 2 2 0 0 1-2 2 2 2 0 0 1-2-2v-2h2Z" fill={BRAND.slack.yellow}/>
+                          <path d="M14 17a2 2 0 0 1-2-2 2 2 0 0 1 2-2h5a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-5Z" fill={BRAND.slack.yellow}/>
                         </svg>
                       )
                       // Generic dot for others
-                      const colors: Record<string, string> = { asana: '#F06A6A', clickup: '#7B68EE', linear: '#5E6AD2' }
-                      return <div style={{ width: 13, height: 13, borderRadius: '50%', background: colors[provider] ?? '#818cf8', flexShrink: 0 }} />
+                      const colors: Record<string, string> = { asana: BRAND.asana, clickup: BRAND.clickup, linear: BRAND.linear }
+                      return <div style={{ width: 13, height: 13, borderRadius: '50%', background: colors[provider] ?? 'var(--blue3)', flexShrink: 0 }} />
                     }
 
                     const friendlyName = (i: { provider: string; name: string | null; connection_detail: string | null }) => {

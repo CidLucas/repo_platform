@@ -1,4 +1,4 @@
-import { createPortal } from 'react-dom'
+import Modal from '../shared/Modal'
 
 const CONN_OPTIONS = [
   { id: 'bling',    icon: '📦', name: 'Bling',        sub: 'ERP / NF-e' },
@@ -14,91 +14,52 @@ interface ConnectionsModalProps {
 }
 
 export default function ConnectionsModal({ open, onClose }: ConnectionsModalProps) {
-  if (!open) return null
-
-  return createPortal(
-    <>
-      <div
-        style={{
-          position: 'fixed', inset: 0, zIndex: 200,
-          background: 'rgba(3,8,24,0.70)',
-          backdropFilter: 'blur(8px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: 20,
-        }}
-        onClick={onClose}
-      >
-        <div
-          style={{
-            width: '100%', maxWidth: 480,
-            background: 'rgba(8,18,48,0.92)',
-            border: '1px solid var(--gb)',
-            borderRadius: 14,
-            backdropFilter: 'blur(16px)',
-            padding: '28px 28px 24px',
-            boxShadow: '0 24px 80px rgba(0,0,0,.4)',
-            animation: 'cmFadeIn .3s ease',
-          }}
-          onClick={e => e.stopPropagation()}
-        >
-          <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 6, color: '#E8EDF8', letterSpacing: '-.03em' }}>
-            Conectar seus dados
-          </div>
-          <div style={{ fontSize: 13, color: 'rgba(232,237,248,0.55)', marginBottom: 20, lineHeight: 1.5 }}>
-            Seu agente aprende sobre seu negócio a partir dos seus dados. Escolha de onde vêm.
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            {CONN_OPTIONS.map(opt => (
-              <button
-                key={opt.id}
-                onClick={onClose}
-                className="btn btn-ghost"
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  padding: '14px 12px',
-                  fontSize: 12.5,
-                }}
-              >
-                <span style={{ fontSize: 22, display: 'block', marginBottom: 6 }}>{opt.icon}</span>
-                <span style={{ fontWeight: 600, color: 'inherit' }}>{opt.name}</span>
-                <span style={{ fontSize: 10.5, color: 'var(--mu)', marginTop: 2 }}>{opt.sub}</span>
-              </button>
-            ))}
-          </div>
-
-          <div style={{ marginTop: 16, textAlign: 'center' }}>
-            <span
-              style={{ fontSize: 12, color: 'rgba(232,237,248,0.45)', cursor: 'pointer' }}
-              onClick={onClose}
-            >
-              Prefiro ver uma demonstração primeiro →
-            </span>
-          </div>
-
-          <button
-            onClick={onClose}
-            style={{
-              width: '100%', marginTop: 12, padding: '9px 16px',
-              borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)',
-              background: 'rgba(255,255,255,0.05)', color: 'rgba(232,237,248,0.7)',
-              fontSize: 13, cursor: 'pointer',
-            }}
-          >
-            ← Voltar
-          </button>
-        </div>
+  return (
+    <Modal open={open} onClose={onClose} width="460px">
+      <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 6, color: 'var(--fg)', letterSpacing: '-.03em' }}>
+        Conectar seus dados
+      </div>
+      <div style={{ fontSize: 13, color: 'var(--mu2)', marginBottom: 20, lineHeight: 1.5 }}>
+        Seu agente aprende sobre seu negócio a partir dos seus dados. Escolha de onde vêm.
       </div>
 
-      <style>{`
-        @keyframes cmFadeIn {
-          from { opacity: 0; transform: translateY(20px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
-    </>,
-    document.body,
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        {CONN_OPTIONS.map(opt => (
+          <button
+            key={opt.id}
+            onClick={onClose}
+            className="btn btn-ghost"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              padding: '14px 12px',
+              fontSize: 12.5,
+            }}
+          >
+            <span style={{ fontSize: 22, display: 'block', marginBottom: 6 }}>{opt.icon}</span>
+            <span style={{ fontWeight: 600, color: 'inherit' }}>{opt.name}</span>
+            <span style={{ fontSize: 10.5, color: 'var(--mu)', marginTop: 2 }}>{opt.sub}</span>
+          </button>
+        ))}
+      </div>
+
+      <div style={{ marginTop: 16, textAlign: 'center' }}>
+        <span
+          style={{ fontSize: 12, color: 'var(--mu)', cursor: 'pointer' }}
+          onClick={onClose}
+        >
+          Prefiro ver uma demonstração primeiro →
+        </span>
+      </div>
+
+      <button
+        onClick={onClose}
+        className="btn bg"
+        style={{ width: '100%', marginTop: 12, fontSize: 13 }}
+      >
+        ← Voltar
+      </button>
+    </Modal>
   )
 }

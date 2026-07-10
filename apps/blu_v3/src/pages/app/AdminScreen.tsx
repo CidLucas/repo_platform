@@ -21,7 +21,7 @@ import { supabase } from '@blu/auth'
 import type { Integration, AuditEntry } from '../../api/admin'
 import Toggle from '../../components/shared/Toggle'
 import Modal from '../../components/shared/Modal'
-import { IconCheck, IconSearch } from '../../components/shared/Icons'
+import { IconCheck, IconSearch, IconLightning, IconSignIn } from '../../components/shared/Icons'
 
 // Polp institution IDs (from GET /api/v1/institutions — Polp sequential IDs, not bank codes)
 const POLP_INSTITUTIONS = [
@@ -918,7 +918,7 @@ export default function AdminScreen() {
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ac)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                <IconLightning size={15} color="var(--ac)" />
                 <span style={{ fontSize: 13.5, fontWeight: 700 }}>Plano atual: Starter</span>
               </div>
               <div style={{ fontSize: 11.5, color: 'var(--mu)', marginBottom: 6 }}>Para negócios que estão crescendo.</div>
@@ -1052,7 +1052,7 @@ export default function AdminScreen() {
                           }
                         }}
                       >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+                        <IconSignIn size={14} />
                         Conectar com Google
                       </button>
                     </div>

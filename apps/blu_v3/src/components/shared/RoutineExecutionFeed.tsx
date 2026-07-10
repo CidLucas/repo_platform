@@ -47,7 +47,15 @@ function ExecutionRow({
           />
         </span>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12.5, fontWeight: 500 }}>{routineName}</div>
+          <div style={{ fontSize: 12.5, fontWeight: 500 }}>
+            {routineName}
+            {exec.status === 'partial' && (
+              <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--att)' }}>◐ parcial</span>
+            )}
+            {exec.status === 'failed' && (
+              <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--urg)' }}>✗ falhou</span>
+            )}
+          </div>
           {firstLine && (
             <div style={{ fontSize: 11, color: 'var(--mu)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {firstLine}

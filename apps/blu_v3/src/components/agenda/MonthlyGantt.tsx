@@ -13,6 +13,7 @@
 import { useState, useRef, useCallback } from 'react'
 import type { UnifiedTask, AgendaExternalEvent } from '../../api/agenda'
 import { fetchMondaySubitems } from '../../api/agenda'
+import { BRAND } from '../../theme/brands'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -68,9 +69,9 @@ const ROUTINE_COLORS: Record<string, string> = {
 const SOURCE_COLORS: Record<string, string> = {
   monday: 'var(--blue2)',
   notion: 'var(--blue2)',
-  asana:  '#F06A6A',
-  linear: '#5E6AD2',
-  google: '#4285F4',
+  asana:  BRAND.asana,
+  linear: BRAND.linear,
+  google: BRAND.google,
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -403,13 +404,13 @@ function CalendarGrid({
             {Array.from({ length: cols - 1 }, (_, i) => (
               <div key={i} style={{ position: 'absolute', left: `${((i + 1) / cols) * 100}%`, top: 0, bottom: 0, width: 1, background: 'var(--b)', opacity: 0.4 }} />
             ))}
-            <div style={{ position: 'absolute', left: `${todayPct}%`, top: 0, bottom: 0, width: 1, background: 'var(--att,#f59e0b)', zIndex: 3 }} />
+            <div style={{ position: 'absolute', left: `${todayPct}%`, top: 0, bottom: 0, width: 1, background: 'var(--att)', zIndex: 3 }} />
             {allDayEvs.filter(inView).map(ev => {
               const { left, width } = widthPct(ev.start_date, ev.due_date)
               const tip: TooltipContent = { title: ev.title, meta: [{ label: 'Dia inteiro', value: fmtDay(new Date(ev.start_date)) }] }
               return (
                 <div key={ev.id} onMouseEnter={e => onShowTooltip(e, tip)} onMouseLeave={onHideTooltip}
-                  style={{ position: 'absolute', left: `${left}%`, width: `${width}%`, top: 2, bottom: 2, background: '#4285F4', borderRadius: 3, opacity: 0.75, cursor: 'default', overflow: 'hidden' }}>
+                  style={{ position: 'absolute', left: `${left}%`, width: `${width}%`, top: 2, bottom: 2, background: BRAND.google, borderRadius: 3, opacity: 0.75, cursor: 'default', overflow: 'hidden' }}>
 
                 </div>
               )
@@ -447,10 +448,10 @@ function CalendarGrid({
           {today >= windowStart && today < windowEnd && (() => {
             const dayIdx = Math.floor((today.getTime() - windowStart.getTime()) / 86_400_000)
             const colW = 100 / windowDays
-            return <div style={{ position: 'absolute', left: `${dayIdx * colW}%`, width: `${colW}%`, top: 0, bottom: 0, background: 'var(--att,#f59e0b)', opacity: 0.05 }} />
+            return <div style={{ position: 'absolute', left: `${dayIdx * colW}%`, width: `${colW}%`, top: 0, bottom: 0, background: 'var(--att)', opacity: 0.05 }} />
           })()}
           {/* Today vertical line */}
-          <div style={{ position: 'absolute', left: `${todayPct}%`, top: 0, bottom: 0, width: 1, background: 'var(--att,#f59e0b)', opacity: 0.8, zIndex: 3 }} />
+          <div style={{ position: 'absolute', left: `${todayPct}%`, top: 0, bottom: 0, width: 1, background: 'var(--att)', opacity: 0.8, zIndex: 3 }} />
 
           {/* Timed events */}
           {timedEvs.filter(inView).map(ev => {
@@ -470,7 +471,7 @@ function CalendarGrid({
                   position: 'absolute',
                   left: `${left}%`, width: `${Math.max(0.8, width - 0.2)}%`,
                   top: `${top}%`, height: `${height}%`,
-                  background: '#4285F4', borderRadius: 3, opacity: 0.8,
+                  background: BRAND.google, borderRadius: 3, opacity: 0.8,
                   cursor: 'default', overflow: 'hidden', zIndex: 2,
                   borderLeft: '2px solid rgba(66,133,244,1)',
                   minHeight: 6,
@@ -656,7 +657,7 @@ export default function MonthlyGantt({ tasks, externalEvents, loading }: GanttPr
         <div style={{
           position: 'absolute',
           left: tooltip.x, top: tooltip.y,
-          background: 'var(--bg2, #1e2130)',
+          background: 'var(--surface)',
           border: '1px solid var(--b)',
           borderRadius: 6,
           padding: '7px 10px',
@@ -711,9 +712,9 @@ export default function MonthlyGantt({ tasks, externalEvents, loading }: GanttPr
                 fontSize: 10,
                 padding: '2px 8px',
                 opacity: zoom === z ? 1 : 0.5,
-                background: zoom === z ? 'var(--acc, #6366f1)' : undefined,
+                background: zoom === z ? 'var(--ac)' : undefined,
                 color: zoom === z ? '#fff' : undefined,
-                border: zoom === z ? '1px solid var(--acc, #6366f1)' : undefined,
+                border: zoom === z ? '1px solid var(--ac)' : undefined,
               }}
               onClick={() => changeZoom(z)}
             >{ZOOM_LABELS[z]}</button>
@@ -750,7 +751,7 @@ export default function MonthlyGantt({ tasks, externalEvents, loading }: GanttPr
               <div style={{
                 width: `${pct}%`,
                 height: '100%',
-                background: pct > 80 ? '#ef4444' : pct > 50 ? '#f59e0b' : '#10b981',
+                background: pct > 80 ? 'var(--urg)' : pct > 50 ? 'var(--att)' : 'var(--ok)',
                 borderRadius: 3,
                 transition: 'width 0.3s',
               }} />
@@ -778,7 +779,7 @@ export default function MonthlyGantt({ tasks, externalEvents, loading }: GanttPr
       {projectRoots.map(project => {
         const isProjectExpanded = expanded.has(project.id)
         const phases = childrenOf.get(project.id) ?? []
-        const srcColor = SOURCE_COLORS[project.source] ?? '#6b7280'
+        const srcColor = SOURCE_COLORS[project.source] ?? 'var(--mu2)'
 
         const { left: pLeft, width: pWidth, inView: pInView } = bar(project.start_date, project.due_date)
 
@@ -810,7 +811,7 @@ export default function MonthlyGantt({ tasks, externalEvents, loading }: GanttPr
                 {project.title}
               </div>
               <div style={{ position: 'relative', height: 18, background: 'var(--gb)', borderRadius: 4, overflow: 'hidden' }}>
-                <div style={{ position: 'absolute', left: `${todayPct}%`, top: 0, bottom: 0, width: 1, background: 'var(--att,#f59e0b)', zIndex: 2 }} />
+                <div style={{ position: 'absolute', left: `${todayPct}%`, top: 0, bottom: 0, width: 1, background: 'var(--att)', zIndex: 2 }} />
                 {!pInView ? (
                   <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: 'var(--fg3)' }}>fora do período</div>
                 ) : (
@@ -876,7 +877,7 @@ export default function MonthlyGantt({ tasks, externalEvents, loading }: GanttPr
                       )}
                     </div>
                     <div style={{ position: 'relative', height: 16, background: 'var(--gb)', borderRadius: 3, overflow: 'hidden' }}>
-                      <div style={{ position: 'absolute', left: `${todayPct}%`, top: 0, bottom: 0, width: 1, background: 'var(--att,#f59e0b)', zIndex: 2 }} />
+                      <div style={{ position: 'absolute', left: `${todayPct}%`, top: 0, bottom: 0, width: 1, background: 'var(--att)', zIndex: 2 }} />
                       {phInView && (
                         <div
                           onMouseEnter={e => showTooltip(e, phaseTooltip)}
@@ -958,7 +959,7 @@ export default function MonthlyGantt({ tasks, externalEvents, loading }: GanttPr
                             )}
                           </div>
                           <div style={{ position: 'relative', height: 14, background: 'var(--gb)', borderRadius: 3, overflow: 'hidden' }}>
-                            <div style={{ position: 'absolute', left: `${todayPct}%`, top: 0, bottom: 0, width: 1, background: 'var(--att,#f59e0b)', zIndex: 2 }} />
+                            <div style={{ position: 'absolute', left: `${todayPct}%`, top: 0, bottom: 0, width: 1, background: 'var(--att)', zIndex: 2 }} />
                             {tInView && (
                               <div
                                 onMouseEnter={e => showTooltip(e, taskTooltip)}
@@ -1018,7 +1019,7 @@ export default function MonthlyGantt({ tasks, externalEvents, loading }: GanttPr
                                 ↳ {sub.title}
                               </div>
                               <div style={{ position: 'relative', height: 12, background: 'var(--gb)', borderRadius: 2, overflow: 'hidden' }}>
-                                <div style={{ position: 'absolute', left: `${todayPct}%`, top: 0, bottom: 0, width: 1, background: 'var(--att,#f59e0b)', zIndex: 2 }} />
+                                <div style={{ position: 'absolute', left: `${todayPct}%`, top: 0, bottom: 0, width: 1, background: 'var(--att)', zIndex: 2 }} />
                                 {sInView && (
                                   <div
                                     onMouseEnter={e => showTooltip(e, subTooltip)}
@@ -1190,10 +1191,10 @@ export default function MonthlyGantt({ tasks, externalEvents, loading }: GanttPr
           <GanttRow
             key={t.task_id}
             label={`⚡ ${t.title}`}
-            labelColor="var(--att, #f59e0b)"
+            labelColor="var(--att)"
             barLeft={left}
             barWidth={width}
-            barColor="#fb923c"
+            barColor="var(--orange)"
             barOpacity={0.9}
             isEmpty={!inView}
             onMouseEnter={e => showTooltip(e, tooltip_content)}

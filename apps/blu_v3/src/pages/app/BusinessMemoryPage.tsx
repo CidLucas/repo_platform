@@ -29,15 +29,15 @@ const ENTITY_TYPE_COLORS: Record<string, string> = {
   routine: 'var(--ok)',
   skill: 'var(--blue2)',
   client: 'var(--att)',
-  contact: '#EC4899',
-  supplier: '#6366F1',
-  user: '#14B8A6',
+  contact: 'var(--chart-6)',
+  supplier: 'var(--blue3)',
+  user: 'var(--chart-7)',
   agent_result: 'var(--orange)',
-  agent_metadata: '#A855F7',
+  agent_metadata: 'var(--chart-8)',
 }
 
 function entityColor(type: string): string {
-  return ENTITY_TYPE_COLORS[type] ?? '#64748B'
+  return ENTITY_TYPE_COLORS[type] ?? 'var(--mu2)'
 }
 
 function formatDate(iso: string | null): string {

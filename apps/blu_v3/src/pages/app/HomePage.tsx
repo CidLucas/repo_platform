@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { useQueries, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAppStore, type Screen } from '../../store/appStore'
 import { useAuth } from '../../hooks/useAuth'
+import { IconSignIn } from '../../components/shared/Icons'
 import {
   fetchPendingApprovals,
   approveRequest,
@@ -389,7 +390,7 @@ export default function HomePage() {
                     style={{ fontSize: 11, padding: '5px 12px', alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 5 }}
                     onClick={() => connectGoogleCalendar()}
                   >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+                    <IconSignIn size={12} />
                     Conectar Google Calendar
                   </button>
                 </div>
@@ -507,7 +508,7 @@ export default function HomePage() {
                     style={{ fontSize: 10.5, padding: '4px 10px', marginTop: 6, alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 5 }}
                     onClick={() => connectGoogleCalendar()}
                   >
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+                    <IconSignIn size={11} />
                     Conectar Google Calendar
                   </button>
                 </>

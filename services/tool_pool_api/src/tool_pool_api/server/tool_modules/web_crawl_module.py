@@ -17,6 +17,11 @@ from tool_pool_api.server.tool_modules import register_module
 logger = logging.getLogger(__name__)
 
 _CRAWL_TIMEOUT = 150  # seconds per crawl session (deep crawl of ~30 pages takes 40-90s)
+# extract_company_context runs inside onboarding_complete, which shares a single
+# 120s budget across crawl + LLM doc synthesis + save/notify steps. A 30-page
+# deep crawl alone can take 40-90s and starve the rest of the routine, so this
+# path gets a much smaller page cap and its own tight timeout.
+_CONTEXT_CRAWL_TIMEOUT = 45  # seconds
 _BROWSER_ARGS = ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
 
 
@@ -49,7 +54,9 @@ async def _reset_crawl4ai_playwright() -> None:
         BrowserManager._playwright_instance = None
 
 
-async def _run_crawl(url: str, max_depth: int, max_pages: int) -> list[dict[str, Any]]:
+async def _run_crawl(
+    url: str, max_depth: int, max_pages: int, timeout: int = _CRAWL_TIMEOUT
+) -> list[dict[str, Any]]:
     """Core crawl logic. Returns list of {url, markdown, title} dicts."""
     try:
         from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig
@@ -78,7 +85,7 @@ async def _run_crawl(url: str, max_depth: int, max_pages: int) -> list[dict[str,
         async with AsyncWebCrawler(config=browser_cfg) as crawler:
             crawl_results = await asyncio.wait_for(
                 crawler.arun(url=url, config=crawl_cfg),
-                timeout=_CRAWL_TIMEOUT,
+                timeout=timeout,
             )
             # arun with deep crawl returns a list
             if not isinstance(crawl_results, list):
@@ -178,9 +185,14 @@ def register_tools(mcp: FastMCP) -> list[str]:
         logger.info("[web_crawl] extract_company_context url=%s", url)
 
         try:
-            pages = await _run_crawl(url, max_depth=3, max_pages=30)
+            # Onboarding needs a company overview, not a full site index — cap
+            # depth/pages so this fits inside onboarding_complete's shared
+            # execution budget (see _CONTEXT_CRAWL_TIMEOUT above).
+            pages = await _run_crawl(
+                url, max_depth=2, max_pages=8, timeout=_CONTEXT_CRAWL_TIMEOUT
+            )
         except TimeoutError:
-            raise ToolError(f"Crawl timed out after {_CRAWL_TIMEOUT}s for {url}.")
+            raise ToolError(f"Crawl timed out after {_CONTEXT_CRAWL_TIMEOUT}s for {url}.")
         except Exception as exc:
             logger.exception("extract_company_context failed: %s", exc)
             raise ToolError(f"Crawl failed: {exc}") from exc

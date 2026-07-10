@@ -163,11 +163,15 @@ async def run_routine(routine_id: str, client_id: str) -> None:
     state: dict[str, Any] = {
         "client_id": client_id,
         "routine_name": routine["name"],
+        "routine_room": routine.get("room") or "",
         "exec_id": exec_id,
         "nome_empresa": nome_empresa,
         **schema_defaults,
         **client_config,
     }
+    # P1-4: chaves produzidas por steps anteriores — o gate de suficiência de
+    # dados do skill step (_execute_skill_step) lê state["_source_keys"].
+    data_keys: set[str] = set()
 
     # ── 6. Execute steps ──────────────────────────────────────────────────────
     from agent_api.core.routine_artifacts import call as call_artifact
@@ -252,8 +256,22 @@ async def run_routine(routine_id: str, client_id: str) -> None:
             for k, v in step_outputs.items():
                 logger.info(f"    {k}: {_pp(v)}")
 
+            # P1-5: soft-failure flag do step (no_structured_output, skipped_no_data…)
+            step_flag = step_outputs.pop("_step_flag", None)
+            if step_flag:
+                logger.warning(f"  STEP FLAG: {step_flag}")
+
             state.update(step_outputs)
-            step_results.append({"step": step_id, "status": "ok", "outputs": step_outputs})
+            data_keys.update(
+                k for k in step_outputs
+                if not k.startswith("_") and k not in ("summary", "worker_slug", "deduped")
+            )
+            state["_source_keys"] = sorted(data_keys)
+            step_results.append({
+                "step": step_id,
+                "status": step_flag or "ok",
+                "outputs": step_outputs,
+            })
 
         except Exception as exc:
             elapsed = (datetime.now(timezone.utc) - t_start).total_seconds()
@@ -271,16 +289,22 @@ async def run_routine(routine_id: str, client_id: str) -> None:
                 logger.warning("  on_failure=continue → proceeding to next step")
 
     # ── 7. Mark execution complete ────────────────────────────────────────────
-    all_ok = all(r["status"] == "ok" for r in step_results)
+    # P1-5: espelha o executor real — soft failures rebaixam para 'partial'.
+    _soft = {"error", "no_structured_output", "skill_error"}
+    all_ok = all(r["status"] not in _soft for r in step_results)
+    final_status = "completed" if all_ok else "partial"
     db.table("client_routine_executions").update({
-        "status": "completed" if all_ok else "failed",
+        "status": final_status,
         "result_text": f"Manual test: {len(step_results)} steps",
         "completed_at": datetime.now(timezone.utc).isoformat(),
-        "result_metadata": {str(i): r for i, r in enumerate(step_results)},
+        "result_metadata": {
+            "_step_status": {r["step"]: r["status"] for r in step_results},
+            **{str(i): r for i, r in enumerate(step_results)},
+        },
     }).eq("id", exec_id).execute()
 
     logger.info(f"\n{_DIVIDER}")
-    logger.error(f"  DONE — {len(step_results)} steps, status={'OK' if all_ok else 'PARTIAL FAILURE'}")
+    logger.error(f"  DONE — {len(step_results)} steps, status={final_status.upper()}")
     logger.info(f"  Execution saved: {exec_id}")
     logger.info(_DIVIDER + "\n")
 

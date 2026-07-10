@@ -12,13 +12,15 @@ GET /v1/routines/catalog
 
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, Header, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException
 
+from agent_api.api.auth import AuthResult, get_auth_result
 from agent_api.config import get_settings
 from agent_api.core.factory import get_context_service
 from agent_api.core.routines import (
     check_and_enqueue_triggers,
     claim_dispatched_batch,
+    enqueue_manual_run,
     run_dispatched_executions,
 )
 
@@ -67,6 +69,50 @@ async def run_dispatched(
         logger.debug("[RoutineDispatch] No dispatched executions found")
 
     return {"status": "claimed", "count": len(claimed)}
+
+
+# ---------------------------------------------------------------------------
+# Manual dispatch — "Rodar agora" button in the routines panel
+# ---------------------------------------------------------------------------
+
+
+@_public.post("/{routine_id}/run", status_code=202)
+async def run_routine_now(
+    routine_id: str,
+    background_tasks: BackgroundTasks,
+    auth_result: AuthResult = Depends(get_auth_result),
+) -> dict:
+    """
+    Dispatch a routine execution immediately for the authenticated client,
+    bypassing the cron schedule. The execution is claimed and processed in a
+    background task, so the endpoint returns 202 with the execution id.
+    """
+    client_id = str(auth_result.client_id)
+
+    try:
+        exec_id = await enqueue_manual_run(routine_id, client_id)
+    except LookupError:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Rotina '{routine_id}' não está ativa para este cliente",
+        )
+
+    if not exec_id:
+        raise HTTPException(
+            status_code=409,
+            detail="Já existe uma execução em andamento para esta rotina",
+        )
+
+    settings = get_settings()
+    claimed = await claim_dispatched_batch(batch_size=settings.ROUTINE_BATCH_SIZE)
+    if claimed:
+        background_tasks.add_task(run_dispatched_executions, claimed, get_context_service())
+        logger.info(
+            "[RoutineManual] routine=%s client=%s exec=%s — claimed %d execution(s)",
+            routine_id, client_id, exec_id, len(claimed),
+        )
+
+    return {"status": "dispatched", "execution_id": exec_id}
 
 
 # ---------------------------------------------------------------------------

@@ -60,6 +60,13 @@ _CIRCUIT_BREAKER_MAX_FAILURES = 3
 # Marker appended to result_text when a routine pauses for HITL approval
 _AWAITING_APPROVAL_MARKER = "__awaiting_approval__"
 
+# P1: timezone padrão para avaliação de cron quando o cliente não tem timezone
+# configurado (clientes_blu.timezone) nem override em trigger_config.timezone.
+_DEFAULT_CRON_TZ = "America/Sao_Paulo"
+
+# P1: flags de step que rebaixam a execução de 'completed' para 'partial'
+_SOFT_FAILURE_FLAGS = {"failed_continue", "no_structured_output", "skill_error"}
+
 
 _UUID_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
@@ -116,6 +123,36 @@ def _resolve_templates(obj: Any, state: dict[str, Any]) -> Any:
     if isinstance(obj, list):
         return [_resolve_templates(v, state) for v in obj]
     return obj
+
+
+# ---------------------------------------------------------------------------
+# Data sufficiency (P1-4)
+# ---------------------------------------------------------------------------
+
+
+def _is_empty_data(v: Any) -> bool:
+    """
+    True when a state value carries no real data for analysis purposes.
+
+    Zeros count as empty: monitors read saldo=0.0 / total_debitos=0.0 from
+    clients without integrations, and those zeros are derived from absent data,
+    not measured values. A client with a real (connected) zero balance still
+    has a non-empty `contas` list, so the gate over ALL referenced keys does
+    not trip for them.
+    """
+    if v is None:
+        return True
+    if isinstance(v, bool):
+        return not v
+    if isinstance(v, (int, float)):
+        return v == 0
+    if isinstance(v, str):
+        return not v.strip()
+    if isinstance(v, (list, tuple, set)):
+        return all(_is_empty_data(x) for x in v)
+    if isinstance(v, dict):
+        return all(_is_empty_data(x) for x in v.values())
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -190,11 +227,15 @@ def _fetch_routine_sync(routine_id: str) -> dict | None:
     db = get_supabase_client()
     if db is None:
         return None
-    table = "client_routines" if _is_custom_routine(routine_id) else "cross_agent_routines"
+    is_custom = _is_custom_routine(routine_id)
+    table = "client_routines" if is_custom else "cross_agent_routines"
+    # `room` only exists on the catalog table — used by the data-sufficiency
+    # gate to route the placeholder insight to the right room.
+    columns = "name, steps, config_schema" if is_custom else "name, steps, config_schema, room"
     try:
         response = (
             db.table(table)
-            .select("name, steps, config_schema")
+            .select(columns)
             .eq("id", routine_id)
             .maybe_single()
             .execute()
@@ -312,6 +353,26 @@ def _fetch_active_client_routines_sync(routine_id: str) -> list[dict]:
         .execute()
         .data or []
     )
+
+
+def _fetch_client_timezones_sync() -> dict[str, str]:
+    """
+    client_id → IANA timezone from clientes_blu.timezone.
+    Defensive: returns {} when the column doesn't exist yet (pre-migration),
+    so the poller falls back to _DEFAULT_CRON_TZ instead of breaking.
+    """
+    try:
+        rows = (
+            get_supabase_client(use_service_role=True)
+            .table("clientes_blu")
+            .select("client_id, timezone")
+            .execute()
+            .data or []
+        )
+        return {str(r["client_id"]): (r.get("timezone") or "") for r in rows}
+    except Exception as exc:
+        logger.debug("[TriggerPoller] timezone fetch failed (column missing?): %s", exc)
+        return {}
 
 
 def _dispatch_execution_sync(
@@ -529,12 +590,17 @@ async def _check_cron_routines() -> int:
         logger.warning("[TriggerPoller] croniter not installed — cron triggers disabled")
         return 0
 
+    from zoneinfo import ZoneInfo
+
     routines = await asyncio.to_thread(_fetch_triggered_routines_sync, ["cron", "schedule"])
     if not routines:
         return 0
 
     count = 0
     now = datetime.now(timezone.utc)
+    # P1-6: cron expressions are evaluated in the client's local timezone
+    # ("0 6 * * *" fires 06:00 BRT, not 06:00 UTC → 03:00 BRT).
+    client_tzs = await asyncio.to_thread(_fetch_client_timezones_sync)
 
     for routine in routines:
         routine_id: str = routine["id"]
@@ -542,7 +608,8 @@ async def _check_cron_routines() -> int:
 
         client_rows = await asyncio.to_thread(_fetch_active_client_routines_sync, routine_id)
         for cr in client_rows:
-            expr: str = (cr.get("trigger_config") or {}).get("expression") or default_expr
+            cr_trigger: dict = cr.get("trigger_config") or {}
+            expr: str = cr_trigger.get("expression") or default_expr
             if not expr:
                 continue
 
@@ -551,9 +618,30 @@ async def _check_cron_routines() -> int:
                 # First enable: stamp last_run_at = now so the next fire happens at
                 # the proper next interval rather than immediately.
                 await asyncio.to_thread(_stamp_last_run_sync, cr["id"])
+                logger.info(
+                    "[TriggerPoller] first-enable: routine=%s client=%s — "
+                    "stamped last_run_at, execution deferred to next cron occurrence",
+                    routine_id, cr["client_id"],
+                )
                 continue
 
-            last_dt = datetime.fromisoformat(raw_last.replace("Z", "+00:00"))
+            # Per-subscription override (trigger_config.timezone) wins over the
+            # client default (clientes_blu.timezone), then _DEFAULT_CRON_TZ.
+            tz_name: str = (
+                cr_trigger.get("timezone")
+                or client_tzs.get(str(cr["client_id"]))
+                or _DEFAULT_CRON_TZ
+            )
+            try:
+                tz = ZoneInfo(tz_name)
+            except Exception:
+                logger.warning(
+                    "[TriggerPoller] invalid timezone '%s' for client %s — using %s",
+                    tz_name, cr["client_id"], _DEFAULT_CRON_TZ,
+                )
+                tz = ZoneInfo(_DEFAULT_CRON_TZ)
+
+            last_dt = datetime.fromisoformat(raw_last.replace("Z", "+00:00")).astimezone(tz)
             try:
                 next_run = croniter(expr, last_dt).get_next(datetime)
             except Exception:
@@ -705,6 +793,45 @@ async def enqueue_routine_event(
     return exec_id
 
 
+def _has_active_subscription_sync(client_id: str, routine_id: str) -> bool:
+    """True if the client has an active client_routines subscription for the routine."""
+    rows = (
+        get_supabase_client()
+        .table("client_routines")
+        .select("id")
+        .eq("client_id", client_id)
+        .eq("routine_id", routine_id)
+        .eq("active", True)
+        .eq("status", "active")
+        .limit(1)
+        .execute()
+        .data
+    )
+    return bool(rows)
+
+
+async def enqueue_manual_run(routine_id: str, client_id: str) -> str | None:
+    """
+    Enqueue a routine execution on user demand ("Rodar agora"), bypassing the
+    cron schedule. Requires an active client_routines subscription.
+    Returns the execution id, or None if guarded (in-flight execution exists).
+    Raises LookupError when the client has no active subscription.
+    """
+    if not await asyncio.to_thread(_has_active_subscription_sync, client_id, routine_id):
+        raise LookupError(f"no active subscription for routine {routine_id}")
+
+    exec_id = await asyncio.to_thread(
+        _dispatch_execution_sync,
+        client_id,
+        routine_id,
+        "manual",
+        {},
+    )
+    if exec_id:
+        logger.info("[RoutineManual] enqueued routine=%s client=%s exec=%s", routine_id, client_id, exec_id)
+    return exec_id
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -726,7 +853,7 @@ async def _execute_one_with_heartbeat(
     exec_id: str,
     execution: dict,
     context_service: ContextService,
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
     """P1: heartbeat em thread daemon (imune a event loop blocking).
 
     Se o event loop estiver bloqueado por chamada síncrona dentro de _execute_one,
@@ -779,20 +906,35 @@ async def _run_single_execution(
             from agent_api.core.factory import get_mcp_manager
             get_mcp_manager().set_client_id(client_id)
 
-            result_text, worker_slug = await asyncio.wait_for(
+            result_text, worker_slug, final_status = await asyncio.wait_for(
                 _execute_one_with_heartbeat(exec_id, execution, context_service),
                 timeout=_ROUTINE_EXECUTION_TIMEOUT_S,
             )
-        await asyncio.to_thread(
-            _update_execution_sync,
-            exec_id,
-            {
-                "status": "completed",
-                "result_text": result_text,
-                "completed_at": datetime.now(timezone.utc).isoformat(),
-                "worker_slug": worker_slug,
-            },
-        )
+        # P1-5: soft failures (on_failure=continue, skill sem saída estruturada)
+        # rebaixam o status final para 'partial' — visível para debug, em vez de
+        # um 'completed' que esconde steps quebrados.
+        completion_payload = {
+            "status": final_status,
+            "result_text": result_text,
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+            "worker_slug": worker_slug,
+        }
+        try:
+            await asyncio.to_thread(_update_execution_sync, exec_id, completion_payload)
+        except Exception as write_exc:
+            if final_status != "partial":
+                raise
+            # Pré-migration 20260708000003 o CHECK de status em prod não aceita
+            # 'partial' — degrada para 'completed' em vez de marcar a execução
+            # inteira como failed (e alimentar o circuit breaker) por causa disso.
+            logger.warning(
+                "[RoutineExecutor] %s: status 'partial' rejected by DB (%s) — "
+                "falling back to 'completed'; apply migration 20260708000003",
+                exec_id, write_exc,
+            )
+            await asyncio.to_thread(
+                _update_execution_sync, exec_id, {**completion_payload, "status": "completed"}
+            )
         # P1: circuit breaker — sucesso zera consecutive_failures, senão 3 falhas
         # acumuladas ao longo do tempo suspendem a rotina permanentemente
         await asyncio.to_thread(_reset_routine_failures_sync, client_id, routine_id)
@@ -874,7 +1016,8 @@ async def run_dispatched_executions(
 
 async def _execute_one(
     execution: dict, context_service: ContextService
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
+    """Returns (result_text, worker_slug, final_status: 'completed' | 'partial')."""
     exec_id = str(execution["id"])
     client_id = UUID(str(execution["client_id"]))
     routine_id = str(execution["routine_id"])
@@ -944,6 +1087,7 @@ async def _execute_one(
         **trigger_data,
         "client_id": str(client_id),
         "routine_name": routine_name,
+        "routine_room": row.get("room") or "",  # data-sufficiency gate insight routing
         "exec_id": exec_id,
         "nome_empresa": nome_empresa,
         "website_url": website_url,  # resolves {{website_url}} in crawl steps
@@ -955,10 +1099,17 @@ async def _execute_one(
     # Merge saved state from a previous (paused) execution run
     if resume_from:
         state.update({k: v for k, v in saved_metadata.items() if k != "exec_id"})
-        logger.info("[RoutineExecutor] %s → resuming HITL at step %d", exec_id, resume_from)
+        logger.info("[RoutineExecutor] %s → resuming at step %d (HITL/retry)", exec_id, resume_from)
 
     result_parts: list[str] = []
     last_worker_slug = ""
+    # P1-5: status por step, persistido em result_metadata._step_status.
+    # Valores: completed | failed_continue | no_structured_output | skill_error
+    #          | skipped_no_data | deduped | awaiting_approval
+    step_status: dict[str, str] = {}
+    # P1-4: chaves de dados produzidas por steps anteriores — o gate de suficiência
+    # do skill step só considera placeholders que vieram de fontes reais.
+    data_keys: set[str] = set()
 
     # -------------------------------------------------------------------------
     # Group steps by parallel_group — steps in the same group run concurrently,
@@ -1100,13 +1251,21 @@ async def _execute_one(
                     )
                     if on_failure == "halt":
                         raise result
+                    step_status[step_id] = "failed_continue"
                     result_parts.append(f"{step_id}: falhou ({result}), continuando")
                     continue
                 step_id_out, step_outputs, slug = result
                 if slug:
                     last_worker_slug = slug
+                step_status[step_id_out] = step_outputs.pop("_step_flag", None) or (
+                    "deduped" if step_outputs.get("deduped") else "completed"
+                )
                 for k, v in step_outputs.items():
                     state[k] = "" if (v is None or v == [] or v == {}) else v
+                data_keys.update(
+                    k for k in step_outputs
+                    if not k.startswith("_") and k not in ("summary", "worker_slug", "deduped")
+                )
                 summary_val = step_outputs.get("summary") or _first_scalar(step_outputs) or "ok"
                 result_parts.append(f"{step_id_out}: {str(summary_val)[:300]}")
         else:
@@ -1120,16 +1279,23 @@ async def _execute_one(
                 logger.exception("[RoutineExecutor] Step '%s' of %s failed", step_id, exec_id)
                 if on_failure == "halt":
                     raise
+                step_status[step_id] = "failed_continue"
                 result_parts.append(f"{step_id}: falhou ({exc}), continuando")
                 continue
 
             if slug:
                 last_worker_slug = slug
 
+            step_status[step_id_out] = step_outputs.pop("_step_flag", None) or (
+                "deduped" if step_outputs.get("deduped") else "completed"
+            )
+
             # HITL approval gate
             if step_outputs.get("_awaiting_approval"):
+                step_status[step_id_out] = "awaiting_approval"
                 state["_resume_from_step"] = step.get("step", 0) + 1
                 state.update(step_outputs)
+                state["_step_status"] = dict(step_status)
                 await asyncio.to_thread(
                     _update_execution_sync, exec_id,
                     {"result_metadata": _serialisable(state)},
@@ -1146,26 +1312,38 @@ async def _execute_one(
                 return (
                     "\n".join(result_parts) + "\n" + _AWAITING_APPROVAL_MARKER,
                     last_worker_slug,
+                    "completed",
                 )
 
             for k, v in step_outputs.items():
                 state[k] = "" if (v is None or v == [] or v == {}) else v
+            data_keys.update(
+                k for k in step_outputs
+                if not k.startswith("_") and k not in ("summary", "worker_slug", "deduped")
+            )
 
             summary_val = step_outputs.get("summary") or _first_scalar(step_outputs) or "ok"
             result_parts.append(f"{step_id_out}: {str(summary_val)[:300]}")
 
         # Checkpoint after each batch (parallel or sequential)
-        await asyncio.to_thread(
-            _update_execution_sync,
-            exec_id,
-            {"result_metadata": _serialisable(state)},
-        )
-
-        # Checkpoint em shared_business_memory (secundário — Issue #21)
         if is_parallel:
             last_step = max((s.get("step", 0) for s in batch), default=0)
         else:
             last_step = batch[0].get("step", 0)
+        # _resume_from_step: se o reaper re-despachar esta execução (container
+        # morto, timeout), a retomada pula os steps já concluídos.
+        state["_source_keys"] = sorted(data_keys)
+        await asyncio.to_thread(
+            _update_execution_sync,
+            exec_id,
+            {"result_metadata": _serialisable({
+                **state,
+                "_resume_from_step": last_step + 1,
+                "_step_status": dict(step_status),
+            })},
+        )
+
+        # Checkpoint em shared_business_memory (secundário — Issue #21)
         await _checkpoint_to_shared_memory(
             client_id=str(client_id),
             routine_id=state["routine_name"],
@@ -1182,7 +1360,19 @@ async def _execute_one(
 
     await _fire_on_complete_events(str(client_id), steps)
 
-    return "\n".join(result_parts) or "Concluído.", last_worker_slug
+    # P1-5: qualquer soft failure rebaixa a execução para 'partial'
+    final_status = (
+        "partial"
+        if any(flag in _SOFT_FAILURE_FLAGS for flag in step_status.values())
+        else "completed"
+    )
+    if final_status == "partial":
+        logger.warning(
+            "[RoutineExecutor] %s finished PARTIAL — step_status=%s",
+            exec_id, step_status,
+        )
+
+    return "\n".join(result_parts) or "Concluído.", last_worker_slug, final_status
 
 
 # ---------------------------------------------------------------------------
@@ -1363,8 +1553,13 @@ async def _execute_llm_step(
         extracted = _extract_json_from_text(result_text, outputs_schema)
         if extracted:
             step_outputs.update(extracted)
+            # Replace the raw JSON text summary with a human-readable line —
+            # once parsed, the raw (often 500-char-truncated) JSON must not
+            # leak into result_text, where it renders as unformatted JSON.
+            step_outputs["summary"] = _human_summary(extracted, step_outputs["summary"])
         else:
             logger.warning("[RoutineExecutor] llm step '%s' returned no structured output", prompt_name)
+            step_outputs["_step_flag"] = "no_structured_output"
 
     logger.info("[RoutineExecutor] llm step '%s' completed (%d chars)", prompt_name, len(result_text))
     return step_outputs
@@ -1385,6 +1580,51 @@ async def _execute_skill_step(
         raise ValueError(f"skill step missing 'skill_slug': {step}")
 
     merged = {**state, **resolved_inputs}
+
+    # ── P1-4: data sufficiency gate ─────────────────────────────────────────
+    # If every data source the task references (outputs of prior fetch steps)
+    # came back empty, skip the LLM entirely: analysing nothing produces
+    # hallucinated, alarmist insights ("crise de liquidez" for a client with
+    # no bank integration). Emit a single info insight instead.
+    source_keys = {k for k in (state.get("_source_keys") or []) if k}
+    referenced = set(_INLINE_PLACEHOLDER_RE.findall(task_template or "")) & source_keys
+    if referenced and all(_is_empty_data(merged.get(k)) for k in referenced):
+        logger.info(
+            "[RoutineExecutor] skill '%s' skipped — all data sources empty (%s)",
+            skill_slug, ", ".join(sorted(referenced)),
+        )
+        gate_msg = (
+            "Sem dados suficientes para análise — conecte suas integrações "
+            "para ativar este monitor."
+        )
+        gated_outputs: dict[str, Any] = {
+            "summary": gate_msg,
+            "worker_slug": skill_slug,
+            "_step_flag": "skipped_no_data",
+        }
+        for k in outputs_schema:
+            gated_outputs[k] = gate_msg
+        insight_key = next(
+            (
+                k for k in outputs_schema
+                if "insight" in k.lower() or "list" in str(outputs_schema[k]).lower()
+            ),
+            None,
+        )
+        if insight_key:
+            gated_outputs[insight_key] = [{
+                "dimension": state.get("routine_room") or None,
+                "kpi": "data_sufficiency",
+                "title": "Conecte suas integrações para ativar este monitor",
+                "observation": "As fontes de dados desta rotina não retornaram nenhum dado.",
+                "recommendation": (
+                    "Conecte suas integrações (Open Finance, Google Agenda, planilhas) "
+                    "para receber análises reais neste monitor."
+                ),
+                "severity": "info",
+            }]
+        return gated_outputs, skill_slug
+
     task = _resolve_templates(task_template, merged)
     tier: str = state.get("tier", "BASIC")
 
@@ -1422,13 +1662,12 @@ async def _execute_skill_step(
 
     # Phase 4: structured_data comes from tool_use; fall back to text extraction
     if outputs_schema:
+        extracted: dict[str, Any] | None = None
         if result.structured_data:
-            step_outputs.update(result.structured_data)
+            extracted = result.structured_data
         elif result.summary:
             extracted = _extract_json_from_text(result.summary, outputs_schema)
-            if extracted:
-                step_outputs.update(extracted)
-            elif len(outputs_schema) == 1:
+            if not extracted and len(outputs_schema) == 1:
                 key = next(iter(outputs_schema))
                 candidate = result.summary.strip()
                 try:
@@ -1443,15 +1682,26 @@ async def _execute_skill_step(
                     value = json.dumps(parsed, ensure_ascii=False)
                 else:
                     value = candidate
-                step_outputs[key] = value
-            else:
-                logger.warning(
-                    "[RoutineExecutor] skill '%s' returned no structured output",
-                    skill_slug,
-                )
+                extracted = {key: value}
+
+        if extracted:
+            step_outputs.update(extracted)
+            # Replace the raw JSON text summary with a human-readable line —
+            # once parsed, the raw (often 500-char-truncated) JSON must not
+            # leak into result_text, where it renders as unformatted JSON.
+            step_outputs["summary"] = _human_summary(extracted, step_outputs["summary"])
+        else:
+            logger.warning(
+                "[RoutineExecutor] skill '%s' returned no structured output",
+                skill_slug,
+            )
+            # P1-5: sinaliza soft failure ao executor — o step "passou" mas não
+            # produziu a estrutura esperada (ex.: save_insights gravaria 0).
+            step_outputs["_step_flag"] = "no_structured_output"
 
     if result.error:
         logger.warning("[RoutineExecutor] skill '%s' error: %s", skill_slug, result.error)
+        step_outputs.setdefault("_step_flag", "skill_error")
 
     return step_outputs, skill_slug
 
@@ -1799,3 +2049,23 @@ def _first_scalar(d: dict) -> str | None:
         if isinstance(v, (str, int, float, bool)):
             return str(v)
     return None
+
+
+_SUMMARY_KEY_CANDIDATES = ("digest", "summary", "message", "resumo", "description")
+
+
+def _human_summary(extracted: dict, fallback: str) -> str:
+    """
+    Pick a human-readable line from structured step output for the result_text
+    breadcrumb (`step_id: <this>`). Once a step's raw text has been parsed as
+    JSON, the raw text itself (often truncated mid-object) must never be used
+    as the summary — it renders as unformatted JSON in routine cards.
+    """
+    for key in _SUMMARY_KEY_CANDIDATES:
+        val = extracted.get(key)
+        if isinstance(val, str) and val.strip():
+            return val
+    scalar = _first_scalar(extracted)
+    if scalar:
+        return scalar
+    return "Dados estruturados gerados."

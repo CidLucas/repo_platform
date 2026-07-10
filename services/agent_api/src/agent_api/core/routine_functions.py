@@ -1685,6 +1685,34 @@ async def _evaluate_cash_alert(inputs: dict, client_id: str) -> dict:
     """
     FIN-03: Pure logic — compare saldo against threshold and compute runway.
     """
+    from blu_supabase_client import get_supabase_client
+
+    # P1-4 (F6): saldo=0 sem nenhuma conta conectada significa "sem integração
+    # bancária", não "sem dinheiro" — alertar seria um falso positivo estrutural
+    # ("crise de liquidez" para cliente recém-onboardado).
+    db = get_supabase_client(use_service_role=True)
+    acct_rows = await asyncio.to_thread(
+        lambda: db.table("polp_accounts")
+        .select("id")
+        .eq("client_id", client_id)
+        .limit(1)
+        .execute()
+        .data
+    )
+    if not acct_rows:
+        logger.info(
+            "[routine_fn] evaluate_cash_alert: client=%s sem contas conectadas — alerta inativo",
+            client_id,
+        )
+        return {
+            "should_alert": False,
+            "severity": "ok",
+            "mensagem": (
+                "Nenhuma conta bancária conectada — o alerta de caixa fica inativo "
+                "até você conectar o Open Finance."
+            ),
+        }
+
     saldo = float(inputs.get("saldo", 0))
     threshold = float(inputs.get("threshold", 5000))
     total_debitos = float(inputs.get("total_debitos", 0))

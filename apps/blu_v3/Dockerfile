@@ -21,6 +21,26 @@ COPY apps/blu_v3/ .
 COPY packages/ /app/../packages/
 COPY tsconfig*.json /app/../
 
+# ─── Variáveis VITE_ (build-time) ─────────────────────────────────────
+# Vite embute essas variáveis no bundle JS durante o `npm run build` —
+# não são configuráveis em runtime no Cloud Run. Os defaults abaixo são
+# os valores de produção (todos públicos: viajam no bundle de qualquer
+# forma). O .dockerignore da raiz exclui .env.* do contexto, então este
+# é o único caminho de injeção. Override via --build-arg se necessário.
+# Env vars de processo têm precedência sobre arquivos .env no Vite.
+ARG VITE_SUPABASE_URL=https://haruewffnubdgyofftut.supabase.co
+ARG VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhhcnVld2ZmbnViZGd5b2ZmdHV0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQxNjU5ODAsImV4cCI6MjA3OTc0MTk4MH0.n3XAjdtBtCtB-d3mNDfF_l5C7HtFrcFPiHnvhYQJ-U8
+ARG VITE_ATENDENTE_CORE=https://agent-api-960100281317.southamerica-east1.run.app
+ARG VITE_STANDALONE_AGENT_API=https://agent-api-960100281317.southamerica-east1.run.app
+ARG VITE_TOOL_POOL_API_URL=https://tool-pool-api-960100281317.southamerica-east1.run.app
+ARG VITE_GOOGLE_PICKER_API_KEY=AIzaSyClAh9UH_qegz-JfibQXQ9_piPrxgBTGjo
+ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL \
+    VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY \
+    VITE_ATENDENTE_CORE=$VITE_ATENDENTE_CORE \
+    VITE_STANDALONE_AGENT_API=$VITE_STANDALONE_AGENT_API \
+    VITE_TOOL_POOL_API_URL=$VITE_TOOL_POOL_API_URL \
+    VITE_GOOGLE_PICKER_API_KEY=$VITE_GOOGLE_PICKER_API_KEY
+
 # Build
 RUN npm run build
 

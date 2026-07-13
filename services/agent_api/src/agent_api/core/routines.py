@@ -36,6 +36,7 @@ import logging
 import os
 import re
 import threading
+import time
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
@@ -777,15 +778,28 @@ async def _check_numeric_triggers() -> int:
     return count
 
 
+# O dispatcher (pg_cron) chama run-dispatched a cada minuto; avaliar métricas
+# numéricas (RPCs de agregação por cliente/rotina) em todo tick estressa o DB.
+# O check cron continua por tick (leitura barata + croniter, precisa de
+# fidelidade de horário); o numeric é gated por este intervalo, por instância.
+_NUMERIC_POLL_INTERVAL_S = int(os.getenv("NUMERIC_TRIGGER_POLL_INTERVAL_S", "900"))
+_last_numeric_poll: float = 0.0
+
+
 async def check_and_enqueue_triggers() -> int:
     """
     Poll all automatic triggers (cron + numeric) and enqueue due executions.
     Called once per dispatcher tick before the claim loop.
     Returns total number of executions enqueued.
     """
+    global _last_numeric_poll
     try:
         cron_count = await _check_cron_routines()
-        numeric_count = await _check_numeric_triggers()
+        numeric_count = 0
+        now = time.monotonic()
+        if now - _last_numeric_poll >= _NUMERIC_POLL_INTERVAL_S:
+            _last_numeric_poll = now
+            numeric_count = await _check_numeric_triggers()
         total = cron_count + numeric_count
         if total:
             logger.info("[TriggerPoller] enqueued %d execution(s) (cron=%d numeric=%d)", total, cron_count, numeric_count)

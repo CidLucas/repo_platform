@@ -1584,6 +1584,33 @@ async def _get_cash_position(inputs: dict, client_id: str) -> dict:
     }
 
 
+def _fetch_saldo_cc_sync(client_id: str) -> float:
+    """
+    Saldo somado das contas correntes (polp_accounts BANK/CHECKING).
+
+    Fonte única do parsing para o poller numérico (_resolve_saldo_conta_corrente_sync
+    em routines.py), que roda em contexto síncrono via asyncio.to_thread.
+    Cliente sem conta conectada retorna 0.0 — o guard de evaluate_cash_alert
+    (0 contas → should_alert=False) evita alerta falso na rotina.
+    """
+    from blu_supabase_client import get_supabase_client
+
+    db = get_supabase_client(use_service_role=True)
+    resp = (
+        db.table("polp_accounts")
+        .select("type, subtype, balance")
+        .eq("client_id", client_id)
+        .execute()
+    )
+    saldo_cc = 0.0
+    for acct in resp.data or []:
+        atype = (acct.get("type") or "").upper()
+        subtype = (acct.get("subtype") or "").upper()
+        if atype == "BANK" and "CHECKING" in subtype:
+            saldo_cc += float(acct.get("balance") or 0)
+    return saldo_cc
+
+
 @register(
     "financeiro.get_recent_transactions",
     description="Lê transações recentes do Open Finance, agrupa por categoria e extrai top merchants.",

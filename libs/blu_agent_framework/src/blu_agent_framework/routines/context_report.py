@@ -33,6 +33,7 @@ Design notes
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import logging
 from dataclasses import dataclass, field
@@ -185,8 +186,12 @@ async def run_for_client(
         result.payload["report_markdown"] = markdown
 
         if not dry_run:
-            result.upserted = _upsert_to_vector_db(
-                db, client_id=client_id, markdown=markdown, today=today
+            # _upsert_to_vector_db faz httpx.post SÍNCRONO à edge function
+            # process-document (minutos em docs grandes) — rodar no event loop
+            # congelava o agent-api inteiro (MCP keepalives, health checks).
+            result.upserted = await asyncio.to_thread(
+                _upsert_to_vector_db,
+                db, client_id=client_id, markdown=markdown, today=today,
             )
 
             # ── Write metrics snapshot to shared business memory ─────────────
@@ -854,7 +859,9 @@ def _upsert_to_vector_db(
             "Authorization": f"Bearer {bearer}",
             "Content-Type":  "application/json",
         },
-        timeout=120.0,
+        # process-document chunka + embeda o relatório inteiro; passa fácil de
+        # 120s em docs grandes (edge function tem teto próprio de 400s).
+        timeout=300.0,
     )
 
     if fn_resp.status_code != 200:

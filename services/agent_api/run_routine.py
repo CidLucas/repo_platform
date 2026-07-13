@@ -176,6 +176,7 @@ async def run_routine(routine_id: str, client_id: str) -> None:
     # ── 6. Execute steps ──────────────────────────────────────────────────────
     from agent_api.core.routine_artifacts import call as call_artifact
     from agent_api.core.routine_functions import call as call_function
+    from agent_api.core.routines import _artifact_inputs_gated
 
     step_results: list[dict] = []
 
@@ -233,6 +234,10 @@ async def run_routine(routine_id: str, client_id: str) -> None:
                 step_outputs, slug = await _execute_skill_step(
                     step, resolved_inputs, state, nome_empresa, get_context_service()
                 )
+
+            elif step_type in ("artifact", "approval") and _artifact_inputs_gated(step, state):
+                logger.info("  SKIP: inputs vazios/gated — card não gerado (paridade executor)")
+                step_outputs = {"_step_flag": "skipped_no_data", "summary": "sem dados — card não gerado"}
 
             elif step_type == "artifact":
                 fn_name = step.get("function", "")

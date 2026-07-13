@@ -157,6 +157,28 @@ def _is_empty_data(v: Any) -> bool:
     return False
 
 
+def _artifact_inputs_gated(step: dict, state: dict) -> bool:
+    """
+    Skip encadeado do gate de suficiência (P1-4) para steps approval/artifact.
+
+    True quando TODOS os placeholders de dados dos inputs do step vêm vazios ou
+    de um skill pulado pelo gate (`_gated_keys` — chaves preenchidas com a
+    mensagem "sem dados", não com dados reais). Cards sem placeholder de dados
+    (corpo estático) nunca são pulados; a lista de insights do gate fica fora
+    de _gated_keys, então save_insights sempre roda.
+    """
+    try:
+        raw = json.dumps(step.get("inputs", {}), ensure_ascii=False)
+    except (TypeError, ValueError):
+        return False
+    source_keys = set(state.get("_source_keys") or [])
+    referenced = set(_INLINE_PLACEHOLDER_RE.findall(raw)) & source_keys
+    if not referenced:
+        return False
+    gated = set(state.get("_gated_keys") or [])
+    return all(k in gated or _is_empty_data(state.get(k)) for k in referenced)
+
+
 # ---------------------------------------------------------------------------
 # JSON extraction helper (Phase 3 skill outputs — replaced by tool_use in Phase 4)
 # ---------------------------------------------------------------------------
@@ -1171,6 +1193,16 @@ async def _execute_one(
         elif step_type == "llm":
             outputs = await _execute_llm_step(step, state, nome_empresa)
 
+        elif step_type in ("artifact", "approval") and _artifact_inputs_gated(step, state):
+            # Skip encadeado: todos os placeholders de dados deste card vieram
+            # vazios ou de um skill pulado por falta de dados — criar o card
+            # geraria "0 clientes" / corpo com mensagem de gate.
+            logger.info(
+                "[RoutineExecutor] %s → step '%s' skipped — inputs vazios/gated",
+                exec_id, step_id,
+            )
+            return step_id, {"_step_flag": "skipped_no_data", "summary": "sem dados — card não gerado"}, ""
+
         elif step_type == "artifact":
             fn_name = step.get("function") or _ARTIFACT_TYPE_DEFAULT_FN.get(step.get("artifact_type", ""), "")
             if fn_name == "channels.create_alert":
@@ -1262,6 +1294,9 @@ async def _execute_one(
                 step_status[step_id_out] = step_outputs.pop("_step_flag", None) or (
                     "deduped" if step_outputs.get("deduped") else "completed"
                 )
+                gated_keys = step_outputs.pop("_gated_keys", None)
+                if gated_keys:
+                    state["_gated_keys"] = sorted(set(state.get("_gated_keys") or []) | set(gated_keys))
                 for k, v in step_outputs.items():
                     state[k] = "" if (v is None or v == [] or v == {}) else v
                 data_keys.update(
@@ -1291,6 +1326,9 @@ async def _execute_one(
             step_status[step_id_out] = step_outputs.pop("_step_flag", None) or (
                 "deduped" if step_outputs.get("deduped") else "completed"
             )
+            gated_keys = step_outputs.pop("_gated_keys", None)
+            if gated_keys:
+                state["_gated_keys"] = sorted(set(state.get("_gated_keys") or []) | set(gated_keys))
 
             # HITL approval gate
             if step_outputs.get("_awaiting_approval"):
@@ -1606,13 +1644,10 @@ async def _execute_skill_step(
         }
         for k in outputs_schema:
             gated_outputs[k] = gate_msg
-        insight_key = next(
-            (
-                k for k in outputs_schema
-                if "insight" in k.lower() or "list" in str(outputs_schema[k]).lower()
-            ),
-            None,
-        )
+        # Só a CHAVE "insight*" recebe a lista-fallback: casar pela descrição
+        # ("lista de mensagens...") capturava mensagens/propostas e injetava o
+        # insight fake no corpo de cards de cobrança/reativação.
+        insight_key = next((k for k in outputs_schema if "insight" in k.lower()), None)
         if insight_key:
             gated_outputs[insight_key] = [{
                 "dimension": state.get("routine_room") or None,
@@ -1625,6 +1660,11 @@ async def _execute_skill_step(
                 ),
                 "severity": "info",
             }]
+        # Chaves preenchidas com a mensagem de gate (não dados reais) — steps
+        # approval/artifact que só referenciam essas chaves são pulados também.
+        # A lista de insights (insight_key) fica de fora: save_insights deve
+        # persistir o insight "conecte suas integrações".
+        gated_outputs["_gated_keys"] = [k for k in outputs_schema if k != insight_key]
         return gated_outputs, skill_slug
 
     task = _resolve_templates(task_template, merged)

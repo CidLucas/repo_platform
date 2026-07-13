@@ -48,8 +48,12 @@ def get_engine():
         _engine = create_engine(
             DATABASE_URL,
             pool_pre_ping=True,   # CRITICAL: Test connection before use
-            pool_size=5,          # Increased from 3 - allows more concurrent requests
-            max_overflow=10,      # Allow burst up to 15 total connections (was 7)
+            # Pool por PROCESSO: no Cloud Run cada instância abre o seu, e
+            # 5+10 × N instâncias disputava max_connections do Supabase com
+            # PostgREST/GoTrue/Storage (incidente 2026-07-13). Ajuste via env
+            # se um serviço específico precisar de mais.
+            pool_size=int(os.getenv("DB_POOL_SIZE", "2")),
+            max_overflow=int(os.getenv("DB_MAX_OVERFLOW", "3")),
             pool_timeout=30,      # Wait up to 30s for a connection
             pool_recycle=180,     # Recycle every 3 min (was 5 min - more aggressive for Supabase)
             # echo_pool="debug",  # Disabled - enable for pool debugging only

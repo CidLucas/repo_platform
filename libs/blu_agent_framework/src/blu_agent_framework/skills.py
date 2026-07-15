@@ -441,10 +441,11 @@ SKILL_REGISTRY: dict[str, SkillDefinition] = {
     "data_access": SkillDefinition(
         name="data_access",
         description=(
-            "Transversal read layer: semantic KB search (RAG) and data catalog lookup. "
-            "Available to almost all agents. SQL access via sql_analytics."
+            "Transversal read layer: semantic KB search (RAG), data catalog lookup, "
+            "and routine insight cards. Available to almost all agents. "
+            "SQL access via sql_analytics."
         ),
-        required_tool_names=["executar_rag_cliente", "query_data_catalog"],
+        required_tool_names=["executar_rag_cliente", "query_data_catalog", "listar_insights_cliente"],
         prompt_name="skill:data_access:system",
         max_turns=4,
         on_max_turns="return_partial",
@@ -532,6 +533,7 @@ SKILL_REGISTRY: dict[str, SkillDefinition] = {
             "enviar_rotina_para_aprovacao",
             "definir_meta",
             "listar_metas",
+            "listar_insights_cliente",
             "executar_rag_cliente",
         ],
         prompt_name="skill:plataforma:system",

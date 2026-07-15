@@ -167,7 +167,7 @@ async def update_knowledge_graph_summary(
     # ── read current available_tools ────────────────────────────────────
     try:
         response = (
-            await db.table("clientes_blu")
+            db.table("clientes_blu")
             .select("available_tools")
             .eq("client_id", str(client_id))
             .maybe_single()
@@ -195,7 +195,7 @@ async def update_knowledge_graph_summary(
     # ── update Supabase ─────────────────────────────────────────────────
     try:
         update_response = (
-            await db.table("clientes_blu")
+            db.table("clientes_blu")
             .update({"available_tools": available_tools})
             .eq("client_id", str(client_id))
             .execute()

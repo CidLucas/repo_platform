@@ -308,14 +308,14 @@ async def execute(
     # Lazy import — avoids circular dependency at registration time
     from blu_supabase_client import get_supabase_client
 
-    db = await get_supabase_client()
+    db = get_supabase_client()
 
     # 1. Query all curated, non-expired records (DD-T41-03)
     logger.info(
         "[sbm_to_lightrag_synthesis] Querying SBM for client_id=%s", client_id
     )
     try:
-        result = await (
+        result = (
             db.schema("public")
             .table(_TABLE)
             .select("*")
@@ -553,7 +553,7 @@ async def _write_knowledge_graph_summary(
     try:
         from blu_supabase_client import get_supabase_client
 
-        db = await get_supabase_client()
+        db = get_supabase_client()
 
         payload = {
             "client_id": str(client_id),
@@ -567,7 +567,7 @@ async def _write_knowledge_graph_summary(
             "curated": True,
         }
 
-        await (
+        (
             db.schema("public")
             .table("shared_business_memory")
             .upsert(

@@ -47,13 +47,13 @@ async def _listar_rotinas_catalogo_logic(
     try:
         db = get_supabase_client()
 
-        catalog_result = await db.table("cross_agent_routines").select(
+        catalog_result = db.table("cross_agent_routines").select(
             "id, name, trigger_domain, config_schema"
         ).execute()
 
         catalog_routines = catalog_result.data or []
 
-        client_result = await db.table("client_routines").select(
+        client_result = db.table("client_routines").select(
             "routine_id, active, status, config"
         ).eq("client_id", client_id).eq("source", "catalog").execute()
 
@@ -98,7 +98,7 @@ async def _listar_rotinas_personalizadas_logic(
     try:
         db = get_supabase_client()
 
-        result = await db.table("client_routines").select(
+        result = db.table("client_routines").select(
             "id, name, description, status, active, steps, trigger_type, trigger_config, created_by_ai, created_at"
         ).eq("client_id", client_id).eq("source", "custom").order("created_at", desc=True).execute()
 
@@ -164,7 +164,7 @@ async def _criar_rotina_personalizada_logic(
             "created_by_ai": True,
         }
 
-        result = await db.table("client_routines").insert(row).execute()
+        result = db.table("client_routines").insert(row).execute()
 
         created = result.data[0] if result.data else row
         logger.info(f"[Rotinas] Rotina personalizada criada: {routine_id} para {client_id}")
@@ -211,7 +211,7 @@ async def _ativar_rotina_catalogo_logic(
     try:
         db = get_supabase_client()
 
-        catalog_result = await db.table("cross_agent_routines").select("id, name").eq("id", routine_id).maybe_single().execute()
+        catalog_result = db.table("cross_agent_routines").select("id, name").eq("id", routine_id).maybe_single().execute()
         if not catalog_result.data:
             raise ToolError(f"Rotina de catálogo não encontrada: {routine_id}")
 
@@ -227,7 +227,7 @@ async def _ativar_rotina_catalogo_logic(
             "config": config or {},
         }
 
-        await db.table("client_routines").upsert(
+        db.table("client_routines").upsert(
             upsert_row,
             on_conflict="client_id,routine_id",
         ).execute()
@@ -272,7 +272,7 @@ async def _enviar_rotina_para_aprovacao_logic(
     try:
         db = get_supabase_client()
 
-        routine_result = await db.table("client_routines").select(
+        routine_result = db.table("client_routines").select(
             "id, name, description, steps, status, source, client_id"
         ).eq("id", routine_id).eq("client_id", client_id).maybe_single().execute()
 
@@ -291,12 +291,12 @@ async def _enviar_rotina_para_aprovacao_logic(
                 "pendentes (pending_approval) são aceitas."
             )
 
-        await db.table("client_routines").update(
+        db.table("client_routines").update(
             {"status": "pending_approval"}
         ).eq("id", routine_id).execute()
 
         routine_name = routine.get("name") or "Rotina Personalizada"
-        await db.table("approval_requests").insert({
+        db.table("approval_requests").insert({
             "client_id": client_id,
             "action_type": "routine_activation",
             "agent_slug": "customer-support",

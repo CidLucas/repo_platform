@@ -25,14 +25,14 @@ TEST_CLIENT_ID = str(uuid.uuid4())
 
 def _make_execute_mock(return_data):
     """Build a mock ``.execute()`` that returns ``return_data``."""
-    mock_exec = AsyncMock()
+    mock_exec = MagicMock()
     mock_exec.return_value = MagicMock(data=return_data)
     return mock_exec
 
 
 def _make_maybe_single_execute_mock(return_data):
     """Build a mock ``.execute()`` where ``.data`` holds a single row or None."""
-    mock_exec = AsyncMock()
+    mock_exec = MagicMock()
     mock_exec.return_value = MagicMock(data=return_data)
     return mock_exec
 
@@ -450,7 +450,7 @@ async def test_meta_upsert_db_error():
     mock_db.schema.return_value = mock_db
     mock_db.table.return_value = mock_db
     mock_db.upsert.return_value = mock_db
-    mock_db.execute = AsyncMock(side_effect=Exception("DB connection failed"))
+    mock_db.execute = MagicMock(side_effect=Exception("DB connection failed"))
 
     with patch(
         "src.tool_pool_api.server.tool_modules.memory_module.get_supabase_client",

@@ -60,7 +60,7 @@ def _derive_entry_type(tipo_transacao: str) -> str | None:
 async def _resolve_data_id(db, data_str: str) -> int | None:
     """Return dim_datas.data_id for the given ISO date string, or None."""
     result = (
-        await db.schema("analytics_v2")
+        db.schema("analytics_v2")
         .table("dim_datas")
         .select("data_id")
         .eq("data", data_str)
@@ -73,7 +73,7 @@ async def _resolve_data_id(db, data_str: str) -> int | None:
 async def _resolve_customer_id(db, client_id: str, nome: str) -> int | None:
     """Return dim_clientes.customer_id (BIGINT PK) by partial name match (ILIKE)."""
     result = (
-        await db.schema("analytics_v2")
+        db.schema("analytics_v2")
         .table("dim_clientes")
         .select("customer_id")
         .eq("client_id", client_id)
@@ -88,7 +88,7 @@ async def _resolve_customer_id(db, client_id: str, nome: str) -> int | None:
 async def _resolve_fornecedor_id(db, client_id: str, nome: str) -> int | None:
     """Return dim_fornecedores.fornecedor_id by partial name match (ILIKE)."""
     result = (
-        await db.schema("analytics_v2")
+        db.schema("analytics_v2")
         .table("dim_fornecedores")
         .select("fornecedor_id")
         .eq("client_id", client_id)
@@ -103,7 +103,7 @@ async def _resolve_fornecedor_id(db, client_id: str, nome: str) -> int | None:
 async def _resolve_produto_id(db, client_id: str, nome: str) -> int | None:
     """Return dim_inventory.inventory_id by partial name or SKU match."""
     result = (
-        await db.schema("analytics_v2")
+        db.schema("analytics_v2")
         .table("dim_inventory")
         .select("inventory_id")
         .eq("client_id", client_id)
@@ -209,7 +209,7 @@ async def _register_transaction_logic(
             "tipo_transacao": tipo_transacao.strip(),
             "entry_type": entry_type,
         }
-        await db.schema("analytics_v2").table("fato_transacoes").insert(row).execute()
+        db.schema("analytics_v2").table("fato_transacoes").insert(row).execute()
 
         logger.info(
             "[Context] Transação registrada: transacao_id=%s tipo=%s entry_type=%s valor=%s cliente=%s",
@@ -260,7 +260,7 @@ async def _list_data_sources_logic(
         # Row counts per table (each count is a separate lightweight query)
         async def _count(table: str, fk: str = "client_id") -> int:
             result = (
-                await schema.table(table)
+                schema.table(table)
                 .select(fk, count="exact")
                 .eq(fk, client_id)
                 .limit(0)
@@ -285,7 +285,7 @@ async def _list_data_sources_logic(
 
         # Most recent ingestion jobs
         jobs_result = (
-            await schema.table("reg_jobs")
+            schema.table("reg_jobs")
             .select("*")
             .eq("client_id", client_id)
             .order("created_at", desc=True)
@@ -352,7 +352,7 @@ async def _query_data_catalog_logic(
         if source_id:
             # Full detail for a single source
             result = (
-                await db.table("client_data_sources")
+                db.table("client_data_sources")
                 .select(
                     "id, source_type, resource_type, storage_type, storage_location, "
                     "sync_status, last_synced_at, detected_entity_context, "
@@ -390,7 +390,7 @@ async def _query_data_catalog_logic(
         if resource_type:
             query = query.ilike("resource_type", f"%{resource_type}%")
 
-        result = await query.execute()
+        result = query.execute()
         rows = result.data or []
 
         sources = [_format_source_summary(r) for r in rows]
@@ -500,7 +500,7 @@ async def _suggest_column_mapping_logic(
 
         # Read source_columns from client_data_sources
         ds_result = (
-            await db.table("client_data_sources")
+            db.table("client_data_sources")
             .select("id, source_columns, storage_location")
             .eq("client_id", client_id)
             .eq("id", source_id)
@@ -589,7 +589,7 @@ async def _update_schema_mapping_logic(
 
         # Read current state to compute diffs
         ds_result = (
-            await db.table("client_data_sources")
+            db.table("client_data_sources")
             .select("id, source_columns, auto_column_mapping, storage_location")
             .eq("client_id", client_id)
             .eq("id", source_id)
@@ -625,7 +625,7 @@ async def _update_schema_mapping_logic(
             "updated_at": now,
         }
 
-        await (
+        (
             db.table("client_data_sources")
             .update(update_payload)
             .eq("client_id", client_id)
@@ -690,7 +690,7 @@ async def _get_knowledge_status_logic(
 
         # 1. Document types — all, or filtered by consumed_by
         types_result = (
-            await db.table("knowledge_document_types")
+            db.table("knowledge_document_types")
             .select("id, name, fields, status, coverage_weight, domain_id, consumed_by")
             .order("sort_order")
             .execute()
@@ -708,7 +708,7 @@ async def _get_knowledge_status_logic(
         requirements: dict[str, dict] = {}
         if agent_slug:
             req_result = (
-                await db.table("knowledge_agent_requirements")
+                db.table("knowledge_agent_requirements")
                 .select("document_type_id, requirement_type, coverage_threshold")
                 .eq("agent_slug", agent_slug)
                 .execute()
@@ -717,7 +717,7 @@ async def _get_knowledge_status_logic(
 
         # 3. Existing client knowledge documents
         kd_result = (
-            await db.table("client_knowledge_documents")
+            db.table("client_knowledge_documents")
             .select("document_type_id, status, field_coverage, vector_document_id, updated_at")
             .eq("client_id", client_id)
             .execute()
@@ -844,7 +844,7 @@ async def _update_context_document_logic(
 
         # Validate document type and get expected fields
         type_result = (
-            await db.table("knowledge_document_types")
+            db.table("knowledge_document_types")
             .select("id, name, fields")
             .eq("id", document_type_id)
             .maybe_single()
@@ -858,7 +858,7 @@ async def _update_context_document_logic(
 
         # Read current state
         existing_result = (
-            await db.table("client_knowledge_documents")
+            db.table("client_knowledge_documents")
             .select("id, field_coverage, metadata, status")
             .eq("client_id", client_id)
             .eq("document_type_id", document_type_id)
@@ -905,7 +905,7 @@ async def _update_context_document_logic(
             payload["source"] = "agent"
 
         if existing:
-            await (
+            (
                 db.table("client_knowledge_documents")
                 .update(payload)
                 .eq("client_id", client_id)
@@ -913,7 +913,7 @@ async def _update_context_document_logic(
                 .execute()
             )
         else:
-            await db.table("client_knowledge_documents").insert(payload).execute()
+            db.table("client_knowledge_documents").insert(payload).execute()
 
         logger.info(
             "[Context] update_context_document: client=%s type=%s status=%s score=%.2f",

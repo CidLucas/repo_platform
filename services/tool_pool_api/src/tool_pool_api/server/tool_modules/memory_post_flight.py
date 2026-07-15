@@ -105,7 +105,7 @@ async def _shared_memory_post_flight_logic(
             agent_metadata_entries: int
             links_created: int
     """
-    db = await get_supabase_client()
+    db = get_supabase_client()
     result_entries = 0
     metadata_entries = 0
     links_created = 0
@@ -135,7 +135,7 @@ async def _shared_memory_post_flight_logic(
                 "metadata": json.dumps({"agent_slug": agent_slug}),
             }
             try:
-                await (
+                (
                     db.schema("public")
                     .table(_TABLE)
                     .upsert(
@@ -155,7 +155,7 @@ async def _shared_memory_post_flight_logic(
         # Tool usage entries (DD-03: tool_usage:<tool_name>) — B3.2 batch upsert
         if tool_calls:
             try:
-                await (
+                (
                     db.schema("public")
                     .table(_TABLE)
                     .upsert(
@@ -198,7 +198,7 @@ async def _shared_memory_post_flight_logic(
         }
 
         try:
-            await (
+            (
                 db.schema("public")
                 .table(_TABLE)
                 .upsert(
@@ -278,7 +278,7 @@ async def _shared_memory_post_flight_logic(
 
         if link_payloads:
             try:
-                await (
+                (
                     db.schema("public")
                     .table(_LINKS_TABLE)
                     .insert(link_payloads)

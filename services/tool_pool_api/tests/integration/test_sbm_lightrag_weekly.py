@@ -71,7 +71,7 @@ def _build_mock_supabase(rows: list[dict]) -> MagicMock:
     chain.is_.return_value = chain
     chain.order.return_value = chain
     chain.maybe_single.return_value = chain  # for fallback queries
-    chain.execute = AsyncMock(return_value=mock_result)
+    chain.execute = MagicMock(return_value=mock_result)
 
     # db.schema("public").table("shared_business_memory") → chain
     schema_mock = MagicMock()
@@ -150,7 +150,7 @@ async def test_synthesis_integration():
 
     with patch(
         "blu_supabase_client.get_supabase_client",
-        new=AsyncMock(return_value=mock_db),
+        new=MagicMock(return_value=mock_db),
     ), patch(
         "tool_pool_api.server.dependencies.get_context_service",
         return_value=mock_ctx,
@@ -194,7 +194,7 @@ async def test_knowledge_graph_summary_updated():
 
     with patch(
         "blu_supabase_client.get_supabase_client",
-        new=AsyncMock(return_value=mock_db),
+        new=MagicMock(return_value=mock_db),
     ), patch(
         "tool_pool_api.server.dependencies.get_context_service",
         return_value=mock_ctx,
@@ -236,7 +236,7 @@ async def test_knowledge_graph_summary_redis_fallback():
 
     mock_upsert_chain = MagicMock()
     mock_upsert_chain.on_conflict = MagicMock(return_value=mock_upsert_chain)
-    mock_upsert_chain.execute = AsyncMock(return_value=mock_upsert_result)
+    mock_upsert_chain.execute = MagicMock(return_value=mock_upsert_result)
 
     chain.upsert.return_value = mock_upsert_chain
 
@@ -245,7 +245,7 @@ async def test_knowledge_graph_summary_redis_fallback():
 
     with patch(
         "blu_supabase_client.get_supabase_client",
-        new=AsyncMock(return_value=mock_db),
+        new=MagicMock(return_value=mock_db),
     ), patch(
         "tool_pool_api.server.dependencies.get_context_service",
         return_value=mock_ctx,
@@ -278,7 +278,7 @@ async def test_error_resilience():
 
     with patch(
         "blu_supabase_client.get_supabase_client",
-        new=AsyncMock(return_value=mock_db),
+        new=MagicMock(return_value=mock_db),
     ), patch(
         "tool_pool_api.server.dependencies.get_context_service",
         return_value=mock_ctx,
@@ -313,7 +313,7 @@ async def test_error_resilience_all_fail():
 
     with patch(
         "blu_supabase_client.get_supabase_client",
-        new=AsyncMock(return_value=mock_db),
+        new=MagicMock(return_value=mock_db),
     ), patch(
         "tool_pool_api.server.dependencies.get_context_service",
         return_value=mock_ctx,
@@ -340,7 +340,7 @@ async def test_idempotency():
 
     with patch(
         "blu_supabase_client.get_supabase_client",
-        new=AsyncMock(return_value=mock_db),
+        new=MagicMock(return_value=mock_db),
     ), patch(
         "tool_pool_api.server.dependencies.get_context_service",
         return_value=mock_ctx,
@@ -373,7 +373,7 @@ async def test_empty_sbm_returns_gracefully():
 
     with patch(
         "blu_supabase_client.get_supabase_client",
-        new=AsyncMock(return_value=mock_db),
+        new=MagicMock(return_value=mock_db),
     ), patch(
         "tool_pool_api.server.dependencies.get_context_service",
         return_value=mock_ctx,
@@ -397,7 +397,7 @@ async def test_sbm_query_failure_propagates():
     chain.eq.return_value = chain
     chain.is_.return_value = chain
     chain.order.return_value = chain
-    chain.execute = AsyncMock(side_effect=Exception("Connection refused"))
+    chain.execute = MagicMock(side_effect=Exception("Connection refused"))
     schema_mock = MagicMock()
     schema_mock.table.return_value = chain
     mock_db.schema.return_value = schema_mock
@@ -406,7 +406,7 @@ async def test_sbm_query_failure_propagates():
 
     with patch(
         "blu_supabase_client.get_supabase_client",
-        new=AsyncMock(return_value=mock_db),
+        new=MagicMock(return_value=mock_db),
     ):
         from fastmcp.exceptions import ToolError
 
@@ -433,7 +433,7 @@ async def test_deduplication_by_key():
 
     with patch(
         "blu_supabase_client.get_supabase_client",
-        new=AsyncMock(return_value=mock_db),
+        new=MagicMock(return_value=mock_db),
     ), patch(
         "tool_pool_api.server.dependencies.get_context_service",
         return_value=mock_ctx,

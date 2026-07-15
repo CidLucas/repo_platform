@@ -174,10 +174,10 @@ async def _archive_memory_version(
     if not entity_name or not key:
         raise ValueError("entity_name and key are required")
 
-    db = await get_supabase_client()
+    db = get_supabase_client()
 
     # Read the current row (if it exists)
-    current = await (
+    current = (
         db.schema("public")
         .table("shared_business_memory")
         .select("id, value, metadata, source, confidence, version, "
@@ -203,7 +203,7 @@ async def _archive_memory_version(
     # Dedup: skip archiving if the current value has the same content_hash
     # as the most recent archived version.
     # ------------------------------------------------------------------
-    latest_version = await (
+    latest_version = (
         db.schema("public")
         .table(_VERSION_TABLE)
         .select("content_hash, version")
@@ -248,7 +248,7 @@ async def _archive_memory_version(
     }
 
     try:
-        await (
+        (
             db.schema("public")
             .table(_VERSION_TABLE)
             .insert(version_payload)
@@ -263,7 +263,7 @@ async def _archive_memory_version(
         raise RuntimeError(f"Failed to archive memory version: {exc}")
 
     # Count current versions (including the new one) and prune if needed
-    count_result = await (
+    count_result = (
         db.schema("public")
         .table(_VERSION_TABLE)
         .select("id", count="exact")
@@ -322,9 +322,9 @@ async def _get_memory_versions(
     if limit < 1 or limit > 100:
         raise ValueError("limit must be between 1 and 100")
 
-    db = await get_supabase_client()
+    db = get_supabase_client()
 
-    result = await (
+    result = (
         db.schema("public")
         .table(_VERSION_TABLE)
         .select("*")
@@ -377,9 +377,9 @@ async def _get_memory_version(
     if version < 1:
         raise ValueError("version must be >= 1")
 
-    db = await get_supabase_client()
+    db = get_supabase_client()
 
-    result = await (
+    result = (
         db.schema("public")
         .table(_VERSION_TABLE)
         .select("*")
@@ -436,10 +436,10 @@ async def _prune_old_versions(
     if max_versions < 1:
         raise ValueError("max_versions must be >= 1")
 
-    db = await get_supabase_client()
+    db = get_supabase_client()
 
     # Find version IDs that exceed the limit (oldest first)
-    result = await (
+    result = (
         db.schema("public")
         .table(_VERSION_TABLE)
         .select("id")
@@ -464,7 +464,7 @@ async def _prune_old_versions(
         return 0
 
     try:
-        await (
+        (
             db.schema("public")
             .table(_VERSION_TABLE)
             .delete()
@@ -532,10 +532,10 @@ async def _store_memory_version(
     if not entity_name or not key:
         raise ValueError("entity_name and key are required")
 
-    db = await get_supabase_client()
+    db = get_supabase_client()
 
     # 1. Read the current row
-    current = await (
+    current = (
         db.schema("public")
         .table("shared_business_memory")
         .select("id, value, metadata, source, confidence, version, "
@@ -560,7 +560,7 @@ async def _store_memory_version(
     current_version = int(row.get("version", 1))
 
     # 2. Dedup check: compare with most recent archived version
-    latest_version = await (
+    latest_version = (
         db.schema("public")
         .table(_VERSION_TABLE)
         .select("content_hash, version")
@@ -608,7 +608,7 @@ async def _store_memory_version(
     }
 
     try:
-        await (
+        (
             db.schema("public")
             .table(_VERSION_TABLE)
             .insert(version_payload)
@@ -623,7 +623,7 @@ async def _store_memory_version(
         raise RuntimeError(f"Failed to store memory version: {exc}")
 
     # 5. Count versions and prune if needed
-    count_result = await (
+    count_result = (
         db.schema("public")
         .table(_VERSION_TABLE)
         .select("id", count="exact")
@@ -692,7 +692,7 @@ async def _get_memory_diff(
     if mode not in ("json", "text"):
         raise ValueError("mode must be 'json' or 'text'")
 
-    db = await get_supabase_client()
+    db = get_supabase_client()
 
     # ------------------------------------------------------------------
     # 1. Fetch version_a
@@ -731,7 +731,7 @@ async def _get_memory_diff(
         vb_archived_at = vb.get("archived_at")
     else:
         # Compare against the current (live) version
-        current = await (
+        current = (
             db.schema("public")
             .table("shared_business_memory")
             .select("value, content_hash, version, updated_at")
@@ -842,9 +842,9 @@ async def _get_current_version(
     if not entity_name or not key:
         raise ValueError("entity_name and key are required")
 
-    db = await get_supabase_client()
+    db = get_supabase_client()
 
-    current = await (
+    current = (
         db.schema("public")
         .table("shared_business_memory")
         .select("version, content_hash, updated_at")

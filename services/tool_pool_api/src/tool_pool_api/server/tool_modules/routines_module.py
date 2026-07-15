@@ -48,8 +48,8 @@ async def _listar_rotinas_catalogo_logic(
         db = get_supabase_client()
 
         catalog_result = db.table("cross_agent_routines").select(
-            "id, name, trigger_domain, config_schema"
-        ).execute()
+            "id, name, description, trigger_domain, config_schema"
+        ).in_("visibility", ["user", "builtin", "optional"]).execute()
 
         catalog_routines = catalog_result.data or []
 
@@ -65,6 +65,7 @@ async def _listar_rotinas_catalogo_logic(
             enriched.append({
                 "id": routine["id"],
                 "name": routine["name"],
+                "description": routine.get("description"),
                 "trigger_domain": routine.get("trigger_domain"),
                 "active": cr["active"] if cr else False,
                 "status": cr["status"] if cr else "inactive",

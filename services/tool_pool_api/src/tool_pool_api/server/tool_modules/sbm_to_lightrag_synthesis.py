@@ -33,6 +33,15 @@ logger = logging.getLogger(__name__)
 
 _TABLE = "shared_business_memory"
 
+# Keys de estado operacional (checkpoints do routine engine) — excluídas da
+# síntese de conhecimento.
+_OPERATIONAL_KEY_PREFIXES = ("checkpoint:", "current_state:")
+
+# Teto defensivo do markdown por entidade: o default de contexto do LightRAG
+# é 6000 tokens para TODAS as entidades somadas — uma síntese gigante seria
+# truncada para fora do contexto e o embedding (512 tokens) ignoraria o resto.
+_MAX_SYNTHESIS_CHARS = 8000
+
 # ---------------------------------------------------------------------------
 # SYNTHESIS_TEMPLATES
 # ---------------------------------------------------------------------------
@@ -205,6 +214,16 @@ def _build_snapshot_blocks(records: list[dict]) -> tuple[str, str]:
     return resumo_md, indicadores_md
 
 
+def _cap_synthesis(text: str) -> str:
+    """Trunca a síntese ao teto defensivo, preservando o cabeçalho."""
+    if len(text) <= _MAX_SYNTHESIS_CHARS:
+        return text
+    return (
+        text[:_MAX_SYNTHESIS_CHARS]
+        + "\n\n_[síntese truncada — conteúdo completo na shared_business_memory]_"
+    )
+
+
 # ---------------------------------------------------------------------------
 # build_synthesis
 # ---------------------------------------------------------------------------
@@ -255,7 +274,7 @@ def build_synthesis(records: list[dict]) -> str:
 
     if entity_type == "snapshot":
         resumo_executivo, indicadores = _build_snapshot_blocks(records)
-        return template.format(
+        return _cap_synthesis(template.format(
             entity_name=normalized_name,
             source=source,
             confidence=confidence,
@@ -263,15 +282,19 @@ def build_synthesis(records: list[dict]) -> str:
             facts=facts,
             resumo_executivo=resumo_executivo,
             indicadores=indicadores,
-        )
+        ))
 
-    return template.format(
+    # O template genérico (tipos sem template dedicado, ex.: routine,
+    # agent_result) tem placeholder {entity_type} — sempre fornecê-lo.
+    rendered = template.format(
         entity_name=normalized_name,
+        entity_type=entity_type,
         source=source,
         confidence=confidence,
         updated_at=updated_at,
         facts=facts,
     )
+    return _cap_synthesis(rendered)
 
 
 # ---------------------------------------------------------------------------
@@ -358,6 +381,12 @@ async def execute(
         entity_type = row.get("entity_type", "unknown")
         entity_name = row.get("entity_name", "unknown")
         key = row.get("key", "")
+
+        # Estado operacional do engine (Issue #21, DD-04) NÃO é conhecimento:
+        # checkpoints carregam dumps de state gigantes (>1MB) que estouram o
+        # budget de tokens do LightRAG e poluem o grafo.
+        if key.startswith(_OPERATIONAL_KEY_PREFIXES):
+            continue
 
         group_key = (entity_type, entity_name)
 

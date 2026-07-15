@@ -306,8 +306,12 @@ class TestBuildSynthesis:
         assert build_synthesis([]) == ""
 
     def test_build_synthesis_unknown_entity_type(self):
-        """Unknown entity_type raises KeyError — fallback template references {entity_type}
-        but format() doesn't pass it (known implementation detail)."""
+        """Unknown entity_type uses the generic fallback template.
+
+        Regression: o fallback tem placeholder {entity_type} que não era
+        passado ao format() — todo entity_type sem template dedicado (ex.:
+        routine) explodia com KeyError. Corrigido em 2026-07-15.
+        """
         records = [
             _make_record(
                 entity_type="unknown_xyz",
@@ -316,10 +320,10 @@ class TestBuildSynthesis:
                 value="some value",
             ),
         ]
-        # The code's fallback template has {entity_type} placeholder but
-        # format() doesn't supply it → KeyError. This documents actual behavior.
-        with pytest.raises(KeyError):
-            build_synthesis(records)
+        result = build_synthesis(records)
+        assert "**Type**: unknown_xyz" in result
+        assert "mystery_entity" in result
+        assert "some value" in result
 
     def test_build_synthesis_empty_value_skipped(self):
         """Records with empty values are omitted from facts block.

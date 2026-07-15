@@ -150,12 +150,14 @@ async def _llm_complete(
 ) -> str:
     """LLM completion func no contrato do LightRAG (usada em queries).
 
-    Encaminha para o blu_llm_service (FAST tier, task RAG). kwargs extras do
+    Encaminha para o blu_llm_service (FAST tier, task GENERAL_AGENT — o task
+    RAG mapeia para HuggingFace Inference, que não está disponível em todos os
+    ambientes; extração de keywords é tarefa genérica). kwargs extras do
     LightRAG (keyword_extraction, hashing_kv, ...) são ignorados.
     """
     from blu_llm_service.client import ModelTask, ModelTier, get_model
 
-    model = get_model(tier=ModelTier.FAST, task=ModelTask.RAG)
+    model = get_model(tier=ModelTier.FAST, task=ModelTask.GENERAL_AGENT)
 
     messages: list[tuple[str, str]] = []
     if system_prompt:
@@ -275,7 +277,7 @@ async def _create_lightrag_instance(client_id_str: str) -> LightRAG:
     logger.info(
         "Creating LightRAG instance for client_id=%s: "
         "workspace=%s kv=PGKVStorage vector=PGVectorStorage "
-        "graph=PGGraphStorage doc_status=PGDocStatusStorage "
+        "graph=NetworkXStorage doc_status=PGDocStatusStorage "
         "working_dir=%s embedding=cohere-384",
         client_id_str,
         workspace,
@@ -287,7 +289,11 @@ async def _create_lightrag_instance(client_id_str: str) -> LightRAG:
         workspace=workspace,
         kv_storage="PGKVStorage",
         vector_storage="PGVectorStorage",
-        graph_storage="PGGraphStorage",
+        # PGGraphStorage exige Apache AGE (ag_catalog/cypher), que o Postgres
+        # do Supabase NÃO suporta. Grafo fica em NetworkX (working_dir); sem
+        # perda prática em T4.1 (relationships=[] — retrieval vem dos vetores
+        # de entidades/chunks no PG). Revisitar quando houver relations.
+        graph_storage="NetworkXStorage",
         doc_status_storage="PGDocStatusStorage",
         embedding_func=EmbeddingFunc(
             embedding_dim=EMBEDDING_DIMENSIONS,

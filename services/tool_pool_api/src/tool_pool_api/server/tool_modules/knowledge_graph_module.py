@@ -78,9 +78,12 @@ async def _consultar_grafo_conhecimento_logic(
     try:
         from lightrag import QueryParam
 
+        # enable_rerank=False: sem modelo de rerank configurado no LightRAG
+        # (o rerank do pipeline pgvector é externo); com True e sem modelo,
+        # a lib descarta os chunks recuperados.
         result = await rag.aquery(
             query.strip(),
-            param=QueryParam(mode=modo, only_need_context=True),
+            param=QueryParam(mode=modo, only_need_context=True, enable_rerank=False),
         )
     except Exception as exc:
         logger.exception(

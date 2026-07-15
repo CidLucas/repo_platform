@@ -164,6 +164,6 @@ async def test_factory_passes_workspace_and_funcs():
     assert captured["workspace"] == "client_abc-123"
     assert captured["kv_storage"] == "PGKVStorage"
     assert captured["vector_storage"] == "PGVectorStorage"
-    assert captured["graph_storage"] == "PGGraphStorage"
+    assert captured["graph_storage"] == "NetworkXStorage"
     assert captured["embedding_func"].embedding_dim == 384
     assert callable(captured["llm_model_func"])

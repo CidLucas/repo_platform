@@ -63,6 +63,17 @@ class ToolRegistry:
             requires_confirmation=False,
             tags=["sql", "database", "analytics", "direct-sql"],
         ),
+        "sbm_to_lightrag_synthesis": ToolMetadata(
+            name="sbm_to_lightrag_synthesis",
+            category=ToolCategory.CUSTOM,
+            description=(
+                "Infra: síntese semanal SBM → grafo de conhecimento LightRAG. "
+                "Despachada pela rotina de catálogo sbm_lightrag_weekly_synthesis."
+            ),
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["routines", "knowledge-graph", "lightrag", "infra"],
+        ),
         "consultar_grafo_conhecimento": ToolMetadata(
             name="consultar_grafo_conhecimento",
             category=ToolCategory.RAG,

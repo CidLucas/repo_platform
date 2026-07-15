@@ -238,6 +238,23 @@ SKILL_REGISTRY: dict[str, SkillDefinition] = {
     # Domain — Estratégia & Síntese
     # ==========================================================================
 
+    # Infra: rotina de catálogo sbm_lightrag_weekly_synthesis (cron semanal)
+    # despacha este slug como skill step — sem esta entrada o engine caía no
+    # fallback de agent slug inexistente e o ciclo nunca rodava de verdade.
+    "sbm_to_lightrag_synthesis": SkillDefinition(
+        name="sbm_to_lightrag_synthesis",
+        description=(
+            "Weekly SBM → LightRAG knowledge-graph synthesis (infra). "
+            "Reads curated shared business memory and upserts entity "
+            "syntheses into the client's knowledge graph."
+        ),
+        required_tool_names=["sbm_to_lightrag_synthesis"],
+        prompt_name="skill:sbm_to_lightrag_synthesis:system",
+        max_turns=3,
+        on_max_turns="return_partial",
+        tags=["routines", "knowledge-graph", "lightrag", "infra"],
+    ),
+
     "insights_synthesis": SkillDefinition(
         name="insights_synthesis",
         description=(

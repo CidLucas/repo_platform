@@ -19,7 +19,7 @@ Design decisions:
 from __future__ import annotations
 
 import logging
-from datetime import date, timezone
+from datetime import UTC, date, timezone
 from typing import Any
 from uuid import UUID
 
@@ -383,6 +383,7 @@ async def execute(
     processed = 0
     errors: list[dict[str, str]] = []
     entities_synced: list[str] = []
+    synced_pairs: list[tuple[str, str]] = []
 
     for (entity_type, entity_name), recs in groups.items():
         normalized_name = normalize_entity_name(str(entity_name), entity_type)
@@ -390,16 +391,33 @@ async def execute(
         try:
             synthesis_md = build_synthesis(recs)
 
+            # Contrato real do LightRAG (>=1.5): ainsert_custom_kg(custom_kg)
+            # com chunks + entities; o source_id da entity referencia o chunk
+            # do MESMO call (mapeado internamente para chunk_id).
             await rag_client.ainsert_custom_kg(
-                entity_name=normalized_name,
-                entity_type=entity_type,
-                description=synthesis_md,
-                relations=[],  # DQ3: no relations in T4.1
-                source_id=source_id,
+                {
+                    "chunks": [
+                        {
+                            "content": synthesis_md,
+                            "source_id": source_id,
+                            "file_path": f"sbm/{entity_type}/{normalized_name}",
+                        }
+                    ],
+                    "entities": [
+                        {
+                            "entity_name": normalized_name,
+                            "entity_type": entity_type,
+                            "description": synthesis_md,
+                            "source_id": source_id,
+                        }
+                    ],
+                    "relationships": [],  # DQ3: no relations in T4.1
+                }
             )
 
             processed += 1
             entities_synced.append(normalized_name)
+            synced_pairs.append((normalized_name, entity_type))
             logger.debug(
                 "[sbm_to_lightrag_synthesis] Synced entity %s (%s)",
                 normalized_name,
@@ -435,9 +453,8 @@ async def execute(
         client_id=client_id,
         total_documents=total_documents,
         total_entities=len(entities_synced),
-        entities_synced=entities_synced,
+        synced_pairs=synced_pairs,
         errors=errors,
-        rag_client=rag_client,
     )
 
     return {
@@ -456,61 +473,55 @@ async def _write_knowledge_graph_summary(
     client_id: UUID,
     total_documents: int,
     total_entities: int,
-    entities_synced: list[str],
+    synced_pairs: list[tuple[str, str]],
     errors: list[dict],
-    rag_client: Any,
 ) -> None:
-    """Write knowledge_graph_summary to Context Service Redis with SBM fallback.
+    """Write knowledge_graph_summary (schema KnowledgeGraphSummary) em 3 destinos.
 
-    Called at the end of each successful synthesis cycle per client_id.
-    Updates the Redis key ``ctx:{client_id}:knowledge_graph_summary`` that
-    T4.1e's get_domain_projection() reads for RAG domains.
+    Schema alinhado ao validador de knowledge_graph_sync (DD-04):
+    ``{total_documents, total_entities, top_entities, last_sync, version}``
+    (+ ``sync_status`` como campo extra informativo).
 
-    Fallback: if Context Service is unreachable, writes a curated
-    ``entity_type='system'``, ``entity_name='knowledge_graph_summary'`` row
-    into shared_business_memory.
+    Destinos, em ordem:
+      1. clientes_blu.available_tools via knowledge_graph_sync (durável,
+         invalida o cache de contexto) — non-fatal.
+      2. Redis ``ctx:{client_id}:knowledge_graph_summary`` (lido por
+         get_domain_projection) — non-fatal.
+      3. Fallback SBM (entity_type='system') apenas se o Redis falhar.
 
     Args:
         client_id: Client UUID.
         total_documents: Number of SBM records processed in this cycle.
         total_entities: Number of entities successfully synced.
-        entities_synced: Canonical IDs of synced entities.
+        synced_pairs: (canonical name, entity_type) dos entities sincronizados.
         errors: Per-entity failure details.
-        rag_client: LightRAG instance (for optional get_graph_stats()).
     """
-    import json
-    from datetime import datetime, timezone as dt_timezone
+    from datetime import datetime
+    from datetime import timezone as dt_timezone
 
     # Determine sync_status
-    if not entities_synced and errors:
+    if not synced_pairs and errors:
         sync_status = "failed"
     elif errors:
         sync_status = "partial"
     else:
         sync_status = "ok"
 
-    # Try to obtain top_entities_by_degree from LightRAG
-    top_entities_by_degree: list[dict] = []
-    try:
-        if hasattr(rag_client, "get_graph_stats"):
-            stats = await rag_client.get_graph_stats()
-            if isinstance(stats, dict):
-                top_entities_by_degree = stats.get("top_by_degree", [])
-                if not top_entities_by_degree:
-                    top_entities_by_degree = stats.get("top_entities", [])
-    except Exception:
-        logger.debug(
-            "[sbm_to_lightrag_synthesis] Could not obtain graph stats "
-            "from LightRAG — using empty top_entities_by_degree"
-        )
+    # DQ3: sem relations em T4.1 → degree 0 para todos; top_entities são os
+    # primeiros N sincronizados (ordem estável do ciclo).
+    top_entities = [
+        {"name": name, "type": etype, "degree": 0}
+        for name, etype in synced_pairs[:10]
+    ]
 
-    now_iso = datetime.now(dt_timezone.utc).isoformat()
+    now_iso = datetime.now(UTC).isoformat()
 
     summary: dict = {
         "total_documents": total_documents,
         "total_entities": total_entities,
-        "top_entities_by_degree": top_entities_by_degree,
-        "last_sync_at": now_iso,
+        "top_entities": top_entities,
+        "last_sync": now_iso,
+        "version": 1,
         "sync_status": sync_status,
     }
 
@@ -520,10 +531,24 @@ async def _write_knowledge_graph_summary(
         total_documents,
         total_entities,
         sync_status,
-        len(top_entities_by_degree),
+        len(top_entities),
     )
 
-    # 1. Try Context Service (Redis)
+    # 1. Durable writeback: clientes_blu.available_tools (T4.3) — non-fatal
+    try:
+        from tool_pool_api.server.tool_modules.knowledge_graph_sync import (
+            update_knowledge_graph_summary,
+        )
+
+        await update_knowledge_graph_summary(client_id, summary)
+    except Exception as exc:
+        logger.warning(
+            "[sbm_to_lightrag_synthesis] Durable KG summary writeback failed "
+            "(non-fatal): %s",
+            exc,
+        )
+
+    # 2. Try Context Service (Redis)
     try:
         from tool_pool_api.server.dependencies import get_context_service
 
@@ -549,7 +574,7 @@ async def _write_knowledge_graph_summary(
             exc,
         )
 
-    # 2. Fallback: write to shared_business_memory
+    # 3. Fallback: write to shared_business_memory
     try:
         from blu_supabase_client import get_supabase_client
 
@@ -561,7 +586,7 @@ async def _write_knowledge_graph_summary(
             "entity_name": "knowledge_graph_summary",
             "key": "knowledge_graph_summary",
             "value": summary,
-            "metadata": {"last_sync_at": now_iso},
+            "metadata": {"last_sync": now_iso},
             "source": "system",
             "confidence": 1.0,
             "curated": True,

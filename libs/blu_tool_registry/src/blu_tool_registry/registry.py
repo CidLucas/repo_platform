@@ -63,6 +63,17 @@ class ToolRegistry:
             requires_confirmation=False,
             tags=["sql", "database", "analytics", "direct-sql"],
         ),
+        "consultar_grafo_conhecimento": ToolMetadata(
+            name="consultar_grafo_conhecimento",
+            category=ToolCategory.RAG,
+            description=(
+                "Consulta o grafo de conhecimento do cliente (entidades de "
+                "negócio curadas via shared memory, LightRAG). Retrieval-only."
+            ),
+            tier_required=TierLevel.SME,
+            requires_confirmation=False,
+            tags=["rag", "knowledge-graph", "memory", "entities"],
+        ),
         "executar_sql_agent": ToolMetadata(
             name="executar_sql_agent",
             category=ToolCategory.SQL,

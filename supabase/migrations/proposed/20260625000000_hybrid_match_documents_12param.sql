@@ -58,7 +58,7 @@ RETURNS TABLE (
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = ''
+SET search_path = extensions
 AS $$
     SELECT
         c.id,
@@ -128,7 +128,7 @@ RETURNS TABLE (
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = ''
+SET search_path = extensions
 AS $$
     WITH semantic_pool AS (
         SELECT

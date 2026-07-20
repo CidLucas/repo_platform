@@ -105,3 +105,6 @@ langfuse/
 .env
 .hermes/
 .coverage
+
+# Claude Code personal settings
+.claude/settings.local.json

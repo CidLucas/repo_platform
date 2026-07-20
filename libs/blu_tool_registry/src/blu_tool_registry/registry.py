@@ -378,7 +378,7 @@ class ToolRegistry:
             category=ToolCategory.CUSTOM,
             description=(
                 "Register a business transaction (venda, compra, despesa) into analytics_v2. "
-                "Routes to fato_transacoes or fato_compras based on tipo_transacao. "
+                "All rows land in fato_transacoes, discriminated by tipo_transacao. "
                 "Resolves dim surrogate keys by name lookup."
             ),
             tier_required=TierLevel.BASIC,

@@ -82,7 +82,6 @@ async def _prewarm_mcp() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
-    _setup_observability(app, settings)
 
     # Suppress anyio cross-task cancel-scope RuntimeError that fires during MCP
     # streamablehttp_client teardown when the connection is closed from a different
@@ -187,6 +186,11 @@ def create_app() -> FastAPI:
     @app.get("/health", tags=["infra"])
     async def health():
         return {"status": "ok", "service": settings.SERVICE_NAME}
+
+    # Precisa acontecer aqui, antes do primeiro evento ASGI: o Starlette
+    # constrói o middleware_stack no lifespan, e instrument_app só troca o
+    # build_middleware_stack — de dentro do lifespan não teria efeito.
+    _setup_observability(app, settings)
 
     return app
 

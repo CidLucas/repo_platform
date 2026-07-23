@@ -62,9 +62,11 @@ def get_mcp_manager(url: str | None = None) -> MCPConnectionManager:
 def get_mcp_executor() -> MCPToolExecutor:
     global _mcp_executor
     if _mcp_executor is None:
+        from agent_api.core.telemetry import InstrumentedMCPToolExecutor
+
         settings = get_settings()
         resolved_url = settings.MCP_URL or settings.MCP_SERVER_URL
-        _mcp_executor = MCPToolExecutor(
+        _mcp_executor = InstrumentedMCPToolExecutor(
             mcp_url=resolved_url,
             mcp_manager=get_mcp_manager(),
         )

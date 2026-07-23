@@ -33,22 +33,28 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-def _setup_observability(settings) -> None:
+def _setup_observability(app: FastAPI, settings) -> None:
+    # A versão anterior chamava bootstrap_observability(), que nunca existiu na
+    # lib — o except engolia o ImportError e a telemetria nunca subia.
     try:
-        from blu_observability_bootstrap import bootstrap_observability
-        bootstrap_observability(
-            service_name=settings.SERVICE_NAME,
-            otel_endpoint=getattr(settings, "OTEL_EXPORTER_OTLP_ENDPOINT", None),
+        from blu_observability_bootstrap import setup_observability
+
+        from agent_api.core.telemetry import common_resource_attributes
+
+        setup_observability(
+            app,
+            settings.SERVICE_NAME,
+            resource_attributes=common_resource_attributes(),
         )
-        logger.info("Observability bootstrapped")
+        logger.info("Observability configured (OTLP + resource attrs do schema comum)")
     except Exception as exc:
-        logger.debug("Observability bootstrap skipped: %s", exc)
+        logger.warning("Observability setup failed: %s", exc)
 
 
-def _shutdown_observability() -> None:
+async def _shutdown_observability() -> None:
     try:
         from blu_observability_bootstrap import shutdown_observability
-        shutdown_observability()
+        await shutdown_observability()
     except Exception:
         pass
 
@@ -76,7 +82,6 @@ async def _prewarm_mcp() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
-    _setup_observability(settings)
 
     # Suppress anyio cross-task cancel-scope RuntimeError that fires during MCP
     # streamablehttp_client teardown when the connection is closed from a different
@@ -103,7 +108,7 @@ async def lifespan(app: FastAPI):
     yield
 
     loop.set_exception_handler(_prev_handler)
-    _shutdown_observability()
+    await _shutdown_observability()
     logger.info("[Shutdown] %s stopped", settings.SERVICE_NAME)
 
 
@@ -181,6 +186,11 @@ def create_app() -> FastAPI:
     @app.get("/health", tags=["infra"])
     async def health():
         return {"status": "ok", "service": settings.SERVICE_NAME}
+
+    # Precisa acontecer aqui, antes do primeiro evento ASGI: o Starlette
+    # constrói o middleware_stack no lifespan, e instrument_app só troca o
+    # build_middleware_stack — de dentro do lifespan não teria efeito.
+    _setup_observability(app, settings)
 
     return app
 

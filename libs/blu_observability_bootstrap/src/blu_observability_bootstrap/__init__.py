@@ -32,8 +32,10 @@ from fastapi import FastAPI
 from opentelemetry import trace, metrics
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.sdk.trace.sampling import TraceIdRatioBased
+from opentelemetry.trace import StatusCode
 
 # Export Grafana/observability integration
 from blu_observability_bootstrap.grafana import (
@@ -70,6 +72,7 @@ if TYPE_CHECKING:
 __all__ = [
     # Main setup
     "setup_observability",
+    "ErrorBiasedSpanProcessor",
     "shutdown_observability",
     "setup_structured_logging",
     # Health
@@ -111,10 +114,48 @@ def _parse_otlp_headers(headers_raw: str) -> dict[str, str]:
     return headers
 
 
+def _resolve_sampling_ratio(sampling_ratio: float | None) -> float:
+    """Success-trace sampling ratio: explicit arg wins, else OTEL_TRACES_SAMPLER_ARG,
+    else 1.0 (export everything — previous behaviour)."""
+    if sampling_ratio is None:
+        raw = os.environ.get("OTEL_TRACES_SAMPLER_ARG", "")
+        if not raw:
+            return 1.0
+        try:
+            sampling_ratio = float(raw)
+        except ValueError:
+            logger.warning(f"Invalid OTEL_TRACES_SAMPLER_ARG={raw!r}, falling back to 1.0")
+            return 1.0
+    return min(max(sampling_ratio, 0.0), 1.0)
+
+
+class ErrorBiasedSpanProcessor(BatchSpanProcessor):
+    """Batch processor that exports 100% of ERROR spans and ~ratio of the rest.
+
+    Simplified tail-based sampling (RNF02): the decision happens at export time,
+    when the span status is known — a head sampler can't see errors. Non-error
+    spans pass a deterministic trace_id test (same bucketing as
+    TraceIdRatioBased), so a trace is kept or dropped as a whole across services
+    using the same ratio. Caveat: an error inside a non-sampled trace is
+    exported alone — its trace may arrive incomplete in Tempo.
+    """
+
+    def __init__(self, span_exporter, ratio: float, **kwargs):
+        super().__init__(span_exporter, **kwargs)
+        self._bound = TraceIdRatioBased.get_bound_for_rate(ratio)
+
+    def on_end(self, span: ReadableSpan) -> None:
+        is_error = span.status is not None and span.status.status_code is StatusCode.ERROR
+        in_ratio = (span.context.trace_id & TraceIdRatioBased.TRACE_ID_LIMIT) < self._bound
+        if is_error or in_ratio:
+            super().on_end(span)
+
+
 def _setup_tracer(
     resource: Resource,
     otlp_endpoint: str | None,
     headers: dict[str, str],
+    sampling_ratio: float = 1.0,
 ) -> TracerProvider:
     """Configure OTLP trace exporter."""
     global _tracer_provider
@@ -154,7 +195,11 @@ def _setup_tracer(
                 logger.warning(f"Failed to configure OTLP gRPC trace exporter: {e}")
 
     if exporter:
-        processor = BatchSpanProcessor(exporter)
+        if sampling_ratio < 1.0:
+            processor: BatchSpanProcessor = ErrorBiasedSpanProcessor(exporter, sampling_ratio)
+            logger.info(f"Trace sampling: 100% on error, {sampling_ratio:.0%} on success")
+        else:
+            processor = BatchSpanProcessor(exporter)
         tracer_provider.add_span_processor(processor)
 
     trace.set_tracer_provider(tracer_provider)
@@ -281,6 +326,8 @@ def setup_observability(
     export_metrics: bool = True,
     log_min_level: int = logging.INFO,
     excluded_urls: list[str] | None = None,
+    resource_attributes: dict[str, str] | None = None,
+    sampling_ratio: float | None = None,
 ) -> None:
     """
     Unified observability setup for Blu services.
@@ -300,10 +347,16 @@ def setup_observability(
         export_metrics: Export metrics via OTLP
         log_min_level: Minimum log level to export (default: INFO)
         excluded_urls: URL patterns to exclude from tracing (e.g., ["/mcp", "/health"])
+        resource_attributes: Extra attributes merged into the OTel Resource of every
+            signal (traces, logs, metrics). Callers build them from the frozen schema
+            (ops-centro docs/schema.md): app_name, environment, version.
+        sampling_ratio: Fraction of non-error traces exported (0.0–1.0). Error spans
+            are always exported. Defaults to OTEL_TRACES_SAMPLER_ARG env var, else 1.0.
 
     Environment variables:
         OTEL_EXPORTER_OTLP_ENDPOINT: OTLP gateway URL
         OTEL_EXPORTER_OTLP_HEADERS: Auth headers (URL-encoded)
+        OTEL_TRACES_SAMPLER_ARG: Success-trace sampling ratio (e.g. 0.1)
         LANGFUSE_PUBLIC_KEY: Langfuse public key
         LANGFUSE_SECRET_KEY: Langfuse secret key
         LANGFUSE_HOST: Langfuse server (default: cloud.langfuse.com)
@@ -311,7 +364,10 @@ def setup_observability(
     # Setup structured logging first (stdout JSON)
     setup_structured_logging()
 
-    resource = Resource(attributes={"service.name": service_name})
+    resource = Resource(
+        attributes={"service.name": service_name, **(resource_attributes or {})}
+    )
+    ratio = _resolve_sampling_ratio(sampling_ratio)
     otlp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") or os.environ.get(
         "OTEL_EXPORTER_OTLP_ENDPOINT"
     )
@@ -330,7 +386,7 @@ def setup_observability(
 
     # OTLP Traces
     if otlp and not traces_disabled:
-        _setup_tracer(resource, otlp_endpoint, headers)
+        _setup_tracer(resource, otlp_endpoint, headers, sampling_ratio=ratio)
         FastAPIInstrumentor.instrument_app(app, excluded_urls=exclude_pattern)
 
         if export_metrics:

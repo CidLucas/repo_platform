@@ -33,6 +33,7 @@ from agent_api.core.factory import (
     get_factory,
     get_mcp_manager,
 )
+from agent_api.core.telemetry import agent_execution_span, set_usage_attributes
 
 import re
 
@@ -162,6 +163,33 @@ async def _build_specialist_prompt(
             f"Você é um especialista do {nome_empresa}. "
             "Responda em português com base nos dados disponíveis."
         )
+
+
+async def _traced_ainvoke(
+    graph, state, config, *, agent_name: str, tenant_id: str, session_id: str, model: str | None
+):
+    """graph.ainvoke embrulhado num span agent_execution (RF03).
+
+    Tool calls executados dentro do graph viram spans mcp_tool_call filhos via
+    InstrumentedMCPToolExecutor (contexto OTel propaga pelo asyncio).
+    """
+    with agent_execution_span(
+        agent_name=agent_name, tenant_id=tenant_id, session_id=session_id, model=model
+    ) as span:
+        final_state = await graph.ainvoke(state, config)
+        set_usage_attributes(span, (final_state or {}).get("messages") or [])
+        return final_state
+
+
+async def _traced_astream_events(
+    graph, state, config, *, agent_name: str, tenant_id: str, session_id: str, model: str | None
+):
+    """graph.astream_events embrulhado num span agent_execution (RF03)."""
+    with agent_execution_span(
+        agent_name=agent_name, tenant_id=tenant_id, session_id=session_id, model=model
+    ):
+        async for event in graph.astream_events(state, config, version="v2"):
+            yield event
 
 
 def _fire_and_forget(coro) -> None:
@@ -380,7 +408,11 @@ class ChatService:
         config["recursion_limit"] = 12  # default_graph has 5 nodes; 12 ≈ 2 full turn cycles
 
         start = time.time()
-        final_state = await graph.ainvoke(initial_state, config)
+        final_state = await _traced_ainvoke(
+            graph, initial_state, config,
+            agent_name="frontdesk", tenant_id=client_id, session_id=session_id,
+            model=self._resolve_model_used(model_override),
+        )
         elapsed = time.time() - start
         logger.info("[ChatService] Graph completed in %.2fs", elapsed)
 
@@ -454,7 +486,11 @@ class ChatService:
                     specialist_slug, specialist_config["recursion_limit"],
                     _max_turns, getattr(_cfg, "graph_topology", "default") if _cfg else "default",
                 )
-                final_state = await specialist_graph.ainvoke(specialist_state, specialist_config)
+                final_state = await _traced_ainvoke(
+                    specialist_graph, specialist_state, specialist_config,
+                    agent_name=specialist_slug, tenant_id=client_id, session_id=session_id,
+                    model=self._resolve_model_used(model_override),
+                )
                 _selected_agent = specialist_slug
             except Exception as exc:
                 logger.warning("[ChatService] Specialist graph failed (%s): %s — returning neutral error message", specialist_slug, exc)
@@ -589,7 +625,11 @@ class ChatService:
         stream_start = time.time()
 
         try:
-            async for event in graph.astream_events(initial_state, config, version="v2"):
+            async for event in _traced_astream_events(
+                graph, initial_state, config,
+                agent_name="frontdesk", tenant_id=client_id, session_id=session_id,
+                model=model_used,
+            ):
                 event_type = event.get("event", "")
                 data = event.get("data", {})
 
@@ -686,7 +726,11 @@ class ChatService:
                             )
                             specialist_config.setdefault("configurable", {})["thread_id"] = f"{client_id}:{session_id}:{specialist_slug}"
                             full_response_parts = []  # reset — specialist will produce the real answer
-                            async for sp_event in specialist_graph.astream_events(specialist_state, specialist_config, version="v2"):
+                            async for sp_event in _traced_astream_events(
+                                specialist_graph, specialist_state, specialist_config,
+                                agent_name=specialist_slug, tenant_id=client_id,
+                                session_id=session_id, model=model_used,
+                            ):
                                 sp_type = sp_event.get("event", "")
                                 sp_data = sp_event.get("data", {})
                                 if sp_type == "on_chat_model_stream":
@@ -802,7 +846,11 @@ class AgentService:
         full_response_parts: list[str] = []
 
         try:
-            async for event in built.graph.astream_events(initial_state, config, version="v2"):
+            async for event in _traced_astream_events(
+                built.graph, initial_state, config,
+                agent_name=built.agent_name or "standalone", tenant_id=client_id,
+                session_id=session_id, model=None,
+            ):
                 event_type = event.get("event", "")
                 data = event.get("data", {})
 

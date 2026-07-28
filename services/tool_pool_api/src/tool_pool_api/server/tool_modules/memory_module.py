@@ -590,7 +590,7 @@ async def _shared_memory_list_logic(
     if entity_type is not None:
         validate_entity_type(entity_type)
 
-    db = await get_supabase_client()
+    db = get_supabase_client()
 
     query = (
         db.schema("public")
@@ -601,7 +601,7 @@ async def _shared_memory_list_logic(
     if entity_type:
         query = query.eq("entity_type", entity_type)
 
-    result = await query.group_by("entity_type, entity_name").execute()
+    result = query.group_by("entity_type, entity_name").execute()
 
     rows = result.data if result.data else []
 
@@ -658,9 +658,9 @@ async def _shared_memory_read_logic(
     if not entity_name or not key:
         raise ValueError("entity_name and key are required")
 
-    db = await get_supabase_client()
+    db = get_supabase_client()
 
-    result = await (
+    result = (
         db.schema("public")
         .table(_TABLE)
         .select("*")
@@ -756,7 +756,7 @@ async def _shared_memory_upsert_logic(
         _validate_snapshot_frontmatter(entity_name, frontmatter)
         _validate_snapshot_body(entity_name, body)
 
-    db = await get_supabase_client()
+    db = get_supabase_client()
 
     # ── Compute TTL lifecycle columns (Fase 4 — T4.4c) ──────────
     ttl_info = _compute_ttl_columns(ttl_tier=ttl_tier, source=source)
@@ -805,7 +805,7 @@ async def _shared_memory_upsert_logic(
     )
 
     try:
-        result = await (
+        result = (
             db.schema("public")
             .table(_TABLE)
             .upsert(
@@ -909,7 +909,7 @@ async def _shared_memory_write_logic(
     if priority is not None:
         metadata["priority"] = priority
 
-    db = await get_supabase_client()
+    db = get_supabase_client()
 
     payload = {
         "client_id": client_id,
@@ -928,7 +928,7 @@ async def _shared_memory_write_logic(
     }
 
     try:
-        result = await (
+        result = (
             db.schema("public")
             .table(_TABLE)
             .insert(payload)
@@ -1002,7 +1002,7 @@ async def _shared_memory_link_logic(
             "link_type must be between 2 and 128 characters"
         )
 
-    db = await get_supabase_client()
+    db = get_supabase_client()
 
     payload = {
         "client_id": client_id,
@@ -1019,7 +1019,7 @@ async def _shared_memory_link_logic(
     }
 
     try:
-        result = await (
+        result = (
             db.schema("public")
             .table(_LINKS_TABLE)
             .insert(payload)
@@ -1099,7 +1099,7 @@ async def _auto_create_links(
             "references_found": [],
         }
 
-    db = await get_supabase_client()
+    db = get_supabase_client()
     source_entity_name_norm = normalize_entity_name(entity_name)
     payloads = [
         {
@@ -1118,7 +1118,7 @@ async def _auto_create_links(
 
     links_created = 0
     try:
-        await (
+        (
             db.schema("public")
             .table(_LINKS_TABLE)
             .upsert(
@@ -1136,8 +1136,8 @@ async def _auto_create_links(
     # 4. Update last_auto_link_at and auto_link_count on the source entity
     if links_created > 0:
         try:
-            db = await get_supabase_client()
-            await (
+            db = get_supabase_client()
+            (
                 db.schema("public")
                 .table(_TABLE)
                 .update({
@@ -1169,9 +1169,9 @@ async def _shared_memory_unlink_logic(
 
     Returns the deleted link id.
     """
-    db = await get_supabase_client()
+    db = get_supabase_client()
 
-    result = await (
+    result = (
         db.schema("public")
         .table(_LINKS_TABLE)
         .delete()
@@ -1213,7 +1213,7 @@ async def _shared_memory_get_links_logic(
 
     Returns outgoing, incoming, and summary counts.
     """
-    db = await get_supabase_client()
+    db = get_supabase_client()
 
     if entity_type is not None:
         validate_entity_type(entity_type)
@@ -1236,7 +1236,7 @@ async def _shared_memory_get_links_logic(
             q = q.eq("source_entity_name", normalize_entity_name(entity_name))
         if link_type:
             q = q.eq("link_type", link_type)
-        result = await q.order("created_at", desc=True).execute()
+        result = q.order("created_at", desc=True).execute()
         return result.data or []
 
     async def _fetch_incoming() -> list[dict]:
@@ -1252,7 +1252,7 @@ async def _shared_memory_get_links_logic(
             q = q.eq("target_entity_name", normalize_entity_name(entity_name))
         if link_type:
             q = q.eq("link_type", link_type)
-        result = await q.order("created_at", desc=True).execute()
+        result = q.order("created_at", desc=True).execute()
         return result.data or []
 
     if direction in ("outgoing", "both"):
@@ -1429,7 +1429,7 @@ async def _shared_memory_graph_neighbors(
     start_id: str,
 ) -> dict:
     """Direct-neighbour mode — single-hop, no CTE, uses Supabase SDK."""
-    db = await get_supabase_client()
+    db = get_supabase_client()
 
     nodes_map: dict[str, dict] = {
         start_id: {
@@ -1453,7 +1453,7 @@ async def _shared_memory_graph_neighbors(
         )
         if link_type_filter:
             q = q.eq("link_type", link_type_filter)
-        result = await q.order("created_at", desc=True).execute()
+        result = q.order("created_at", desc=True).execute()
         return result.data or []
 
     async def _fetch_incoming() -> list[dict]:
@@ -1467,7 +1467,7 @@ async def _shared_memory_graph_neighbors(
         )
         if link_type_filter:
             q = q.eq("link_type", link_type_filter)
-        result = await q.order("created_at", desc=True).execute()
+        result = q.order("created_at", desc=True).execute()
         return result.data or []
 
     rows: list[dict] = []
@@ -1890,7 +1890,7 @@ async def _shared_memory_meta_upsert_logic(
     if not isinstance(body, dict):
         raise ValueError("body must be a dict")
 
-    db = await get_supabase_client()
+    db = get_supabase_client()
 
     payload = {
         "client_id": client_id,
@@ -1903,7 +1903,7 @@ async def _shared_memory_meta_upsert_logic(
     }
 
     try:
-        result = await (
+        result = (
             db.schema("public")
             .table(_META_TABLE)
             .upsert(
@@ -1948,9 +1948,9 @@ async def _shared_memory_meta_read_logic(
     if not entity_name or not key:
         raise ValueError("entity_name and key are required")
 
-    db = await get_supabase_client()
+    db = get_supabase_client()
 
-    result = await (
+    result = (
         db.schema("public")
         .table(_META_TABLE)
         .select("*")
@@ -1993,7 +1993,7 @@ async def _shared_memory_meta_list_logic(
     if entity_type is not None:
         _validate_meta_entity_type(entity_type)
 
-    db = await get_supabase_client()
+    db = get_supabase_client()
 
     query = (
         db.schema("public")
@@ -2004,7 +2004,7 @@ async def _shared_memory_meta_list_logic(
     if entity_type:
         query = query.eq("entity_type", entity_type)
 
-    result = await query.group_by("entity_type, entity_name").execute()
+    result = query.group_by("entity_type, entity_name").execute()
 
     rows = result.data if result.data else []
 
@@ -2097,9 +2097,9 @@ async def _shared_memory_search_logic(
         raise ToolError(f"Falha ao gerar embedding da query: {exc}")
 
     # 2. Chamar RPC search_shared_memory
-    db = await get_supabase_client()
+    db = get_supabase_client()
     try:
-        result = await db.rpc(
+        result = db.rpc(
             "search_shared_memory",
             {
                 "p_client_id": client_id,
@@ -2185,7 +2185,7 @@ async def _shared_memory_flush_logic(
     if key is not None:
         key = key.strip().lower()
 
-    db = await get_supabase_client()
+    db = get_supabase_client()
     now_iso = datetime.now(timezone.utc).isoformat()
 
     # 1. Query matching rows
@@ -2202,7 +2202,7 @@ async def _shared_memory_flush_logic(
     if key:
         query = query.eq("key", key)
 
-    result = await query.execute()
+    result = query.execute()
     rows = result.data if result.data else []
 
     total_scanned = len(rows)
@@ -2241,7 +2241,7 @@ async def _shared_memory_flush_logic(
     # 3. Batch update flushed_at in metadata (single query via .in_)
     flushed_count = 0
     try:
-        await (
+        (
             db.schema("public")
             .table(_TABLE)
             .update({"metadata": {"flushed_at": now_iso}})
@@ -2299,7 +2299,7 @@ async def _shared_memory_export_logic(
         entity_name,
     )
 
-    db = await get_supabase_client()
+    db = get_supabase_client()
 
     query = (
         db.schema("public")
@@ -2314,7 +2314,7 @@ async def _shared_memory_export_logic(
     if entity_name:
         query = query.eq("entity_name", entity_name)
 
-    result = await query.execute()
+    result = query.execute()
 
     rows = result.data if result.data else []
 
@@ -2371,7 +2371,7 @@ async def _shared_memory_confirm_memory_item_logic(
     if not client_id or not client_id.strip():
         raise ValueError("client_id is required")
 
-    db = await get_supabase_client()
+    db = get_supabase_client()
 
     result = (
         db.schema("public")

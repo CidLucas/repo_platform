@@ -21,10 +21,10 @@ import pytest
 
 def _make_mock_db(upsert_result=None, insert_result=None):
     """Cria um mock do Supabase client com tabelas encadeadas."""
-    mock_db = AsyncMock()
+    mock_db = MagicMock()
     mock_table = MagicMock()
-    mock_upsert = AsyncMock()
-    mock_insert = AsyncMock()
+    mock_upsert = MagicMock()
+    mock_insert = MagicMock()
 
     if upsert_result is None:
         upsert_result = MagicMock(data=[{"id": "test-1"}])
@@ -32,10 +32,10 @@ def _make_mock_db(upsert_result=None, insert_result=None):
         insert_result = MagicMock(data=[{"id": "link-1"}])
 
     mock_upsert.return_value = mock_upsert
-    mock_upsert.execute = AsyncMock(return_value=upsert_result)
+    mock_upsert.execute = MagicMock(return_value=upsert_result)
 
     mock_insert.return_value = mock_insert
-    mock_insert.execute = AsyncMock(return_value=insert_result)
+    mock_insert.execute = MagicMock(return_value=insert_result)
 
     mock_table.upsert.return_value = mock_upsert
     mock_table.insert.return_value = mock_insert
@@ -130,12 +130,15 @@ async def test_post_flight_naming_convention_prefixes():
         )
 
         # Verifica que o upsert foi chamado com keys usando prefixo tool_usage:
+        # (tool_usage agora é batch: um único upsert com lista de payloads — B3.2)
         calls = mock_db.schema.return_value.table.return_value.upsert.call_args_list
-        tool_keys = [
-            c[0][0]["key"]
-            for c in calls
-            if "tool_usage:" in str(c[0][0].get("key", ""))
-        ]
+        tool_keys = []
+        for c in calls:
+            payload = c[0][0]
+            rows = payload if isinstance(payload, list) else [payload]
+            tool_keys.extend(
+                r["key"] for r in rows if "tool_usage:" in str(r.get("key", ""))
+            )
         assert len(tool_keys) == 2
         assert "tool_usage:execute_sql" in tool_keys
         assert "tool_usage:google_calendar_write" in tool_keys
@@ -171,11 +174,12 @@ async def test_post_flight_suggested_links():
 
         assert result["links_created"] == 1
 
-        # Verifica que source='agent_pending'
+        # Verifica que source='agent_pending' (insert agora é batch: lista — B3.2)
         insert_call = mock_db.schema.return_value.table.return_value.insert.call_args
-        payload = insert_call[0][0]
-        assert payload["source"] == "agent_pending"
-        assert payload["confidence"] == 0.5
+        payloads = insert_call[0][0]
+        assert isinstance(payloads, list) and len(payloads) == 1
+        assert payloads[0]["source"] == "agent_pending"
+        assert payloads[0]["confidence"] == 0.5
 
 
 @pytest.mark.asyncio
@@ -242,7 +246,7 @@ async def test_post_flight_duplicate_link_handled():
     mock_db = _make_mock_db()
     # Simula duplicate key error no insert do link
     mock_table = mock_db.schema.return_value.table.return_value
-    mock_table.insert.return_value.execute = AsyncMock(
+    mock_table.insert.return_value.execute = MagicMock(
         side_effect=Exception("duplicate key uq_shared_memory_link")
     )
 

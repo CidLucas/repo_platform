@@ -28,7 +28,10 @@
 -- manually first. NO ``IF NOT EXISTS`` on the function bodies because we
 -- want the new signature to win.
 --
--- NÃO aplicar automaticamente. Lucas revisa.
+-- ATIVADA em 2026-07-20: promovida de proposed/ como 1a migration pós-baseline.
+-- Recria vector_db.match_documents + hybrid_match_documents (halfvec 384,
+-- search_path=extensions) que NÃO existem em prod — o RAG de documentos estava
+-- morto na camada SQL. Ver 20260720000000_baseline.sql.
 
 BEGIN;
 
@@ -58,7 +61,7 @@ RETURNS TABLE (
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = ''
+SET search_path = extensions
 AS $$
     SELECT
         c.id,
@@ -128,7 +131,7 @@ RETURNS TABLE (
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = ''
+SET search_path = extensions
 AS $$
     WITH semantic_pool AS (
         SELECT

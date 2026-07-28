@@ -158,23 +158,23 @@ class TestUpdateKnowledgeGraphSummary:
         existing = {"tier": "BASIC", "enabled_tool_names": ["sql"]}
         select_response = MagicMock()
         select_response.data = {"available_tools": existing}
-        select_response.execute = AsyncMock()
+        select_response.execute = MagicMock()
 
         update_result = MagicMock()
         update_result.data = [{"client_id": str(client_id)}]
-        update_result.execute = AsyncMock()
+        update_result.execute = MagicMock()
 
         # Chain: db.table("clientes_blu").select("available_tools")...
         self.mock_db.table.return_value = self.mock_db
         self.mock_db.select.return_value = self.mock_db
         self.mock_db.eq.return_value = self.mock_db
         self.mock_db.maybe_single.return_value = self.mock_db
-        self.mock_db.execute = AsyncMock(return_value=select_response)
+        self.mock_db.execute = MagicMock(return_value=select_response)
 
         # Chain: db.table("clientes_blu").update(...)...
         mock_update_chain = MagicMock()
         mock_update_chain.eq.return_value = mock_update_chain
-        mock_update_chain.execute = AsyncMock(return_value=update_result)
+        mock_update_chain.execute = MagicMock(return_value=update_result)
         self.mock_db.update.return_value = mock_update_chain
 
         # Mock context service cache invalidation
@@ -214,7 +214,7 @@ class TestUpdateKnowledgeGraphSummary:
         self.mock_db.select.return_value = self.mock_db
         self.mock_db.eq.return_value = self.mock_db
         self.mock_db.maybe_single.return_value = self.mock_db
-        self.mock_db.execute = AsyncMock(return_value=select_response)
+        self.mock_db.execute = MagicMock(return_value=select_response)
 
         with patch(
             "tool_pool_api.server.tool_modules.knowledge_graph_sync.get_supabase_client",
@@ -234,7 +234,7 @@ class TestUpdateKnowledgeGraphSummary:
         self.mock_db.select.return_value = self.mock_db
         self.mock_db.eq.return_value = self.mock_db
         self.mock_db.maybe_single.return_value = self.mock_db
-        self.mock_db.execute = AsyncMock(
+        self.mock_db.execute = MagicMock(
             side_effect=Exception("permission denied for table clientes_blu")
         )
 
@@ -261,11 +261,11 @@ class TestUpdateKnowledgeGraphSummary:
         self.mock_db.select.return_value = self.mock_db
         self.mock_db.eq.return_value = self.mock_db
         self.mock_db.maybe_single.return_value = self.mock_db
-        self.mock_db.execute = AsyncMock(return_value=select_response)
+        self.mock_db.execute = MagicMock(return_value=select_response)
 
         mock_update_chain = MagicMock()
         mock_update_chain.eq.return_value = mock_update_chain
-        mock_update_chain.execute = AsyncMock(return_value=update_result)
+        mock_update_chain.execute = MagicMock(return_value=update_result)
         self.mock_db.update.return_value = mock_update_chain
 
         self.mock_context_service.clear_context_cache = AsyncMock(
@@ -300,11 +300,11 @@ class TestUpdateKnowledgeGraphSummary:
         self.mock_db.select.return_value = self.mock_db
         self.mock_db.eq.return_value = self.mock_db
         self.mock_db.maybe_single.return_value = self.mock_db
-        self.mock_db.execute = AsyncMock(return_value=select_response)
+        self.mock_db.execute = MagicMock(return_value=select_response)
 
         mock_update_chain = MagicMock()
         mock_update_chain.eq.return_value = mock_update_chain
-        mock_update_chain.execute = AsyncMock(return_value=update_result)
+        mock_update_chain.execute = MagicMock(return_value=update_result)
         self.mock_db.update.return_value = mock_update_chain
 
         self.mock_context_service.clear_context_cache = AsyncMock()

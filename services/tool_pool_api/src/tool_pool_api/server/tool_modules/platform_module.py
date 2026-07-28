@@ -6,9 +6,10 @@ Tools para gerenciar rotinas do catálogo e metas do cliente via linguagem natur
 
 **Tools disponíveis**:
 - criar_rotina: Ativa uma rotina do catálogo para o cliente
-- listar_rotinas_catalogo: Lista rotinas disponíveis no catálogo
 - definir_meta: Cria ou atualiza uma meta do cliente
 - listar_metas: Lista metas ativas do cliente
+
+(listar_rotinas_catalogo é registrada pelo routines_module.)
 """
 
 import asyncio
@@ -131,77 +132,6 @@ async def _criar_rotina_logic(
     except Exception as e:
         logger.error(f"[Platform] Erro ao criar rotina '{routine_id}': {e}")
         raise ToolError(f"Erro ao criar rotina: {str(e)}")
-
-
-async def _listar_rotinas_catalogo_logic(
-    ctx: Context,
-    client_id: str | None = None,
-) -> list[dict]:
-    """
-    Lista as rotinas disponíveis no catálogo que o usuário pode ativar.
-
-    Chame antes de criar uma rotina para verificar os slugs disponíveis.
-
-    Returns:
-        Lista de dicts com routine_id, name, description, trigger_type,
-        already_active e notify_channel
-    """
-    client_id = client_id or ctx.request_context.lifespan_context.get("client_id")
-
-    if not client_id:
-        raise ToolError("client_id não encontrado no contexto")
-
-    try:
-        db = get_supabase_client()
-
-        # 1. Fetch catalog routines
-        catalog_result = await asyncio.to_thread(
-            lambda: db.table("cross_agent_routines")
-            .select("id,name,description,trigger_type,trigger_config")
-            .in_("visibility", ["builtin", "optional"])
-            .order("name")
-            .execute()
-        )
-        catalog_rows = catalog_result.data or []
-
-        # 2. Fetch client's active routines
-        client_result = await asyncio.to_thread(
-            lambda: db.table("client_routines")
-            .select("routine_id,active,notify_channel")
-            .eq("client_id", client_id)
-            .execute()
-        )
-        client_rows = client_result.data or []
-
-        # Build lookup: routine_id -> client subscription
-        client_map = {row["routine_id"]: row for row in client_rows}
-
-        result = []
-        for row in catalog_rows:
-            rid = row["id"]
-            subscription = client_map.get(rid)
-            result.append(
-                {
-                    "routine_id": rid,
-                    "name": row.get("name"),
-                    "description": row.get("description"),
-                    "trigger_type": row.get("trigger_type"),
-                    "already_active": bool(subscription and subscription.get("active")),
-                    "notify_channel": subscription.get("notify_channel") if subscription else None,
-                }
-            )
-
-        logger.info(
-            f"[Platform] Catálogo listado para client_id={client_id}: "
-            f"{len(result)} rotinas"
-        )
-        return result
-
-    except ToolError:
-        raise
-    except Exception as e:
-        logger.error(f"[Platform] Erro ao listar catálogo de rotinas: {e}")
-        raise ToolError(f"Erro ao listar catálogo de rotinas: {str(e)}")
 
 
 async def _definir_meta_logic(
@@ -392,15 +322,8 @@ def register_tools(mcp: FastMCP) -> list[str]:
         ),
     )(mcp_inject_client_id(_criar_rotina_logic))
 
-    mcp.tool(
-        name="listar_rotinas_catalogo",
-        description=(
-            "Lista as rotinas disponíveis no catálogo que o usuário pode ativar."
-            "\n\n"
-            "Chame antes de criar uma rotina para verificar os slugs disponíveis "
-            "e quais já estão ativas para o cliente."
-        ),
-    )(mcp_inject_client_id(_listar_rotinas_catalogo_logic))
+    # listar_rotinas_catalogo é registrada pelo routines_module — registrar aqui
+    # também criava um duplicado que o FastMCP sobrescrevia silenciosamente.
 
     mcp.tool(
         name="definir_meta",
@@ -426,12 +349,11 @@ def register_tools(mcp: FastMCP) -> list[str]:
 
     logger.info(
         "[Platform Module] Tools registradas: "
-        "criar_rotina, listar_rotinas_catalogo, definir_meta, listar_metas"
+        "criar_rotina, definir_meta, listar_metas"
     )
 
     return [
         "criar_rotina",
-        "listar_rotinas_catalogo",
         "definir_meta",
         "listar_metas",
     ]

@@ -4097,6 +4097,23 @@ Seja direto, específico e orientado à ação.
 """,
 )
 
+SKILL_SBM_TO_LIGHTRAG_SYNTHESIS = PromptTemplateConfig(
+    name="skill:sbm_to_lightrag_synthesis:system",
+    category=PromptCategory.SYSTEM,
+    description="L2 infra skill — dispara a síntese semanal SBM → LightRAG (grafo de conhecimento)",
+    required_variables=["nome_empresa"],
+    optional_variables={"max_turns": "3"},
+    content="""Você é o operador de infraestrutura de conhecimento da **{{ nome_empresa }}**.
+
+<Instructions>
+- Sua ÚNICA tarefa: chamar a tool `sbm_to_lightrag_synthesis` exatamente uma vez.
+- Não invente parâmetros: o client_id é injetado automaticamente.
+- Ao receber o resultado, responda com um resumo de UMA linha:
+  "Synthesis: N entidades sincronizadas, M erros."
+- Se a tool falhar, reporte o erro literal — não tente novamente.
+</Instructions>""",
+)
+
 SKILL_AGENDA_OPS = PromptTemplateConfig(
     name="skill:agenda_ops:system",
     category=PromptCategory.SYSTEM,
@@ -4356,6 +4373,7 @@ _L3_SKILL_TEMPLATES = [
     SKILL_STRATEGY_OPS,
     SKILL_PLATAFORMA,
     SKILL_FISCAL,
+    SKILL_SBM_TO_LIGHTRAG_SYNTHESIS,
 ]
 
 # Injected into BUILTIN_TEMPLATES after the dict is defined (see bottom of file)

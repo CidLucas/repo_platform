@@ -168,7 +168,7 @@ class AgentTypeConfig:
 #   supplier-agent → absorbed by compras
 #
 # Skill slug conventions (→ SKILL_REGISTRY keys in skills.py, v3 names):
-#   data_access          — search_knowledge_base + query_data_catalog  (almost all agents)
+#   data_access          — executar_rag_cliente + query_data_catalog  (almost all agents)
 #   sql_analytics        — execute_sql (mode=direct|agent)             (almost all agents)
 #   ledger               — register_transaction               (data-entry ONLY; D3)
 #   knowledge_base_write — write_summary_to_kb + status       (context-gatherer, doc-writer)

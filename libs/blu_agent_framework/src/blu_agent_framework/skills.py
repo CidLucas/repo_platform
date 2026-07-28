@@ -145,7 +145,7 @@ SKILL_REGISTRY: dict[str, SkillDefinition] = {
             "Write a post-sale follow-up message for a specific customer, optionally "
             "including cross-sell suggestions based on purchase history."
         ),
-        required_tool_names=["execute_sql", "search_knowledge_base"],  # draft only — sending via communication skill
+        required_tool_names=["execute_sql", "executar_rag_cliente"],  # draft only — sending via communication skill
         prompt_name="skill:followup_draft:system",
         max_turns=2,
         on_max_turns="return_partial",
@@ -158,7 +158,7 @@ SKILL_REGISTRY: dict[str, SkillDefinition] = {
             "Draft personalised collection messages for overdue customers, adapting "
             "tone by days overdue (friendly / firm / urgent)."
         ),
-        required_tool_names=["execute_sql", "search_knowledge_base"],  # draft only — sending via communication skill
+        required_tool_names=["execute_sql", "executar_rag_cliente"],  # draft only — sending via communication skill
         prompt_name="skill:collection_messages:system",
         max_turns=2,
         on_max_turns="return_partial",
@@ -171,7 +171,7 @@ SKILL_REGISTRY: dict[str, SkillDefinition] = {
             "Compose a contextualised reactivation proposal for an inactive customer, "
             "referencing their purchase history and optionally including a special offer."
         ),
-        required_tool_names=["execute_sql", "search_knowledge_base"],  # draft only — sending via communication skill
+        required_tool_names=["execute_sql", "executar_rag_cliente"],  # draft only — sending via communication skill
         prompt_name="skill:reactivation_proposal:system",
         max_turns=2,
         on_max_turns="return_partial",
@@ -184,7 +184,7 @@ SKILL_REGISTRY: dict[str, SkillDefinition] = {
             "Generate a personalised post-delivery satisfaction survey message, "
             "adapted to the customer's profile and recent purchase."
         ),
-        required_tool_names=["execute_sql", "search_knowledge_base"],  # draft only — sending via communication skill
+        required_tool_names=["execute_sql", "executar_rag_cliente"],  # draft only — sending via communication skill
         prompt_name="skill:satisfaction_survey:system",
         max_turns=2,
         on_max_turns="return_partial",
@@ -237,6 +237,23 @@ SKILL_REGISTRY: dict[str, SkillDefinition] = {
     # ==========================================================================
     # Domain — Estratégia & Síntese
     # ==========================================================================
+
+    # Infra: rotina de catálogo sbm_lightrag_weekly_synthesis (cron semanal)
+    # despacha este slug como skill step — sem esta entrada o engine caía no
+    # fallback de agent slug inexistente e o ciclo nunca rodava de verdade.
+    "sbm_to_lightrag_synthesis": SkillDefinition(
+        name="sbm_to_lightrag_synthesis",
+        description=(
+            "Weekly SBM → LightRAG knowledge-graph synthesis (infra). "
+            "Reads curated shared business memory and upserts entity "
+            "syntheses into the client's knowledge graph."
+        ),
+        required_tool_names=["sbm_to_lightrag_synthesis"],
+        prompt_name="skill:sbm_to_lightrag_synthesis:system",
+        max_turns=3,
+        on_max_turns="return_partial",
+        tags=["routines", "knowledge-graph", "lightrag", "infra"],
+    ),
 
     "insights_synthesis": SkillDefinition(
         name="insights_synthesis",
@@ -441,10 +458,16 @@ SKILL_REGISTRY: dict[str, SkillDefinition] = {
     "data_access": SkillDefinition(
         name="data_access",
         description=(
-            "Transversal read layer: semantic KB search (RAG) and data catalog lookup. "
-            "Available to almost all agents. SQL access via sql_analytics."
+            "Transversal read layer: semantic KB search (RAG), data catalog lookup, "
+            "and routine insight cards. Available to almost all agents. "
+            "SQL access via sql_analytics."
         ),
-        required_tool_names=["search_knowledge_base", "executar_rag_cliente", "query_data_catalog"],
+        required_tool_names=[
+            "executar_rag_cliente",
+            "query_data_catalog",
+            "listar_insights_cliente",
+            "consultar_grafo_conhecimento",
+        ],
         prompt_name="skill:data_access:system",
         max_turns=4,
         on_max_turns="return_partial",
@@ -532,6 +555,7 @@ SKILL_REGISTRY: dict[str, SkillDefinition] = {
             "enviar_rotina_para_aprovacao",
             "definir_meta",
             "listar_metas",
+            "listar_insights_cliente",
             "executar_rag_cliente",
         ],
         prompt_name="skill:plataforma:system",

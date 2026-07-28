@@ -50,7 +50,7 @@ async def _check_config_completeness_logic(ctx: Context, session_id: str | None 
     try:
         db = get_supabase_client()
 
-        result = await db.table("standalone_agent_sessions").select(
+        result = db.table("standalone_agent_sessions").select(
             "collected_context,agent_catalog_id"
         ).eq("id", session_id).maybe_single().execute()
 
@@ -64,7 +64,7 @@ async def _check_config_completeness_logic(ctx: Context, session_id: str | None 
         if not catalog_id:
             raise ToolError("Session has no agent catalog configured")
 
-        catalog_result = await db.table("agent_catalog").select(
+        catalog_result = db.table("agent_catalog").select(
             "required_context"
         ).eq("id", catalog_id).maybe_single().execute()
 
@@ -132,7 +132,7 @@ async def _save_config_field_logic(
         db = get_supabase_client()
 
         # Fetch current collected_context
-        result = await db.table("standalone_agent_sessions").select(
+        result = db.table("standalone_agent_sessions").select(
             "collected_context"
         ).eq("id", session_id).maybe_single().execute()
 
@@ -142,7 +142,7 @@ async def _save_config_field_logic(
         current = result.data.get("collected_context") or {}
 
         # Validate field exists in catalog
-        session_result = await db.table("standalone_agent_sessions").select(
+        session_result = db.table("standalone_agent_sessions").select(
             "agent_catalog_id"
         ).eq("id", session_id).maybe_single().execute()
 
@@ -153,7 +153,7 @@ async def _save_config_field_logic(
         if not catalog_id:
             raise ToolError("Session has no agent catalog")
 
-        catalog_result = await db.table("agent_catalog").select(
+        catalog_result = db.table("agent_catalog").select(
             "required_context"
         ).eq("id", catalog_id).maybe_single().execute()
 
@@ -172,7 +172,7 @@ async def _save_config_field_logic(
         current[field_name] = value
 
         # Save back
-        await db.table("standalone_agent_sessions").update(
+        db.table("standalone_agent_sessions").update(
             {"collected_context": current}
         ).eq("id", session_id).execute()
 
@@ -222,7 +222,7 @@ async def _get_agent_requirements_logic(
     try:
         db = get_supabase_client()
 
-        session_result = await db.table("standalone_agent_sessions").select(
+        session_result = db.table("standalone_agent_sessions").select(
             "agent_catalog_id,uploaded_file_ids,uploaded_document_ids,google_account_email"
         ).eq("id", session_id).maybe_single().execute()
 
@@ -235,7 +235,7 @@ async def _get_agent_requirements_logic(
         if not catalog_id:
             raise ToolError("Session has no agent catalog configured")
 
-        catalog_result = await db.table("agent_catalog").select(
+        catalog_result = db.table("agent_catalog").select(
             "name,required_context,required_files,requires_google"
         ).eq("id", catalog_id).maybe_single().execute()
 
@@ -296,12 +296,12 @@ async def _finalize_config_logic(ctx: Context, session_id: str | None = None, cl
 
         # Update status to 'ready'
         db = get_supabase_client()
-        await db.table("standalone_agent_sessions").update(
+        db.table("standalone_agent_sessions").update(
             {"config_status": "ready"}
         ).eq("id", session_id).execute()
 
         # Fetch full session for summary
-        result = await db.table("standalone_agent_sessions").select(
+        result = db.table("standalone_agent_sessions").select(
             "agent_catalog_id,collected_context,uploaded_file_ids"
         ).eq("id", session_id).maybe_single().execute()
 
@@ -310,7 +310,7 @@ async def _finalize_config_logic(ctx: Context, session_id: str | None = None, cl
             raise ToolError(f"Session not found: {session_id}")
 
         # Fetch agent name
-        catalog_result = await db.table("agent_catalog").select(
+        catalog_result = db.table("agent_catalog").select(
             "name"
         ).eq("id", session_data.get("agent_catalog_id")).maybe_single().execute()
 
@@ -360,7 +360,7 @@ async def _peek_csv_columns_logic(
         db = get_supabase_client()
 
         # Fetch file metadata
-        result = await db.table("uploaded_files_metadata").select(
+        result = db.table("uploaded_files_metadata").select(
             "file_name,columns_schema,records_count,file_size"
         ).eq("id", file_id).maybe_single().execute()
 

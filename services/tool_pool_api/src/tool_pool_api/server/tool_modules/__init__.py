@@ -67,6 +67,7 @@ def register_all_tools(mcp: FastMCP) -> dict:
         notion_module,  # noqa: F401
         pm_module,  # noqa: F401
         context_module,  # noqa: F401
+        knowledge_graph_module,  # noqa: F401
         document_intelligence_module,
         ocr_extraction_module,
         platform_module,  # noqa: F401
@@ -126,6 +127,11 @@ AVAILABLE_MODULES = {
     "rag": {
         "description": "RAG e Knowledge Base",
         "tools": ["executar_rag_cliente"],
+        "requires_auth": True,
+    },
+    "knowledge_graph": {
+        "description": "Consulta ao grafo de conhecimento (LightRAG)",
+        "tools": ["consultar_grafo_conhecimento"],
         "requires_auth": True,
     },
     "sql": {

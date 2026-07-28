@@ -60,10 +60,10 @@ async def _shared_memory_pre_flight_logic(
         # Lazy import — avoids circular dependency at registration time
         from blu_supabase_client import get_supabase_client
 
-        db = await get_supabase_client()
+        db = get_supabase_client()
 
         # 1. Read agent_metadata: last N executions ordered by updated_at DESC
-        metadata_result = await (
+        metadata_result = (
             db.schema("public")
             .table(_TABLE)
             .select("*")
@@ -81,7 +81,7 @@ async def _shared_memory_pre_flight_logic(
         agent_results: list[dict] = []
 
         for prefix in _AGENT_RESULT_KEY_PREFIXES:
-            prefix_results = await (
+            prefix_results = (
                 db.schema("public")
                 .table(_TABLE)
                 .select("*")

@@ -18,9 +18,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
 import pytest
-
 from tool_pool_api.server.tool_modules.sbm_to_lightrag_synthesis import execute
-
 
 # =============================================================================
 # Helpers
@@ -71,7 +69,7 @@ def _build_mock_supabase(rows: list[dict]) -> MagicMock:
     chain.is_.return_value = chain
     chain.order.return_value = chain
     chain.maybe_single.return_value = chain  # for fallback queries
-    chain.execute = AsyncMock(return_value=mock_result)
+    chain.execute = MagicMock(return_value=mock_result)
 
     # db.schema("public").table("shared_business_memory") → chain
     schema_mock = MagicMock()
@@ -104,8 +102,9 @@ def _build_mock_rag_client(
 
     if fail_for:
         # Make ainsert_custom_kg fail for specific entity names
-        async def _conditional_fail(**kwargs):
-            entity_name = kwargs.get("entity_name", "")
+        async def _conditional_fail(custom_kg, full_doc_id=None):
+            entities = custom_kg.get("entities", [])
+            entity_name = entities[0]["entity_name"] if entities else ""
             if entity_name in fail_for:
                 raise RuntimeError(f"Simulated failure for {entity_name}")
 
@@ -150,10 +149,14 @@ async def test_synthesis_integration():
 
     with patch(
         "blu_supabase_client.get_supabase_client",
-        new=AsyncMock(return_value=mock_db),
+        new=MagicMock(return_value=mock_db),
     ), patch(
         "tool_pool_api.server.dependencies.get_context_service",
         return_value=mock_ctx,
+    ), patch(
+        "tool_pool_api.server.tool_modules.knowledge_graph_sync."
+        "update_knowledge_graph_summary",
+        new=AsyncMock(),
     ):
         result = await execute(client_id=CLIENT_ID, rag_client=mock_rag)
 
@@ -167,7 +170,7 @@ async def test_synthesis_integration():
 
     # Verify calls contain expected entity names
     called_names = [
-        call.kwargs["entity_name"]
+        call.args[0]["entities"][0]["entity_name"]
         for call in mock_rag.ainsert_custom_kg.call_args_list
     ]
     assert "acme_corp" in called_names
@@ -194,10 +197,14 @@ async def test_knowledge_graph_summary_updated():
 
     with patch(
         "blu_supabase_client.get_supabase_client",
-        new=AsyncMock(return_value=mock_db),
+        new=MagicMock(return_value=mock_db),
     ), patch(
         "tool_pool_api.server.dependencies.get_context_service",
         return_value=mock_ctx,
+    ), patch(
+        "tool_pool_api.server.tool_modules.knowledge_graph_sync."
+        "update_knowledge_graph_summary",
+        new=AsyncMock(),
     ):
         await execute(client_id=CLIENT_ID, rag_client=mock_rag)
 
@@ -212,8 +219,11 @@ async def test_knowledge_graph_summary_updated():
     assert data["total_documents"] == 1
     assert data["total_entities"] == 1
     assert data["sync_status"] == "ok"
-    assert len(data["top_entities_by_degree"]) == 1
-    assert data["top_entities_by_degree"][0]["name"] == "acme_corp"
+    assert len(data["top_entities"]) == 1
+    assert data["top_entities"][0]["name"] == "acme_corp"
+    assert data["top_entities"][0]["type"] == "client"
+    assert data["top_entities"][0]["degree"] == 0
+    assert data["version"] == 1
     assert ttl == 86400
 
 
@@ -236,7 +246,7 @@ async def test_knowledge_graph_summary_redis_fallback():
 
     mock_upsert_chain = MagicMock()
     mock_upsert_chain.on_conflict = MagicMock(return_value=mock_upsert_chain)
-    mock_upsert_chain.execute = AsyncMock(return_value=mock_upsert_result)
+    mock_upsert_chain.execute = MagicMock(return_value=mock_upsert_result)
 
     chain.upsert.return_value = mock_upsert_chain
 
@@ -245,10 +255,14 @@ async def test_knowledge_graph_summary_redis_fallback():
 
     with patch(
         "blu_supabase_client.get_supabase_client",
-        new=AsyncMock(return_value=mock_db),
+        new=MagicMock(return_value=mock_db),
     ), patch(
         "tool_pool_api.server.dependencies.get_context_service",
         return_value=mock_ctx,
+    ), patch(
+        "tool_pool_api.server.tool_modules.knowledge_graph_sync."
+        "update_knowledge_graph_summary",
+        new=AsyncMock(),
     ):
         result = await execute(client_id=CLIENT_ID, rag_client=mock_rag)
 
@@ -278,10 +292,14 @@ async def test_error_resilience():
 
     with patch(
         "blu_supabase_client.get_supabase_client",
-        new=AsyncMock(return_value=mock_db),
+        new=MagicMock(return_value=mock_db),
     ), patch(
         "tool_pool_api.server.dependencies.get_context_service",
         return_value=mock_ctx,
+    ), patch(
+        "tool_pool_api.server.tool_modules.knowledge_graph_sync."
+        "update_knowledge_graph_summary",
+        new=AsyncMock(),
     ):
         result = await execute(client_id=CLIENT_ID, rag_client=mock_rag)
 
@@ -313,10 +331,14 @@ async def test_error_resilience_all_fail():
 
     with patch(
         "blu_supabase_client.get_supabase_client",
-        new=AsyncMock(return_value=mock_db),
+        new=MagicMock(return_value=mock_db),
     ), patch(
         "tool_pool_api.server.dependencies.get_context_service",
         return_value=mock_ctx,
+    ), patch(
+        "tool_pool_api.server.tool_modules.knowledge_graph_sync."
+        "update_knowledge_graph_summary",
+        new=AsyncMock(),
     ):
         result = await execute(client_id=CLIENT_ID, rag_client=mock_rag)
 
@@ -340,10 +362,14 @@ async def test_idempotency():
 
     with patch(
         "blu_supabase_client.get_supabase_client",
-        new=AsyncMock(return_value=mock_db),
+        new=MagicMock(return_value=mock_db),
     ), patch(
         "tool_pool_api.server.dependencies.get_context_service",
         return_value=mock_ctx,
+    ), patch(
+        "tool_pool_api.server.tool_modules.knowledge_graph_sync."
+        "update_knowledge_graph_summary",
+        new=AsyncMock(),
     ):
         # First execution
         result1 = await execute(client_id=CLIENT_ID, rag_client=mock_rag)
@@ -357,7 +383,7 @@ async def test_idempotency():
     assert mock_rag.ainsert_custom_kg.call_count == 2
 
     source_ids = [
-        call.kwargs["source_id"]
+        call.args[0]["entities"][0]["source_id"]
         for call in mock_rag.ainsert_custom_kg.call_args_list
     ]
     assert source_ids[0] == source_ids[1]  # same source_id → overwrite
@@ -373,10 +399,14 @@ async def test_empty_sbm_returns_gracefully():
 
     with patch(
         "blu_supabase_client.get_supabase_client",
-        new=AsyncMock(return_value=mock_db),
+        new=MagicMock(return_value=mock_db),
     ), patch(
         "tool_pool_api.server.dependencies.get_context_service",
         return_value=mock_ctx,
+    ), patch(
+        "tool_pool_api.server.tool_modules.knowledge_graph_sync."
+        "update_knowledge_graph_summary",
+        new=AsyncMock(),
     ):
         result = await execute(client_id=CLIENT_ID, rag_client=mock_rag)
 
@@ -397,7 +427,7 @@ async def test_sbm_query_failure_propagates():
     chain.eq.return_value = chain
     chain.is_.return_value = chain
     chain.order.return_value = chain
-    chain.execute = AsyncMock(side_effect=Exception("Connection refused"))
+    chain.execute = MagicMock(side_effect=Exception("Connection refused"))
     schema_mock = MagicMock()
     schema_mock.table.return_value = chain
     mock_db.schema.return_value = schema_mock
@@ -406,7 +436,7 @@ async def test_sbm_query_failure_propagates():
 
     with patch(
         "blu_supabase_client.get_supabase_client",
-        new=AsyncMock(return_value=mock_db),
+        new=MagicMock(return_value=mock_db),
     ):
         from fastmcp.exceptions import ToolError
 
@@ -433,10 +463,14 @@ async def test_deduplication_by_key():
 
     with patch(
         "blu_supabase_client.get_supabase_client",
-        new=AsyncMock(return_value=mock_db),
+        new=MagicMock(return_value=mock_db),
     ), patch(
         "tool_pool_api.server.dependencies.get_context_service",
         return_value=mock_ctx,
+    ), patch(
+        "tool_pool_api.server.tool_modules.knowledge_graph_sync."
+        "update_knowledge_graph_summary",
+        new=AsyncMock(),
     ):
         result = await execute(client_id=CLIENT_ID, rag_client=mock_rag)
 
@@ -444,6 +478,6 @@ async def test_deduplication_by_key():
 
     # The synthesis markdown should contain the most recent value
     synthesis_call = mock_rag.ainsert_custom_kg.call_args
-    description = synthesis_call.kwargs["description"]
+    description = synthesis_call.args[0]["entities"][0]["description"]
     assert "Tech v2" in str(description)
     assert "500" in str(description) or "employees" in str(description)

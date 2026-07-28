@@ -43,6 +43,8 @@ blu-elicitation-service = { path = "../../libs/blu_elicitation_service", develop
 blu-agent-framework = { path = "../../libs/blu_agent_framework", develop = true }
 blu-supabase-client = { path = "../../libs/blu_supabase_client", develop = true }
 blu-twilio-client = { path = "../../libs/blu_twilio_client", develop = true }
+lightrag-hku = "^1.5.4"
+asyncpg = "^0.30"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.2"

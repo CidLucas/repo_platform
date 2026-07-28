@@ -43,8 +43,8 @@ class ToolRegistry:
     # BUILTIN TOOLS - Always available in FastMCP
     # =========================================================================
     BUILTIN_TOOLS: dict[str, ToolMetadata] = {
-        "search_knowledge_base": ToolMetadata(
-            name="search_knowledge_base",
+        "executar_rag_cliente": ToolMetadata(
+            name="executar_rag_cliente",
             category=ToolCategory.RAG,
             description="Busca informações na base de conhecimento do cliente (RAG)",
             tier_required=TierLevel.BASIC,
@@ -62,6 +62,39 @@ class ToolRegistry:
             tier_required=TierLevel.SME,
             requires_confirmation=False,
             tags=["sql", "database", "analytics", "direct-sql"],
+        ),
+        "sbm_to_lightrag_synthesis": ToolMetadata(
+            name="sbm_to_lightrag_synthesis",
+            category=ToolCategory.CUSTOM,
+            description=(
+                "Infra: síntese semanal SBM → grafo de conhecimento LightRAG. "
+                "Despachada pela rotina de catálogo sbm_lightrag_weekly_synthesis."
+            ),
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["routines", "knowledge-graph", "lightrag", "infra"],
+        ),
+        "consultar_grafo_conhecimento": ToolMetadata(
+            name="consultar_grafo_conhecimento",
+            category=ToolCategory.RAG,
+            description=(
+                "Consulta o grafo de conhecimento do cliente (entidades de "
+                "negócio curadas via shared memory, LightRAG). Retrieval-only."
+            ),
+            tier_required=TierLevel.SME,
+            requires_confirmation=False,
+            tags=["rag", "knowledge-graph", "memory", "entities"],
+        ),
+        "executar_sql_agent": ToolMetadata(
+            name="executar_sql_agent",
+            category=ToolCategory.SQL,
+            description=(
+                "Alias legado de execute_sql — executa SQL pré-gerado no "
+                "banco analítico. Prefira execute_sql."
+            ),
+            tier_required=TierLevel.SME,
+            requires_confirmation=False,
+            tags=["sql", "database", "analytics", "legacy-alias"],
         ),
         "ferramenta_publica_de_teste": ToolMetadata(
             name="ferramenta_publica_de_teste",
@@ -345,7 +378,7 @@ class ToolRegistry:
             category=ToolCategory.CUSTOM,
             description=(
                 "Register a business transaction (venda, compra, despesa) into analytics_v2. "
-                "Routes to fato_transacoes or fato_compras based on tipo_transacao. "
+                "All rows land in fato_transacoes, discriminated by tipo_transacao. "
                 "Resolves dim surrogate keys by name lookup."
             ),
             tier_required=TierLevel.BASIC,
@@ -906,69 +939,80 @@ class ToolRegistry:
             tags=["communication", "parsing", "rfq", "nps", "whatsapp"],
         ),
         # ── Platform / Routines ───────────────────────────────────────────────
-        "create_routine": ToolMetadata(
-            name="create_routine",
+        "criar_rotina": ToolMetadata(
+            name="criar_rotina",
             category=ToolCategory.CUSTOM,
             description="Create a new automated business routine from natural language.",
             tier_required=TierLevel.BASIC,
             requires_confirmation=False,
             tags=["platform", "routines", "automation"],
         ),
-        "list_routine_catalog": ToolMetadata(
-            name="list_routine_catalog",
+        "listar_rotinas_catalogo": ToolMetadata(
+            name="listar_rotinas_catalogo",
             category=ToolCategory.CUSTOM,
             description="List available routine templates from the catalog.",
             tier_required=TierLevel.BASIC,
             requires_confirmation=False,
             tags=["platform", "routines", "catalog"],
         ),
-        "list_custom_routines": ToolMetadata(
-            name="list_custom_routines",
+        "listar_rotinas_personalizadas": ToolMetadata(
+            name="listar_rotinas_personalizadas",
             category=ToolCategory.CUSTOM,
             description="List the tenant's custom/active routines.",
             tier_required=TierLevel.BASIC,
             requires_confirmation=False,
             tags=["platform", "routines", "custom"],
         ),
-        "create_custom_routine": ToolMetadata(
-            name="create_custom_routine",
+        "criar_rotina_personalizada": ToolMetadata(
+            name="criar_rotina_personalizada",
             category=ToolCategory.CUSTOM,
             description="Create a personalized routine for the tenant.",
             tier_required=TierLevel.BASIC,
             requires_confirmation=False,
             tags=["platform", "routines", "custom"],
         ),
-        "submit_routine_for_approval": ToolMetadata(
-            name="submit_routine_for_approval",
+        "enviar_rotina_para_aprovacao": ToolMetadata(
+            name="enviar_rotina_para_aprovacao",
             category=ToolCategory.CUSTOM,
             description="Submit a routine draft for human approval (HITL).",
             tier_required=TierLevel.BASIC,
             requires_confirmation=True,
             tags=["platform", "routines", "approval", "hitl"],
         ),
-        "activate_catalog_routine": ToolMetadata(
-            name="activate_catalog_routine",
+        "ativar_rotina_catalogo": ToolMetadata(
+            name="ativar_rotina_catalogo",
             category=ToolCategory.CUSTOM,
             description="Activate a catalog routine for the tenant.",
             tier_required=TierLevel.BASIC,
             requires_confirmation=False,
             tags=["platform", "routines", "catalog"],
         ),
-        "define_goal": ToolMetadata(
-            name="define_goal",
+        "definir_meta": ToolMetadata(
+            name="definir_meta",
             category=ToolCategory.CUSTOM,
             description="Define or update a business goal for the tenant.",
             tier_required=TierLevel.BASIC,
             requires_confirmation=False,
             tags=["platform", "goals", "meta"],
         ),
-        "list_goals": ToolMetadata(
-            name="list_goals",
+        "listar_metas": ToolMetadata(
+            name="listar_metas",
             category=ToolCategory.CUSTOM,
             description="List the tenant's current business goals.",
             tier_required=TierLevel.BASIC,
             requires_confirmation=False,
             tags=["platform", "goals", "meta"],
+        ),
+        "listar_insights_cliente": ToolMetadata(
+            name="listar_insights_cliente",
+            category=ToolCategory.CUSTOM,
+            description=(
+                "List the insight cards generated by the client's routines "
+                "(room dashboards). Filters: room, severity, dismissed."
+            ),
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["platform", "routines", "insights", "cards"],
         ),
         # ── Monday.com ────────────────────────────────────────────────────────
         # TODO(D9): consolidate monday_query/monday_write/monday_brief → 3 semantic tools.
